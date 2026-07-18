@@ -64,9 +64,16 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-17 | Modello economico riconfermato esplicitamente: il saldo registrato chiude definitivamente il Lavoro, a prescindere dallo stato delle Fasi. |
 | 2026-07-17 | Storage Allegati/immagine_profilo: cartella dedicata sul VPS (`/srv/apps/districo/uploads/`, sottocartelle `lavori/` e `profili/`), non object storage — coerente con l'infrastruttura semplice già in uso. Struttura, backup e modalità di serving (proxy dall'app, non Nginx statico diretto, per rispettare le policy RLS sugli Allegati) preparati in `districo-config/`. |
 | 2026-07-17 | Notifiche: canale in-app + email, configurabile per singola tipologia dal pannello di controllo dell'artigiano. Aggiunta entità `Notifica_Preferenza` (artigiano_id, tipo_notifica, canale_email bool). |
-| 2026-07-17 | Provider email transazionale: SMTP Aruba (`smtps.aruba.it`, porta 465 SSL), riutilizzando la casella già acquistata col dominio. Invio centralizzato in un'unica funzione `sendEmail()` per restare liberi di cambiare provider se in futuro servisse più capacità. |
+| 2026-07-17 | Provider email transazionale: SMTP Aruba (`smtps.aruba.it`, porta 465 SSL), casella `info@districo.it` creata appositamente. Invio centralizzato in un'unica funzione `sendEmail()` per restare liberi di cambiare provider se in futuro servisse più capacità. |
 | 2026-07-17 | Hosting database confermato: **Supabase Cloud** (non self-hosted) — per tenere il VPS scalabile indipendentemente dal numero di app future. Falegname in Cloud usa oggi Supabase self-hosted via Docker sul VPS; pianificata migrazione futura di Falegname allo stesso modello Cloud, per uniformità (task separato, non bloccante per Districo). |
 | 2026-07-17 | Porta interna Docker assegnata: **3002** (3001 risultava occupata da un'app "preventivi" non documentata in convenzioni-vps.md; Falegname in Cloud usa in realtà la porta 3100, fuori dal range convenzionale 3001-3099). File pronti in `districo-config/`: `docker-compose.yml`, `Dockerfile`, `districo.conf` (Nginx), `.env.example`, `setup-cartelle-vps.sh`. |
+| 2026-07-17 | VPS Hetzner (178.105.199.29) rinominato da `scattimiei` ad **`apphub`**, per riflettere il ruolo multi-app del server (ora ospita anche Districo, oltre a Scattimiei e altre app non documentate: "preventivi", stack "lab" con Grafana/Prometheus/Authentik). Il nome progetto nel pannello Hetzner Cloud resta "scattimiei.it" — è un'etichetta cosmetica separata dall'hostname del sistema operativo, non aggiornata. |
+| 2026-07-17 | Repo GitHub creato e pushato: `ncaracc/districo` (privato). Autenticazione HTTPS via Personal Access Token (permesso `repo`), credenziali salvate con `git config --global credential.helper store` su server-a5. |
+| 2026-07-17 | Docker installato su apphub (non presente in precedenza, prima app Node/Next.js del VPS). Container `districo` avviato in produzione, porta 3002, healthcheck via redirect 307 a `/login` (middleware auth attivo). |
+| 2026-07-17 | Storage allegati: cartelle create su apphub (`/srv/apps/districo/uploads/lavori`, `/uploads/profili`), montate come volume Docker. Backup di questa cartella nello script comune ancora da fare (script stesso non ancora scritto per nessuna app). |
+| 2026-07-17 | Dominio districo.it migrato da nameserver Aruba a **Cloudflare** (`clara.ns.cloudflare.com`, `jonah.ns.cloudflare.com`), coerente con le convenzioni VPS. Record MX/SPF/DKIM/DMARC di Aruba preservati identici durante la migrazione (la posta `info@districo.it` resta gestita da Aruba, solo il DNS passa a Cloudflare). Tutti i record mail (`mail`, `mx`, `pop3`, `smtp`, `webmail`, `admin`, `autoconfig`, `imap`) impostati su "DNS only" (non proxati), per non rompere i protocolli di posta che non passano dal proxy Cloudflare. Record A dell'apice e `www` puntati a 178.105.199.29, anch'essi temporaneamente "DNS only" per permettere la validazione Certbot. |
+| 2026-07-17 | HTTPS attivato via Certbot (`certbot --nginx -d districo.it -d www.districo.it`). Certificato Let's Encrypt attivo, scadenza 2026-10-16, rinnovo automatico configurato. Sito raggiungibile in produzione su https://districo.it. |
+| 2026-07-17 | **Deploy iniziale completato**: repo GitHub, Supabase Cloud, Docker su apphub, Nginx, DNS Cloudflare, HTTPS — tutta la catena infrastrutturale è live. Restano aperti solo: script di backup comune, flusso di autenticazione applicativo (login/registrazione, in pausa da sessione precedente), e il task futuro di migrazione di Falegname in Cloud a Supabase Cloud. |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -118,6 +125,14 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 - `.env.local` configurato con le credenziali reali del progetto Supabase
 - `app/(auth)/login/page.tsx` — form login completato: struttura HTML (step 1) + validazione client con errori inline (step 2). Mancano step 3 (Supabase) e step 4 (redirect).
 
+### Fatto (2026-07-18)
+
+- **Login completato**: step 3 (`supabase.auth.signInWithPassword()`, con messaggi di errore dedicati per credenziali errate/email non verificata) + step 4 (redirect a `/lavori`).
+- **Pagina registrazione** (`app/(auth)/registrazione`): form anagrafica artigiano completo (nome, cognome, ragione sociale e P.IVA opzionali, specializzazione da tendina + opzione "Altro...", telefono, indirizzo, email, password+conferma), validazione client, chiamata `supabase.auth.signUp()` con anagrafica passata come `options.data` (user metadata), schermata di conferma "controlla la tua email". La tendina specializzazioni è popolata **server-side** leggendo la tabella `specializzazione` con un client admin (service role), per evitare di dover aprire la RLS in lettura pubblica.
+- `lib/supabase/admin.ts`: nuovo client Supabase con service role key, **solo per uso server-side** (mai importato da un client component) — bypassa la RLS per letture pubbliche pre-autenticazione (es. lista specializzazioni in registrazione).
+- `supabase/migrations/0002_artigiano_signup_trigger.sql`: trigger `on_auth_user_created` (after insert su `auth.users`, `security definer`) che crea automaticamente la riga `artigiano` leggendo `raw_user_meta_data`; se la specializzazione scelta è "Altro...", la registra in tabella con `ufficiale = false` (da promuovere manualmente, coerente con la decisione presa sulle specializzazioni custom). Il trigger scatta solo se i metadata contengono `nome`, per non interferire con eventuali altri inserimenti in `auth.users`. **Eseguita su Supabase** — copre sia la registrazione normale (`signUp`) sia quella da invito (`admin.auth.admin.createUser`, che inserisce comunque in `auth.users` e fa scattare lo stesso trigger).
+- `lib/types/database.types.ts`: aggiunti `Views: Record<string, never>` a livello di schema e `Relationships: []` a ogni tabella — richiesti dal tipo `GenericSchema`/`GenericTable` di `@supabase/postgrest-js` per evitare che TypeScript risolva le query a `never`. Il problema non era emerso prima perché nessun file toccava `.from(...).select(...)` con quel client.
+
 ### Note tecniche emerse in fase di implementazione
 
 - `sla_attivita`: PostgreSQL non ammette colonne nullable in una PRIMARY KEY, neanche con COALESCE nella definizione. Soluzione adottata: `id UUID PRIMARY KEY` surrogato + `CREATE UNIQUE INDEX` con espressione `COALESCE(artigiano_id, '00000000-...')` — funziona perché gli expression index supportano COALESCE, le PK no.
@@ -125,12 +140,11 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 - Admin RLS: nessun accesso diretto alle tabelle operative. Solo funzioni/view SQL con `SECURITY DEFINER` esporranno metriche aggregate. Il guard in `app/(admin)/layout.tsx` legge `is_admin` dalla tabella `artigiano`.
 - **Ambiente dev**: Node.js 18 non è compatibile con Next.js 15/16 (richiede ≥20). Installato Node.js 20 via nvm (`nvm use 20`). Dev server: `npm run dev -- --port 3456`.
 - **Fix Tailwind/Turbopack**: `@tailwindcss/oxide` non trova il binding nativo in modalità Turbopack. Fix: copiare `node_modules/@tailwindcss/oxide-linux-x64-gnu/tailwindcss-oxide.linux-x64-gnu.node` dentro `node_modules/@tailwindcss/oxide/`. Va rifatto se si cancella `node_modules`.
+- Nessuna credenziale di connessione diretta Postgres (connection string) salvata in locale: le migration vengono applicate a mano via SQL Editor Supabase, non con `supabase db push`.
 
 ### Da implementare (prossima sessione)
 
-- **Login step 3+4**: chiamata `supabase.auth.signInWithPassword()`, gestione errori (credenziali errate), redirect verso `/lavori` a login riuscito.
-- Pagina registrazione `app/(auth)/registrazione` (form anagrafica artigiano, validazione, redirect).
-- Trigger Supabase post-signup: alla creazione di un utente in `auth.users`, inserire automaticamente la riga corrispondente in `artigiano` con i dati del form di registrazione.
+- Testare end-to-end il flusso di registrazione/login in browser (non ancora verificato con un signup reale, per evitare di creare utenti/email di test in produzione senza conferma).
 - Flusso onboarding da invito: `app/(auth)/invito/[token]`.
 - Pagine applicative: lista lavori, dettaglio lavoro (schermata più critica), clienti, fornitori, profilo/impostazioni.
 
@@ -140,6 +154,7 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 - Vista cliente sull'avanzamento del lavoro → seconda release, dopo il primo rilascio funzionante dell'app.
 - Definire in dettaglio i KPI della voce menu "Statistica" (economici e di performance).
 - Task infrastrutturale separato: migrare Falegname in Cloud da Supabase self-hosted a Supabase Cloud, per uniformità con Districo.
-- Eseguire sul serio la sequenza di deploy VPS/Docker/Nginx (comandi pronti in `districo-config/README-deploy.md`): creare repo GitHub `ncaracc/districo`, copiare i file di config sul VPS, lanciare `docker compose up`, estendere Certbot.
+- Scrivere lo script di backup comune (`/srv/scripts/backup-all.sh`), non ancora esistente per nessuna app sul VPS.
+- Valutare se aggiungere l'app "preventivi" e lo stack "lab" (Grafana/Prometheus/Authentik) a `convenzioni-vps.md` — per ora lasciati fuori su richiesta esplicita; "preventivi" verrà sostituita da Falegname in Cloud, "lab" da valutare per eventuale rimozione (verificare prima che nulla dipenda da Authentik per il login).
 - Definire progressivamente le voci finali del menu hamburger.
 - Passare a mockup/CSS delle schermate rimanenti (lista lavori, dettaglio cliente, ecc.) dopo aver validato lo stile sul dettaglio Lavoro.

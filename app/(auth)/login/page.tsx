@@ -1,9 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({})
+  const router = useRouter()
+  const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({})
+  const [loading, setLoading] = useState(false)
 
   function validate(email: string, password: string) {
     const errs: { email?: string; password?: string } = {}
@@ -18,7 +22,7 @@ export default function LoginPage() {
     return errs
   }
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = e.currentTarget
     const email = (form.elements.namedItem('email') as HTMLInputElement).value
@@ -29,7 +33,25 @@ export default function LoginPage() {
 
     if (Object.keys(errs).length > 0) return
 
-    // step 3: chiamata Supabase
+    setLoading(true)
+    const supabase = createClient()
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    setLoading(false)
+
+    if (error) {
+      setErrors({
+        form:
+          error.message === 'Invalid login credentials'
+            ? 'Email o password non corretti'
+            : error.message === 'Email not confirmed'
+              ? 'Devi prima verificare la tua email'
+              : 'Errore di accesso, riprova',
+      })
+      return
+    }
+
+    router.push('/lavori')
+    router.refresh()
   }
 
   return (
@@ -40,6 +62,10 @@ export default function LoginPage() {
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
+        {errors.form && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
+        )}
+
         <div>
           <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
             Email
@@ -84,9 +110,10 @@ export default function LoginPage() {
 
         <button
           type="submit"
-          className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-colors"
+          disabled={loading}
+          className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-colors disabled:opacity-50"
         >
-          Accedi
+          {loading ? 'Accesso in corso…' : 'Accedi'}
         </button>
       </form>
 

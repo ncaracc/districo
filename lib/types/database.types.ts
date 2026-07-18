@@ -9,6 +9,7 @@ export type Database = {
         Row: { id: string; valore: string; ufficiale: boolean }
         Insert: { id?: string; valore: string; ufficiale?: boolean }
         Update: { valore?: string; ufficiale?: boolean }
+        Relationships: []
       }
       artigiano: {
         Row: {
@@ -28,6 +29,7 @@ export type Database = {
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
+        Relationships: []
       }
       cliente: {
         Row: {
@@ -41,36 +43,43 @@ export type Database = {
           indirizzo?: string | null; note?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['cliente']['Insert']>
+        Relationships: []
       }
       fornitore: {
         Row: { id: string; ragione_sociale: string; partita_iva: string | null; created_at: string }
         Insert: { id?: string; ragione_sociale: string; partita_iva?: string | null; created_at?: string }
         Update: Partial<Database['public']['Tables']['fornitore']['Insert']>
+        Relationships: []
       }
       fornitore_sede: {
         Row: { id: string; fornitore_id: string; nome: string; citta: string; indirizzo: string | null; created_at: string }
         Insert: { id?: string; fornitore_id: string; nome: string; citta: string; indirizzo?: string | null; created_at?: string }
         Update: Partial<Database['public']['Tables']['fornitore_sede']['Insert']>
+        Relationships: []
       }
       fornitore_sede_contatto: {
         Row: { id: string; fornitore_sede_id: string; nome: string; email: string | null; telefono: string | null; ruolo: string | null; destinatario_ordini: boolean; created_at: string }
         Insert: { id?: string; fornitore_sede_id: string; nome: string; email?: string | null; telefono?: string | null; ruolo?: string | null; destinatario_ordini?: boolean; created_at?: string }
         Update: Partial<Database['public']['Tables']['fornitore_sede_contatto']['Insert']>
+        Relationships: []
       }
       artigiano_fornitore_nota: {
         Row: { artigiano_id: string; fornitore_sede_id: string; nota: string; updated_at: string }
         Insert: { artigiano_id: string; fornitore_sede_id: string; nota: string; updated_at?: string }
         Update: { nota?: string; updated_at?: string }
+        Relationships: []
       }
       categoria_acquisto: {
         Row: { id: string; artigiano_id: string; nome: string; created_at: string }
         Insert: { id?: string; artigiano_id: string; nome: string; created_at?: string }
         Update: Partial<Database['public']['Tables']['categoria_acquisto']['Insert']>
+        Relationships: []
       }
       artigiano_fornitore_categoria: {
         Row: { artigiano_id: string; fornitore_sede_id: string; categoria_id: string }
         Insert: { artigiano_id: string; fornitore_sede_id: string; categoria_id: string }
         Update: never
+        Relationships: []
       }
       lavoro: {
         Row: {
@@ -84,6 +93,7 @@ export type Database = {
           accettato_at?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro']['Insert']>
+        Relationships: []
       }
       lavoro_artigiani: {
         Row: {
@@ -99,6 +109,7 @@ export type Database = {
           token_invito?: string | null; scadenza_invito?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_artigiani']['Insert']>
+        Relationships: []
       }
       attivita: {
         Row: {
@@ -118,16 +129,19 @@ export type Database = {
           revisione_di?: string | null; importo?: number | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['attivita']['Insert']>
+        Relationships: []
       }
       sla_attivita: {
         Row: { id: string; artigiano_id: string | null; tipo_attivita: string; giorni_max: number }
         Insert: { id?: string; artigiano_id?: string | null; tipo_attivita: string; giorni_max: number }
         Update: { giorni_max?: number }
+        Relationships: []
       }
       fase_template: {
         Row: { id: string; artigiano_id: string; nome_fase: string; ordine: number; created_at: string }
         Insert: { id?: string; artigiano_id: string; nome_fase: string; ordine: number; created_at?: string }
         Update: Partial<Database['public']['Tables']['fase_template']['Insert']>
+        Relationships: []
       }
       lavoro_fasi: {
         Row: {
@@ -141,21 +155,25 @@ export type Database = {
           data_inizio?: string | null; data_fine?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_fasi']['Insert']>
+        Relationships: []
       }
       pagamento: {
         Row: { id: string; lavoro_id: string; tipo: 'acconto' | 'saldo'; importo: number; data: string; note: string | null; created_at: string }
         Insert: { id?: string; lavoro_id: string; tipo: 'acconto' | 'saldo'; importo: number; data: string; note?: string | null; created_at?: string }
         Update: Partial<Database['public']['Tables']['pagamento']['Insert']>
+        Relationships: []
       }
       allegato: {
         Row: { id: string; lavoro_id: string; tipo: 'pdf' | 'foto'; nome_file: string; storage_path: string; data_caricamento: string; note: string | null }
         Insert: { id?: string; lavoro_id: string; tipo: 'pdf' | 'foto'; nome_file: string; storage_path: string; data_caricamento?: string; note?: string | null }
         Update: Partial<Database['public']['Tables']['allegato']['Insert']>
+        Relationships: []
       }
       articolo: {
         Row: { id: string; fornitore_sede_id: string; codice: string | null; descrizione: string; colore_finitura: string | null; created_at: string }
         Insert: { id?: string; fornitore_sede_id: string; codice?: string | null; descrizione: string; colore_finitura?: string | null; created_at?: string }
         Update: Partial<Database['public']['Tables']['articolo']['Insert']>
+        Relationships: []
       }
       ordine_acquisto: {
         Row: {
@@ -171,13 +189,16 @@ export type Database = {
           totale?: number | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['ordine_acquisto']['Insert']>
+        Relationships: []
       }
       ordine_acquisto_riga: {
         Row: { id: string; ordine_id: string; articolo_id: string | null; descrizione: string; colore_finitura: string | null; quantita: number; prezzo_unitario: number; created_at: string }
         Insert: { id?: string; ordine_id: string; articolo_id?: string | null; descrizione: string; colore_finitura?: string | null; quantita: number; prezzo_unitario: number; created_at?: string }
         Update: Partial<Database['public']['Tables']['ordine_acquisto_riga']['Insert']>
+        Relationships: []
       }
     }
+    Views: Record<string, never>
     Functions: {
       is_artigiano_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       is_owner_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
