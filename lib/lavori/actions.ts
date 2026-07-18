@@ -1,5 +1,6 @@
 'use server'
 
+import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -17,16 +18,27 @@ export async function creaLavoro(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Non autenticato' }
 
-  const { data: lavoro, error: lavoroErr } = await supabase
-    .from('lavoro')
-    .insert({ cliente_id: clienteId, titolo: fields.titolo, descrizione: fields.descrizione })
-    .select('id')
-    .single()
+  // L'id viene generato qui invece di farselo restituire dall'insert (RETURNING):
+  // finché la riga owner in lavoro_artigiani non esiste (statement successivo), il nuovo
+  // lavoro non soddisfa ancora la propria policy SELECT (is_artigiano_del_lavoro) — e
+  // Postgres richiede che una INSERT ... RETURNING soddisfi anche quella, non solo il
+  // WITH CHECK dell'INSERT. Senza RETURNING quel controllo aggiuntivo non scatta.
+  const lavoroId = randomUUID()
 
-  if (lavoroErr || !lavoro) return { ok: false, error: 'Errore nella creazione del lavoro, riprova' }
+  const { error: lavoroErr } = await supabase
+    .from('lavoro')
+    .insert({ id: lavoroId, cliente_id: clienteId, titolo: fields.titolo, descrizione: fields.descrizione })
+
+  if (lavoroErr) {
+    console.error('creaLavoro: insert su lavoro fallito', lavoroErr)
+    return {
+      ok: false,
+      error: `Errore nella creazione del lavoro: ${lavoroErr.message}`,
+    }
+  }
 
   const { error: laErr } = await supabase.from('lavoro_artigiani').insert({
-    lavoro_id: lavoro.id,
+    lavoro_id: lavoroId,
     artigiano_id: user.id,
     email_invitata: user.email!,
     ruolo: 'owner',
@@ -34,17 +46,21 @@ export async function creaLavoro(
   })
 
   if (laErr) {
+    console.error('creaLavoro: insert owner su lavoro_artigiani fallito', laErr)
     // Rollback col client admin: senza la riga owner il lavoro resterebbe orfano e
     // invisibile a chiunque (tutte le policy su lavoro passano da lavoro_artigiani),
     // quindi non cancellabile con un insert/delete autenticato normale.
     const admin = createAdminClient()
-    await admin.from('lavoro').delete().eq('id', lavoro.id)
-    return { ok: false, error: 'Errore nel collegamento del lavoro, riprova' }
+    await admin.from('lavoro').delete().eq('id', lavoroId)
+    return {
+      ok: false,
+      error: `Errore nel collegamento del lavoro: ${laErr.message}`,
+    }
   }
 
   revalidatePath('/lavori')
   revalidatePath(`/clienti/${clienteId}`)
-  return { ok: true, id: lavoro.id }
+  return { ok: true, id: lavoroId }
 }
 
 export async function segnaLavoroAccettato(lavoroId: string): Promise<AzioneResult> {
