@@ -132,6 +132,14 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 - `lib/supabase/admin.ts`: nuovo client Supabase con service role key, **solo per uso server-side** (mai importato da un client component) — bypassa la RLS per letture pubbliche pre-autenticazione (es. lista specializzazioni in registrazione).
 - `supabase/migrations/0002_artigiano_signup_trigger.sql`: trigger `on_auth_user_created` (after insert su `auth.users`, `security definer`) che crea automaticamente la riga `artigiano` leggendo `raw_user_meta_data`; se la specializzazione scelta è "Altro...", la registra in tabella con `ufficiale = false` (da promuovere manualmente, coerente con la decisione presa sulle specializzazioni custom). Il trigger scatta solo se i metadata contengono `nome`, per non interferire con eventuali altri inserimenti in `auth.users`. **Eseguita su Supabase** — copre sia la registrazione normale (`signUp`) sia quella da invito (`admin.auth.admin.createUser`, che inserisce comunque in `auth.users` e fa scattare lo stesso trigger).
 - `lib/types/database.types.ts`: aggiunti `Views: Record<string, never>` a livello di schema e `Relationships: []` a ogni tabella — richiesti dal tipo `GenericSchema`/`GenericTable` di `@supabase/postgrest-js` per evitare che TypeScript risolva le query a `never`. Il problema non era emerso prima perché nessun file toccava `.from(...).select(...)` con quel client.
+- **Flusso onboarding da invito** (`app/(auth)/invito/[token]`): pagina server-side che legge l'invito via client admin (bypassa RLS, necessario perché l'invitato non è ancora autenticato), gestisce i casi invito non valido/già completato/non più in stato "invitato"/scaduto, poi mostra `InvitoForm` (stesso form anagrafica della registrazione normale, email precompilata e disabilitata) con uno step finale di conferma esplicita partecipazione.
+  - `lib/lavoro-artigiani/inviti.ts`: `invitaArtigiano()` (se l'email è già di un artigiano registrato inserisce riga `invitato` senza token/email; altrimenti genera `token_invito` + scadenza 10gg e invia mail), `rinviaInvito()` (nuovo token/scadenza), `accettaInvito()`/`rifiutaInvito()` (update stato, usati sia da chi si registra ex-novo sia da chi era già iscritto).
+  - `lib/lavoro-artigiani/registrazione-invito.ts`: `registraDaInvito()` valida il token (non consumato, non scaduto), crea l'utente con `admin.auth.admin.createUser({ email_confirm: true })` (salta la verifica email, coerente con la decisione presa), poi collega `artigiano_id` alla riga invito.
+  - `lib/lavoro-artigiani/dettagli.ts`: `getNomeInvitante()` helper per mostrare chi ha invitato (letto via admin client perché l'invitato non ancora accettato non passerebbe la RLS su `lavoro`).
+  - `lib/email/{send-email,templates}.ts`: `sendEmail()` centralizzato su nodemailer/SMTP Aruba, come da decisione presa; template invito con link a `/invito/[token]`.
+  - `app/(app)/lavori/invito-pending-card.tsx`: card sulla lista lavori per accettare/rifiutare un invito ricevuto (artigiano già registrato) — funge da notifica in-app.
+  - **Nessuna UI ancora collegata a `invitaArtigiano`/`rinviaInvito`** (nessun bottone "invita collega"): logica pronta, in attesa della schermata dettaglio Lavoro dove andrà agganciata.
+  - **Gap noti da sistemare quando si riprende in mano il flusso**: (1) `sendEmail()` in `invitaArtigiano`/`rinviaInvito` non è in try/catch — se l'invio fallisce, l'azione lancia un'eccezione anche se la riga invito con token è già stata creata/aggiornata correttamente, andrebbe gestito restituendo un esito tipo "creato ma email non partita, riprova con rinvia"; (2) in `registraDaInvito`, se `createUser` va a buon fine ma il successivo update di `lavoro_artigiani` fallisce, l'utente resta creato ma non agganciato e un secondo tentativo sullo stesso link fallisce con "esiste già un account" senza via d'uscita — edge case raro ma da coprire prima del rilascio.
 
 ### Note tecniche emerse in fase di implementazione
 
@@ -144,9 +152,9 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 
 ### Da implementare (prossima sessione)
 
-- Testare end-to-end il flusso di registrazione/login in browser (non ancora verificato con un signup reale, per evitare di creare utenti/email di test in produzione senza conferma).
-- Flusso onboarding da invito: `app/(auth)/invito/[token]`.
-- Pagine applicative: lista lavori, dettaglio lavoro (schermata più critica), clienti, fornitori, profilo/impostazioni.
+- Testare end-to-end il flusso di registrazione/login/invito in browser con un account reale (finora solo review statica: typecheck e `npm run build` puliti, RLS e logica rilette a mano, ma nessun signup reale eseguito per non creare utenti/email di test in produzione senza conferma esplicita).
+- Sistemare i due gap noti del flusso invito elencati sopra (try/catch su `sendEmail`, edge case utente orfano in `registraDaInvito`).
+- Pagine applicative: lista lavori (solo placeholder ora), dettaglio lavoro (schermata più critica, dove andrà anche il bottone "invita collega"), clienti, fornitori, profilo/impostazioni.
 
 ## Prossimi passi aperti
 
