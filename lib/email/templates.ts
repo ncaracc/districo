@@ -1,5 +1,5 @@
 function siteUrl() {
-  return process.env.NEXT_PUBLIC_SITE_URL || 'https://districo.it'
+  return process.env.NEXT_PUBLIC_SITE_URL || 'https://www.districo.it'
 }
 
 export function invitoLavoroEmail({

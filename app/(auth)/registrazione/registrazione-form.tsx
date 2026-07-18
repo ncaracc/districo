@@ -140,6 +140,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
       email: fields.email,
       password: fields.password,
       options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://www.districo.it'}/login`,
         data: {
           nome: fields.nome,
           cognome: fields.cognome,
