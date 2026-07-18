@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ClienteForm } from '@/components/cliente-form'
+import { NuovoLavoroForm } from '@/components/nuovo-lavoro-form'
 
 const STATO_LABEL: Record<string, string> = {
   trattativa: 'In trattativa',
@@ -49,15 +51,27 @@ export default async function ClienteDettaglioPage({
       />
 
       <div className="mt-10">
-        <h2 className="text-sm font-semibold text-gray-700 mb-3">Lavori associati</h2>
+        <div className="mb-3 flex items-center justify-between gap-4">
+          <h2 className="text-sm font-semibold text-gray-700">Lavori associati</h2>
+        </div>
+
+        <div className="mb-4">
+          <NuovoLavoroForm clienteId={cliente.id} />
+        </div>
+
         {!lavori || lavori.length === 0 ? (
           <p className="text-sm text-gray-500">Nessun lavoro registrato per questo cliente.</p>
         ) : (
           <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
             {lavori.map((l) => (
-              <li key={l.id} className="px-4 py-3">
-                <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
-                <p className="mt-0.5 text-xs text-gray-500">{STATO_LABEL[l.stato] ?? l.stato}</p>
+              <li key={l.id}>
+                <Link
+                  href={`/lavori/${l.id}`}
+                  className="block px-4 py-3 hover:bg-gray-50 transition-colors"
+                >
+                  <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
+                  <p className="mt-0.5 text-xs text-gray-500">{STATO_LABEL[l.stato] ?? l.stato}</p>
+                </Link>
               </li>
             ))}
           </ul>
