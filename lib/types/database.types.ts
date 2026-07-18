@@ -204,7 +204,7 @@ export type Database = {
     Functions: {
       is_artigiano_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       is_owner_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
-      ultimo_prezzo_articolo: { Args: { p_articolo_id: string; p_artigiano_id: string }; Returns: number | null }
+      ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
     }
   }
 }
