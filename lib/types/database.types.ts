@@ -17,7 +17,8 @@ export type Database = {
           ragione_sociale: string | null; partita_iva: string | null
           specializzazione: string; telefono: string; email: string
           via: string | null; civico: string | null; cap: string | null
-          localita: string; immagine_profilo: string | null
+          localita: string; provincia: string | null; paese: string
+          immagine_profilo: string | null
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -25,7 +26,8 @@ export type Database = {
           ragione_sociale?: string | null; partita_iva?: string | null
           specializzazione: string; telefono: string; email: string
           via?: string | null; civico?: string | null; cap?: string | null
-          localita: string; immagine_profilo?: string | null
+          localita: string; provincia?: string | null; paese?: string
+          immagine_profilo?: string | null
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>

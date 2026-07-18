@@ -13,6 +13,8 @@ type Anagrafica = {
   civico: string
   cap: string
   localita: string
+  provincia: string
+  paese: string
   password: string
 }
 
@@ -53,6 +55,8 @@ export async function registraDaInvito(token: string, fields: Anagrafica): Promi
       civico: fields.civico,
       cap: fields.cap,
       localita: fields.localita,
+      provincia: fields.provincia || null,
+      paese: fields.paese,
     },
   })
 

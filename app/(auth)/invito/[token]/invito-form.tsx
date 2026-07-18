@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { registraDaInvito } from '@/lib/lavoro-artigiani/registrazione-invito'
 import { accettaInvito } from '@/lib/lavoro-artigiani/inviti'
+import { PasswordInput } from '@/components/password-input'
+import { PAESI, PAESE_DEFAULT, trovaPaese } from '@/lib/paesi'
 
 type Fields = {
   nome: string
@@ -13,11 +15,14 @@ type Fields = {
   partitaIva: string
   specializzazione: string
   specializzazioneAltro: string
-  telefono: string
   via: string
   civico: string
   cap: string
   localita: string
+  provincia: string
+  paese: string
+  prefissoTelefono: string
+  numeroTelefono: string
   password: string
   confermaPassword: string
 }
@@ -31,11 +36,14 @@ const initialFields: Fields = {
   partitaIva: '',
   specializzazione: '',
   specializzazioneAltro: '',
-  telefono: '',
   via: '',
   civico: '',
   cap: '',
   localita: '',
+  provincia: '',
+  paese: PAESE_DEFAULT,
+  prefissoTelefono: trovaPaese(PAESE_DEFAULT)?.prefisso ?? '+39',
+  numeroTelefono: '',
   password: '',
   confermaPassword: '',
 }
@@ -63,28 +71,52 @@ export function InvitoForm({
 }) {
   const router = useRouter()
   const [fields, setFields] = useState<Fields>(initialFields)
+  const [prefissoManuale, setPrefissoManuale] = useState(false)
   const [errors, setErrors] = useState<Errors>({})
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'form' | 'conferma'>('form')
+
+  const paeseSelezionato = trovaPaese(fields.paese)
+  const labelProvincia = paeseSelezionato?.labelProvincia ?? null
 
   function set<K extends keyof Fields>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setFields((f) => ({ ...f, [key]: e.target.value }))
   }
 
+  function handlePaeseChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nuovoPaese = e.target.value
+    const infoNuovoPaese = trovaPaese(nuovoPaese)
+    setFields((f) => ({
+      ...f,
+      paese: nuovoPaese,
+      provincia: infoNuovoPaese?.labelProvincia ? f.provincia : '',
+      prefissoTelefono:
+        !prefissoManuale && infoNuovoPaese?.prefisso ? infoNuovoPaese.prefisso : f.prefissoTelefono,
+    }))
+  }
+
+  function handlePrefissoChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    setPrefissoManuale(true)
+    setFields((f) => ({ ...f, prefissoTelefono: e.target.value }))
+  }
+
   function validate(f: Fields): Errors {
     const errs: Errors = {}
     if (!f.nome) errs.nome = 'Campo obbligatorio'
     if (!f.cognome) errs.cognome = 'Campo obbligatorio'
+    if (f.partitaIva && f.paese === 'Italia' && !/^\d{11}$/.test(f.partitaIva)) {
+      errs.partitaIva = 'La P.IVA italiana deve contenere 11 cifre numeriche'
+    }
     if (!f.specializzazione) errs.specializzazione = 'Seleziona una specializzazione'
     if (f.specializzazione === ALTRO && !f.specializzazioneAltro) {
       errs.specializzazioneAltro = 'Indica la tua specializzazione'
     }
-    if (!f.telefono) errs.telefono = 'Campo obbligatorio'
     if (!f.via) errs.via = 'Campo obbligatorio'
     if (!f.civico) errs.civico = 'Campo obbligatorio'
     if (!f.cap) errs.cap = 'Campo obbligatorio'
     if (!f.localita) errs.localita = 'Campo obbligatorio'
+    if (!f.numeroTelefono) errs.numeroTelefono = 'Campo obbligatorio'
     if (!f.password) {
       errs.password = 'Campo obbligatorio'
     } else if (f.password.length < 8) {
@@ -106,8 +138,23 @@ export function InvitoForm({
     setLoading(true)
     const specializzazione =
       fields.specializzazione === ALTRO ? fields.specializzazioneAltro : fields.specializzazione
+    const telefono = `${fields.prefissoTelefono} ${fields.numeroTelefono}`.trim()
 
-    const result = await registraDaInvito(token, { ...fields, specializzazione })
+    const result = await registraDaInvito(token, {
+      nome: fields.nome,
+      cognome: fields.cognome,
+      ragioneSociale: fields.ragioneSociale,
+      partitaIva: fields.partitaIva,
+      specializzazione,
+      telefono,
+      via: fields.via,
+      civico: fields.civico,
+      cap: fields.cap,
+      localita: fields.localita,
+      provincia: fields.provincia,
+      paese: fields.paese,
+      password: fields.password,
+    })
 
     if (!result.ok) {
       setLoading(false)
@@ -223,8 +270,9 @@ export function InvitoForm({
             id="partitaIva"
             value={fields.partitaIva}
             onChange={set('partitaIva')}
-            className={inputClass(false)}
+            className={inputClass(!!errors.partitaIva)}
           />
+          {errors.partitaIva && <p className="mt-1 text-xs text-red-600">{errors.partitaIva}</p>}
         </div>
       </div>
 
@@ -268,20 +316,6 @@ export function InvitoForm({
         </div>
       )}
 
-      <div>
-        <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-1">
-          Telefono
-        </label>
-        <input
-          id="telefono"
-          type="tel"
-          value={fields.telefono}
-          onChange={set('telefono')}
-          className={inputClass(!!errors.telefono)}
-        />
-        {errors.telefono && <p className="mt-1 text-xs text-red-600">{errors.telefono}</p>}
-      </div>
-
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2">
           <label htmlFor="via" className="block text-sm font-medium text-gray-700 mb-1">
@@ -312,7 +346,7 @@ export function InvitoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="cap" className="block text-sm font-medium text-gray-700 mb-1">
-            CAP
+            CAP / Postal code
           </label>
           <input
             id="cap"
@@ -324,7 +358,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="localita" className="block text-sm font-medium text-gray-700 mb-1">
-            Località
+            Città
           </label>
           <input
             id="localita"
@@ -337,13 +371,80 @@ export function InvitoForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4">
+        {labelProvincia && (
+          <div>
+            <label htmlFor="provincia" className="block text-sm font-medium text-gray-700 mb-1">
+              {labelProvincia} <span className="text-gray-400">(opz.)</span>
+            </label>
+            <input
+              id="provincia"
+              value={fields.provincia}
+              onChange={set('provincia')}
+              className={inputClass(false)}
+            />
+          </div>
+        )}
+        <div className={labelProvincia ? '' : 'col-span-2'}>
+          <label htmlFor="paese" className="block text-sm font-medium text-gray-700 mb-1">
+            Paese
+          </label>
+          <select
+            id="paese"
+            value={fields.paese}
+            onChange={handlePaeseChange}
+            className={inputClass(false)}
+          >
+            {PAESI.map((p) => (
+              <option key={p.iso2} value={p.nome}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label htmlFor="prefissoTelefono" className="block text-sm font-medium text-gray-700 mb-1">
+            Prefisso
+          </label>
+          <select
+            id="prefissoTelefono"
+            value={fields.prefissoTelefono}
+            onChange={handlePrefissoChange}
+            className={inputClass(false)}
+          >
+            {PAESI.map((p) => (
+              <option key={p.iso2} value={p.prefisso}>
+                {p.prefisso} — {p.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="col-span-2">
+          <label htmlFor="numeroTelefono" className="block text-sm font-medium text-gray-700 mb-1">
+            Telefono
+          </label>
+          <input
+            id="numeroTelefono"
+            type="tel"
+            value={fields.numeroTelefono}
+            onChange={set('numeroTelefono')}
+            className={inputClass(!!errors.numeroTelefono)}
+          />
+          {errors.numeroTelefono && (
+            <p className="mt-1 text-xs text-red-600">{errors.numeroTelefono}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
             Password
           </label>
-          <input
+          <PasswordInput
             id="password"
-            type="password"
             autoComplete="new-password"
             value={fields.password}
             onChange={set('password')}
@@ -355,9 +456,8 @@ export function InvitoForm({
           <label htmlFor="confermaPassword" className="block text-sm font-medium text-gray-700 mb-1">
             Conferma password
           </label>
-          <input
+          <PasswordInput
             id="confermaPassword"
-            type="password"
             autoComplete="new-password"
             value={fields.confermaPassword}
             onChange={set('confermaPassword')}
