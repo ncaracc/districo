@@ -71,7 +71,17 @@ export async function registraDaInvito(token: string, fields: Anagrafica): Promi
     .update({ artigiano_id: created.user.id })
     .eq('id', invito.id)
 
-  if (linkErr) return { ok: false, error: 'Errore nel collegamento al lavoro' }
+  if (linkErr) {
+    const { error: deleteErr } = await admin.auth.admin.deleteUser(created.user.id)
+    if (deleteErr) {
+      console.error('Rollback utente orfano fallito dopo errore di collegamento invito:', deleteErr)
+      return {
+        ok: false,
+        error: 'Errore nella registrazione. Contatta l’assistenza per completare l’invito.',
+      }
+    }
+    return { ok: false, error: 'Errore nel collegamento al lavoro, riprova' }
+  }
 
   return { ok: true, invitoId: invito.id }
 }

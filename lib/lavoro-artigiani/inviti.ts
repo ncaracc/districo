@@ -10,7 +10,7 @@ import { invitoLavoroEmail } from '@/lib/email/templates'
 const SCADENZA_INVITO_GIORNI = 10
 
 type InvitaResult =
-  | { ok: true; esito: 'notifica_in_app' | 'email_inviata' }
+  | { ok: true; esito: 'notifica_in_app' | 'email_inviata' | 'email_fallita' }
   | { ok: false; error: string }
 
 export async function invitaArtigiano(lavoroId: string, email: string): Promise<InvitaResult> {
@@ -64,10 +64,15 @@ export async function invitaArtigiano(lavoroId: string, email: string): Promise<
     lavoroTitolo: lavoro.titolo,
     token,
   })
-  await sendEmail({ to: email, subject, html })
 
   revalidatePath('/lavori')
-  return { ok: true, esito: 'email_inviata' }
+  try {
+    await sendEmail({ to: email, subject, html })
+    return { ok: true, esito: 'email_inviata' }
+  } catch (err) {
+    console.error('Invio email invito fallito:', err)
+    return { ok: true, esito: 'email_fallita' }
+  }
 }
 
 export async function rinviaInvito(invitoId: string): Promise<InvitaResult> {
@@ -104,10 +109,15 @@ export async function rinviaInvito(invitoId: string): Promise<InvitaResult> {
     lavoroTitolo: lavoro.titolo,
     token,
   })
-  await sendEmail({ to: invito.email_invitata, subject, html })
 
   revalidatePath('/lavori')
-  return { ok: true, esito: 'email_inviata' }
+  try {
+    await sendEmail({ to: invito.email_invitata, subject, html })
+    return { ok: true, esito: 'email_inviata' }
+  } catch (err) {
+    console.error('Invio email invito fallito:', err)
+    return { ok: true, esito: 'email_fallita' }
+  }
 }
 
 export async function accettaInvito(invitoId: string) {

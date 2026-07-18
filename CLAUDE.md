@@ -139,7 +139,7 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
   - `lib/email/{send-email,templates}.ts`: `sendEmail()` centralizzato su nodemailer/SMTP Aruba, come da decisione presa; template invito con link a `/invito/[token]`.
   - `app/(app)/lavori/invito-pending-card.tsx`: card sulla lista lavori per accettare/rifiutare un invito ricevuto (artigiano già registrato) — funge da notifica in-app.
   - **Nessuna UI ancora collegata a `invitaArtigiano`/`rinviaInvito`** (nessun bottone "invita collega"): logica pronta, in attesa della schermata dettaglio Lavoro dove andrà agganciata.
-  - **Gap noti da sistemare quando si riprende in mano il flusso**: (1) `sendEmail()` in `invitaArtigiano`/`rinviaInvito` non è in try/catch — se l'invio fallisce, l'azione lancia un'eccezione anche se la riga invito con token è già stata creata/aggiornata correttamente, andrebbe gestito restituendo un esito tipo "creato ma email non partita, riprova con rinvia"; (2) in `registraDaInvito`, se `createUser` va a buon fine ma il successivo update di `lavoro_artigiani` fallisce, l'utente resta creato ma non agganciato e un secondo tentativo sullo stesso link fallisce con "esiste già un account" senza via d'uscita — edge case raro ma da coprire prima del rilascio.
+  - **Gap corretti**: (1) `sendEmail()` in `invitaArtigiano`/`rinviaInvito` ora è in try/catch — se l'invio fallisce, la riga invito con token resta comunque salvata e la funzione ritorna `esito: 'email_fallita'` invece di lanciare un'eccezione (la UI futura potrà mostrare "invito creato, email non partita, usa rinvia"); (2) in `registraDaInvito`, se `createUser` va a buon fine ma il collegamento a `lavoro_artigiani` fallisce, ora si tenta il rollback (`admin.auth.admin.deleteUser`) dell'utente appena creato, così un retry sullo stesso link di invito funziona; se anche il rollback fallisce, l'errore restituito invita esplicitamente a contattare l'assistenza invece di fallire silenziosamente.
 
 ### Note tecniche emerse in fase di implementazione
 
@@ -153,7 +153,6 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 ### Da implementare (prossima sessione)
 
 - Testare end-to-end il flusso di registrazione/login/invito in browser con un account reale (finora solo review statica: typecheck e `npm run build` puliti, RLS e logica rilette a mano, ma nessun signup reale eseguito per non creare utenti/email di test in produzione senza conferma esplicita).
-- Sistemare i due gap noti del flusso invito elencati sopra (try/catch su `sendEmail`, edge case utente orfano in `registraDaInvito`).
 - Pagine applicative: lista lavori (solo placeholder ora), dettaglio lavoro (schermata più critica, dove andrà anche il bottone "invita collega"), clienti, fornitori, profilo/impostazioni.
 
 ## Prossimi passi aperti
