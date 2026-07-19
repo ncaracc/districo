@@ -69,12 +69,18 @@ export default async function LavoriPage() {
         </div>
       )}
 
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori</h1>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">Lavori</h1>
+        <Link
+          href="/lavori/nuovo"
+          className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+        >
+          + Nuovo Lavoro
+        </Link>
+      </div>
 
       {!lavori || lavori.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          Non hai ancora nessun lavoro. Puoi crearne uno dal dettaglio di un cliente.
-        </p>
+        <p className="text-sm text-gray-500">Non hai ancora nessun lavoro.</p>
       ) : (
         <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
           {lavori.map((l) => (

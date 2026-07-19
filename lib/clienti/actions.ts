@@ -34,6 +34,21 @@ export async function creaCliente(fields: ClienteFields): Promise<ClienteResult>
   return { ok: true, id: data.id }
 }
 
+export async function cercaClienti(query: string): Promise<{ id: string; nome: string }[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('cliente')
+    .select('id, nome')
+    .ilike('nome', `%${q}%`)
+    .order('nome')
+    .limit(10)
+
+  return data ?? []
+}
+
 export async function aggiornaCliente(id: string, fields: ClienteFields): Promise<ClienteResult> {
   const supabase = await createClient()
   const {
