@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { PasswordInput } from '@/components/password-input'
+import { AuthCard } from '@/components/auth-card'
 import { applyRememberChoice } from '@/lib/auth/remember'
 
 export default function LoginPage() {
@@ -60,7 +61,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8">
+    <AuthCard>
       <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {errors.form && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
@@ -137,6 +138,6 @@ export default function LoginPage() {
           Registrati
         </a>
       </p>
-    </div>
+    </AuthCard>
   )
 }

@@ -9,21 +9,13 @@ import { PAESI, PAESE_DEFAULT, trovaPaese } from '@/lib/paesi'
 type Fields = {
   nome: string
   cognome: string
-  ragioneSociale: string
-  partitaIva: string
   specializzazione: string
   specializzazioneAltro: string
-  via: string
-  civico: string
-  cap: string
-  localita: string
-  provincia: string
   paese: string
+  email: string
   prefissoTelefono: string
   numeroTelefono: string
-  email: string
   password: string
-  confermaPassword: string
 }
 
 const ALTRO = '__altro__'
@@ -31,21 +23,13 @@ const ALTRO = '__altro__'
 const initialFields: Fields = {
   nome: '',
   cognome: '',
-  ragioneSociale: '',
-  partitaIva: '',
   specializzazione: '',
   specializzazioneAltro: '',
-  via: '',
-  civico: '',
-  cap: '',
-  localita: '',
-  provincia: '',
   paese: PAESE_DEFAULT,
+  email: '',
   prefissoTelefono: trovaPaese(PAESE_DEFAULT)?.prefisso ?? '+39',
   numeroTelefono: '',
-  email: '',
   password: '',
-  confermaPassword: '',
 }
 
 type Errors = Partial<Record<keyof Fields, string>> & { form?: string }
@@ -66,9 +50,6 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
   const [loading, setLoading] = useState(false)
   const [registrato, setRegistrato] = useState(false)
 
-  const paeseSelezionato = trovaPaese(fields.paese)
-  const labelProvincia = paeseSelezionato?.labelProvincia ?? null
-
   function set<K extends keyof Fields>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
       setFields((f) => ({ ...f, [key]: e.target.value }))
@@ -80,7 +61,6 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
     setFields((f) => ({
       ...f,
       paese: nuovoPaese,
-      provincia: infoNuovoPaese?.labelProvincia ? f.provincia : '',
       prefissoTelefono:
         !prefissoManuale && infoNuovoPaese?.prefisso ? infoNuovoPaese.prefisso : f.prefissoTelefono,
     }))
@@ -95,17 +75,10 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
     const errs: Errors = {}
     if (!f.nome) errs.nome = 'Campo obbligatorio'
     if (!f.cognome) errs.cognome = 'Campo obbligatorio'
-    if (f.partitaIva && f.paese === 'Italia' && !/^\d{11}$/.test(f.partitaIva)) {
-      errs.partitaIva = 'La P.IVA italiana deve contenere 11 cifre numeriche'
-    }
     if (!f.specializzazione) errs.specializzazione = 'Seleziona una specializzazione'
     if (f.specializzazione === ALTRO && !f.specializzazioneAltro) {
       errs.specializzazioneAltro = 'Indica la tua specializzazione'
     }
-    if (!f.via) errs.via = 'Campo obbligatorio'
-    if (!f.civico) errs.civico = 'Campo obbligatorio'
-    if (!f.cap) errs.cap = 'Campo obbligatorio'
-    if (!f.localita) errs.localita = 'Campo obbligatorio'
     if (!f.numeroTelefono) errs.numeroTelefono = 'Campo obbligatorio'
     if (!f.email) {
       errs.email = 'Campo obbligatorio'
@@ -116,9 +89,6 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
       errs.password = 'Campo obbligatorio'
     } else if (f.password.length < 8) {
       errs.password = 'Almeno 8 caratteri'
-    }
-    if (f.confermaPassword !== f.password) {
-      errs.confermaPassword = 'Le password non coincidono'
     }
     return errs
   }
@@ -144,15 +114,8 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
         data: {
           nome: fields.nome,
           cognome: fields.cognome,
-          ragione_sociale: fields.ragioneSociale || null,
-          partita_iva: fields.partitaIva || null,
           specializzazione,
           telefono,
-          via: fields.via,
-          civico: fields.civico,
-          cap: fields.cap,
-          localita: fields.localita,
-          provincia: fields.provincia || null,
           paese: fields.paese,
         },
       },
@@ -174,7 +137,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
 
   if (registrato) {
     return (
-      <div className="rounded-lg bg-gray-50 px-4 py-6 text-center">
+      <div className="text-center">
         <p className="text-sm text-gray-900">
           Ti abbiamo inviato un&apos;email a <strong>{fields.email}</strong> per verificare il tuo
           account. Apri il link ricevuto per completare la registrazione.
@@ -191,7 +154,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <form onSubmit={handleSubmit} noValidate className="space-y-6">
       {errors.form && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
       )}
@@ -220,35 +183,6 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
             className={inputClass(!!errors.cognome)}
           />
           {errors.cognome && <p className="mt-1 text-xs text-red-600">{errors.cognome}</p>}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label
-            htmlFor="ragioneSociale"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Ragione sociale <span className="text-gray-400">(opz.)</span>
-          </label>
-          <input
-            id="ragioneSociale"
-            value={fields.ragioneSociale}
-            onChange={set('ragioneSociale')}
-            className={inputClass(false)}
-          />
-        </div>
-        <div>
-          <label htmlFor="partitaIva" className="block text-sm font-medium text-gray-700 mb-1">
-            Partita IVA <span className="text-gray-400">(opz.)</span>
-          </label>
-          <input
-            id="partitaIva"
-            value={fields.partitaIva}
-            onChange={set('partitaIva')}
-            className={inputClass(!!errors.partitaIva)}
-          />
-          {errors.partitaIva && <p className="mt-1 text-xs text-red-600">{errors.partitaIva}</p>}
         </div>
       </div>
 
@@ -298,91 +232,37 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
         </div>
       )}
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2">
-          <label htmlFor="via" className="block text-sm font-medium text-gray-700 mb-1">
-            Via
-          </label>
-          <input
-            id="via"
-            value={fields.via}
-            onChange={set('via')}
-            className={inputClass(!!errors.via)}
-          />
-          {errors.via && <p className="mt-1 text-xs text-red-600">{errors.via}</p>}
-        </div>
-        <div>
-          <label htmlFor="civico" className="block text-sm font-medium text-gray-700 mb-1">
-            Civico
-          </label>
-          <input
-            id="civico"
-            value={fields.civico}
-            onChange={set('civico')}
-            className={inputClass(!!errors.civico)}
-          />
-          {errors.civico && <p className="mt-1 text-xs text-red-600">{errors.civico}</p>}
-        </div>
+      <div>
+        <label htmlFor="paese" className="block text-sm font-medium text-gray-700 mb-1">
+          Paese
+        </label>
+        <select
+          id="paese"
+          value={fields.paese}
+          onChange={handlePaeseChange}
+          className={inputClass(false)}
+        >
+          {PAESI.map((p) => (
+            <option key={p.iso2} value={p.nome}>
+              {p.nome}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="cap" className="block text-sm font-medium text-gray-700 mb-1">
-            CAP / Postal code
-          </label>
-          <input
-            id="cap"
-            value={fields.cap}
-            onChange={set('cap')}
-            className={inputClass(!!errors.cap)}
-          />
-          {errors.cap && <p className="mt-1 text-xs text-red-600">{errors.cap}</p>}
-        </div>
-        <div>
-          <label htmlFor="localita" className="block text-sm font-medium text-gray-700 mb-1">
-            Città
-          </label>
-          <input
-            id="localita"
-            value={fields.localita}
-            onChange={set('localita')}
-            className={inputClass(!!errors.localita)}
-          />
-          {errors.localita && <p className="mt-1 text-xs text-red-600">{errors.localita}</p>}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        {labelProvincia && (
-          <div>
-            <label htmlFor="provincia" className="block text-sm font-medium text-gray-700 mb-1">
-              {labelProvincia} <span className="text-gray-400">(opz.)</span>
-            </label>
-            <input
-              id="provincia"
-              value={fields.provincia}
-              onChange={set('provincia')}
-              className={inputClass(false)}
-            />
-          </div>
-        )}
-        <div className={labelProvincia ? '' : 'col-span-2'}>
-          <label htmlFor="paese" className="block text-sm font-medium text-gray-700 mb-1">
-            Paese
-          </label>
-          <select
-            id="paese"
-            value={fields.paese}
-            onChange={handlePaeseChange}
-            className={inputClass(false)}
-          >
-            {PAESI.map((p) => (
-              <option key={p.iso2} value={p.nome}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          Email
+        </label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          value={fields.email}
+          onChange={set('email')}
+          className={inputClass(!!errors.email)}
+        />
+        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -421,52 +301,17 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
       </div>
 
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-          Email
+        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+          Password
         </label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          value={fields.email}
-          onChange={set('email')}
-          className={inputClass(!!errors.email)}
+        <PasswordInput
+          id="password"
+          autoComplete="new-password"
+          value={fields.password}
+          onChange={set('password')}
+          className={inputClass(!!errors.password)}
         />
-        {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email}</p>}
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
-          <PasswordInput
-            id="password"
-            autoComplete="new-password"
-            value={fields.password}
-            onChange={set('password')}
-            className={inputClass(!!errors.password)}
-          />
-          {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
-        </div>
-        <div>
-          <label
-            htmlFor="confermaPassword"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Conferma password
-          </label>
-          <PasswordInput
-            id="confermaPassword"
-            autoComplete="new-password"
-            value={fields.confermaPassword}
-            onChange={set('confermaPassword')}
-            className={inputClass(!!errors.confermaPassword)}
-          />
-          {errors.confermaPassword && (
-            <p className="mt-1 text-xs text-red-600">{errors.confermaPassword}</p>
-          )}
-        </div>
+        {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
       </div>
 
       <button

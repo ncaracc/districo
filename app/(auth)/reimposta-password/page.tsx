@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PasswordInput } from '@/components/password-input'
+import { AuthCard } from '@/components/auth-card'
 
 type Stato = 'verifica' | 'pronto' | 'non_valido' | 'aggiornata'
 
@@ -73,15 +74,15 @@ export default function ReimpostaPasswordPage() {
 
   if (stato === 'verifica') {
     return (
-      <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8 text-center">
+      <AuthCard className="text-center">
         <p className="text-sm text-gray-600">Verifica del link in corso…</p>
-      </div>
+      </AuthCard>
     )
   }
 
   if (stato === 'non_valido') {
     return (
-      <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8 text-center">
+      <AuthCard className="text-center">
         <h1 className="text-lg font-semibold text-gray-900">Link non valido o scaduto</h1>
         <p className="mt-3 text-sm text-gray-600">
           Il link per reimpostare la password non è più valido. Richiedine uno nuovo.
@@ -92,13 +93,13 @@ export default function ReimpostaPasswordPage() {
         >
           Richiedi un nuovo link
         </a>
-      </div>
+      </AuthCard>
     )
   }
 
   if (stato === 'aggiornata') {
     return (
-      <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8 text-center">
+      <AuthCard className="text-center">
         <h1 className="text-lg font-semibold text-gray-900">Password aggiornata</h1>
         <p className="mt-3 text-sm text-gray-600">Accedi con la tua nuova password.</p>
         <a
@@ -107,12 +108,12 @@ export default function ReimpostaPasswordPage() {
         >
           Vai al login
         </a>
-      </div>
+      </AuthCard>
     )
   }
 
   return (
-    <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8">
+    <AuthCard>
       <h1 className="text-lg font-semibold text-gray-900">Imposta una nuova password</h1>
 
       <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-6">
@@ -166,6 +167,6 @@ export default function ReimpostaPasswordPage() {
           {loading ? 'Aggiornamento…' : 'Aggiorna password'}
         </button>
       </form>
-    </div>
+    </AuthCard>
   )
 }

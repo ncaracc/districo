@@ -15,18 +15,20 @@ export type Database = {
         Row: {
           id: string; nome: string; cognome: string
           ragione_sociale: string | null; partita_iva: string | null
+          codice_fiscale: string | null
           specializzazione: string; telefono: string; email: string
           via: string | null; civico: string | null; cap: string | null
-          localita: string; provincia: string | null; paese: string
+          localita: string | null; provincia: string | null; paese: string
           immagine_profilo: string | null
           is_admin: boolean; created_at: string
         }
         Insert: {
           id: string; nome: string; cognome: string
           ragione_sociale?: string | null; partita_iva?: string | null
+          codice_fiscale?: string | null
           specializzazione: string; telefono: string; email: string
           via?: string | null; civico?: string | null; cap?: string | null
-          localita: string; provincia?: string | null; paese?: string
+          localita?: string | null; provincia?: string | null; paese?: string
           immagine_profilo?: string | null
           is_admin?: boolean; created_at?: string
         }

@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { AuthCard } from '@/components/auth-card'
 import { RegistrazioneForm } from './registrazione-form'
 
 export default async function RegistrazionePage() {
@@ -10,8 +11,8 @@ export default async function RegistrazionePage() {
     .order('valore')
 
   return (
-    <div>
-      <div className="mb-8">
+    <AuthCard>
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Registrati</h1>
         <p className="mt-1 text-sm text-gray-500">Crea il tuo account artigiano su Districo</p>
       </div>
@@ -24,6 +25,6 @@ export default async function RegistrazionePage() {
           Accedi
         </a>
       </p>
-    </div>
+    </AuthCard>
   )
 }

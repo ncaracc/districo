@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { AuthCard } from '@/components/auth-card'
 
 export default function PasswordDimenticataPage() {
   const [email, setEmail] = useState('')
@@ -36,7 +37,7 @@ export default function PasswordDimenticataPage() {
   }
 
   return (
-    <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8">
+    <AuthCard>
       {inviata ? (
         <div className="text-center">
           <h1 className="text-lg font-semibold text-gray-900">Controlla la tua email</h1>
@@ -92,6 +93,6 @@ export default function PasswordDimenticataPage() {
           </p>
         </>
       )}
-    </div>
+    </AuthCard>
   )
 }
