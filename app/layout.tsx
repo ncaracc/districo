@@ -35,7 +35,7 @@ export default async function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <AppNav isLoggedIn={!!user} />
-        <div className="flex-1">{children}</div>
+        <div className="flex-1 flex flex-col min-h-0">{children}</div>
         <SiteFooter />
       </body>
     </html>
