@@ -6,7 +6,7 @@ export function SiteFooter() {
       <div className="max-w-5xl mx-auto grid grid-cols-1 gap-6 px-4 py-8 text-center md:grid-cols-3">
         <div className="flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/districo_logo.svg" alt="Districo" className="h-3 w-auto opacity-80" />
+          <img src="/districo_logo.svg" alt="Districo" className="h-5 w-auto" />
         </div>
 
         <div className="flex flex-col items-center gap-1">

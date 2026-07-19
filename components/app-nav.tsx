@@ -23,11 +23,18 @@ export function AppNav() {
 
   async function handleLogout() {
     setUscendo(true)
-    const supabase = createClient()
-    await supabase.auth.signOut()
-    setAperto(false)
-    router.push('/login')
-    router.refresh()
+    try {
+      const supabase = createClient()
+      await supabase.auth.signOut()
+      setAperto(false)
+      router.push('/login')
+      router.refresh()
+    } finally {
+      // Il componente non si smonta quando si naviga su /login (ritorna solo null),
+      // quindi lo stato persiste: senza questo reset "uscendo" resterebbe true per
+      // sempre alla sessione successiva, mostrando "Uscita in corso…" a riposo.
+      setUscendo(false)
+    }
   }
 
   return (
@@ -35,7 +42,7 @@ export function AppNav() {
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
         <Link href="/lavori" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/districo_logo.svg" alt="Districo" className="h-6 w-auto" />
+          <img src="/districo_logo.svg" alt="Districo" className="h-9 w-auto" />
         </Link>
 
         {/* Navigazione desktop: sempre visibile, centrata orizzontalmente */}
