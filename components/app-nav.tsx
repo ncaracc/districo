@@ -12,7 +12,10 @@ const VOCI_ATTIVE = [
 
 const VOCI_IN_ARRIVO = ['Fornitori', 'Statistica', 'Profilo/Impostazioni']
 
-export function AppNav() {
+// Pagine pubbliche raggiungibili anche da chi non è loggato.
+const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy']
+
+export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
@@ -20,6 +23,10 @@ export function AppNav() {
 
   // Sulla pagina di login l'header non compare affatto (resta solo il footer).
   if (pathname === '/login') return null
+
+  // Privacy/Cookie Policy sono raggiungibili anche da chi non è loggato: in quel
+  // caso non deve vedere menù né bottone Esci (nessun contenuto riservato da esporre).
+  if (!isLoggedIn && PAGINE_PUBBLICHE.includes(pathname)) return null
 
   async function handleLogout() {
     setUscendo(true)
