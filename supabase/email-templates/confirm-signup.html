@@ -1,0 +1,109 @@
+<!--
+  Districo — Supabase Auth Email Template: "Confirm signup"
+  Dashboard: Authentication → Email Templates → Confirm signup
+  Oggetto da impostare nello stesso pannello: "Conferma il tuo indirizzo e-mail"
+
+  Variabile Supabase usata: {{ .ConfirmationURL }}
+  Logo ospitato su: https://www.districo.it/email-assets/districo-logo-payoff.png
+  (vedi CLAUDE.md per la decisione — file sorgente: public/email-assets/districo-logo-payoff.png)
+-->
+<!DOCTYPE html>
+<html lang="it" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Conferma il tuo indirizzo e-mail</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
+  a { text-decoration: none; }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f4f5; font-family:Helvetica, Arial, sans-serif;">
+  <!-- preheader, nascosto -->
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">
+    Conferma il tuo indirizzo e-mail per iniziare a usare Districo.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f5;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px; max-width:600px; background-color:#ffffff; border-radius:16px; overflow:hidden;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding:40px 32px 24px 32px;">
+              <img src="https://www.districo.it/email-assets/districo-logo-payoff.png"
+                   width="220" alt="Districo — l'assistente per l'artigiano"
+                   style="display:block; width:220px; max-width:220px; height:auto; font-family:Helvetica, Arial, sans-serif; color:#111827;">
+            </td>
+          </tr>
+
+          <!-- Testo -->
+          <tr>
+            <td align="left" style="padding:0 40px; font-family:Helvetica, Arial, sans-serif; color:#111827; font-size:16px; line-height:24px;">
+              <p style="margin:0 0 16px 0;">
+                Grazie per esserti registrato su Districo. Per completare la registrazione e attivare il tuo account, conferma il tuo indirizzo e-mail cliccando sul pulsante qui sotto.
+              </p>
+              <p style="margin:0 0 32px 0; color:#6b7280;">
+                Thank you for signing up for Districo. To complete your registration and activate your account, please confirm your email address by clicking the button below.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Bottone -->
+          <tr>
+            <td align="center" style="padding:0 40px 32px 40px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#111827" style="border-radius:8px;">
+                    <a href="{{ .ConfirmationURL }}" target="_blank"
+                       style="display:inline-block; padding:14px 32px; font-family:Helvetica, Arial, sans-serif; font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none; border-radius:8px;">
+                      Conferma indirizzo e-mail
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Link di fallback -->
+          <tr>
+            <td align="left" style="padding:0 40px 40px 40px; font-family:Helvetica, Arial, sans-serif; color:#9ca3af; font-size:13px; line-height:20px;">
+              <p style="margin:0;">
+                Se il pulsante non funziona, copia e incolla questo link nel browser:<br>
+                <a href="{{ .ConfirmationURL }}" style="color:#111827; word-break:break-all;">{{ .ConfirmationURL }}</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td align="center" style="padding:24px 32px; background-color:#f4f4f5; border-top:1px solid #e5e7eb; font-family:Helvetica, Arial, sans-serif; color:#9ca3af; font-size:12px; line-height:18px;">
+              <p style="margin:0;">Districo — l'assistente per l'artigiano</p>
+              <p style="margin:4px 0 0 0;">
+                <a href="mailto:info@districo.it" style="color:#9ca3af; text-decoration:underline;">info@districo.it</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
