@@ -57,11 +57,6 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Accedi</h1>
-        <p className="mt-1 text-sm text-gray-500">Bentornato su Districo</p>
-      </div>
-
       <form onSubmit={handleSubmit} noValidate className="space-y-5">
         {errors.form && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
@@ -111,7 +106,7 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 transition-colors disabled:opacity-50"
+          className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors disabled:opacity-50"
         >
           {loading ? 'Accesso in corso…' : 'Accedi'}
         </button>

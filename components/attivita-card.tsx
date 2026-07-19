@@ -122,7 +122,7 @@ export function AttivitaCard({
                 type="button"
                 onClick={handleSalva}
                 disabled={loading}
-                className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {loading ? 'Salvataggio…' : 'Salva'}
               </button>
@@ -208,7 +208,7 @@ function RevisionePreventivoForm({
       <button
         type="submit"
         disabled={loading}
-        className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
         {loading ? 'Creazione…' : 'Crea nuova revisione'}
       </button>

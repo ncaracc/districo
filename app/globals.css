@@ -3,11 +3,16 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Colore primario per bottoni/CTA — "blu petrolio", coerente in tutta l'app.
+     I colori "a LED" (rosso/giallo/verde) per gli stati di Attività/Fasi/SLA
+     restano separati e non passano da questo token. */
+  --primary: #1d4e5f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

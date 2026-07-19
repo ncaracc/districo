@@ -27,7 +27,7 @@ export function SegnaAccettatoButton({ lavoroId }: { lavoroId: string }) {
         type="button"
         onClick={handleClick}
         disabled={loading}
-        className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
       >
         {loading ? 'Salvataggio…' : 'Segna lavoro accettato'}
       </button>

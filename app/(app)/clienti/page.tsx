@@ -20,7 +20,7 @@ export default async function ClientiPage({
         <h1 className="text-2xl font-bold text-gray-900">Clienti</h1>
         <Link
           href="/clienti/nuovo"
-          className="shrink-0 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+          className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
         >
           + Nuovo cliente
         </Link>

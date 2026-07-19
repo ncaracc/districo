@@ -47,7 +47,7 @@ export function NuovoLavoroForm({ clienteId }: { clienteId: string }) {
       <button
         type="button"
         onClick={() => setAperto(true)}
-        className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors"
+        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
       >
         + Nuovo lavoro
       </button>
@@ -87,7 +87,7 @@ export function NuovoLavoroForm({ clienteId }: { clienteId: string }) {
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
         >
           {loading ? 'Creazione in corso…' : 'Crea lavoro'}
         </button>
