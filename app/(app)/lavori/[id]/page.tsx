@@ -2,20 +2,13 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { SegnaAccettatoButton } from '@/components/segna-accettato-button'
-import { NuovaAttivitaForm } from '@/components/nuova-attivita-form'
-import { AttivitaCard, type Attivita } from '@/components/attivita-card'
+import { SatellitiSection } from '@/components/satelliti-section'
+import type { FornitoreOpzione, Satellite, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 
 const STATO_LAVORO_LABEL: Record<string, string> = {
   trattativa: 'In trattativa',
   esecuzione: 'In esecuzione',
   chiuso: 'Chiuso',
-}
-
-const PRIORITA_STATO: Record<Attivita['stato'], number> = {
-  bloccata: 0,
-  in_corso: 1,
-  da_fare: 2,
-  fatta: 3,
 }
 
 export default async function LavoroDettaglioPage({
@@ -28,23 +21,48 @@ export default async function LavoroDettaglioPage({
 
   const { data: lavoro } = await supabase
     .from('lavoro')
-    .select('id, titolo, descrizione, stato, cliente_id, accettato_at')
+    .select('id, titolo, descrizione, stato, cliente_id, accettato_at, necessario_preventivo, necessario_progetto')
     .eq('id', id)
     .maybeSingle()
 
   if (!lavoro) notFound()
 
-  const [{ data: cliente }, { data: isOwner }, { data: attivitaGrezze }] = await Promise.all([
-    supabase.from('cliente').select('id, nome').eq('id', lavoro.cliente_id).maybeSingle(),
-    supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
-    supabase
-      .from('attivita')
-      .select('id, tipo, stato, data_appuntamento, commenti, importo, revisione_di')
-      .eq('lavoro_id', id),
+  const [{ data: cliente }, { data: isOwner }, { data: satellitiGrezzi }, { data: prontoData }] =
+    await Promise.all([
+      supabase.from('cliente').select('id, nome').eq('id', lavoro.cliente_id).maybeSingle(),
+      supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
+      supabase
+        .from('lavoro_satellite')
+        .select(
+          'id, tipo, stato, nota, tipo_appuntamento, data_appuntamento, revisione_di, valore_complessivo, fornitore_sede_id, descrizione_libera, data_creazione',
+        )
+        .eq('lavoro_id', id),
+      supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: id }),
+    ])
+
+  const satelliti: Satellite[] = satellitiGrezzi ?? []
+  const satelliteIds = satelliti.map((s) => s.id)
+
+  const [{ data: righeGrezze }, { data: fornitoreSedi }, { data: fornitoriGrezzi }] = await Promise.all([
+    satelliteIds.length > 0
+      ? supabase
+          .from('lavoro_satellite_articolo')
+          .select('id, satellite_id, articolo_id, descrizione, colore_finitura, quantita')
+          .in('satellite_id', satelliteIds)
+      : Promise.resolve({ data: [] as SatelliteArticolo[] }),
+    supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta'),
+    supabase.from('fornitore').select('id, ragione_sociale'),
   ])
 
-  const attivita = [...(attivitaGrezze ?? [])].sort(
-    (a, b) => PRIORITA_STATO[a.stato] - PRIORITA_STATO[b.stato],
+  const righeArticolo: SatelliteArticolo[] = righeGrezze ?? []
+
+  const ragioneSocialeById = new Map((fornitoriGrezzi ?? []).map((f) => [f.id, f.ragione_sociale]))
+  const fornitori: FornitoreOpzione[] = (fornitoreSedi ?? []).map((s) => ({
+    id: s.id,
+    label: `${ragioneSocialeById.get(s.fornitore_id) ?? '—'} — ${s.nome} (${s.citta})`,
+  }))
+  const fornitoreLabelById: Record<string, string> = Object.fromEntries(
+    fornitori.map((f) => [f.id, f.label]),
   )
 
   return (
@@ -84,27 +102,19 @@ export default async function LavoroDettaglioPage({
         )}
       </div>
 
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-gray-700">Attività</h2>
+      <div className="mb-8">
+        <SatellitiSection
+          lavoroId={lavoro.id}
+          necessarioPreventivo={lavoro.necessario_preventivo}
+          necessarioProgetto={lavoro.necessario_progetto}
+          satelliti={satelliti}
+          righeArticolo={righeArticolo}
+          fornitori={fornitori}
+          fornitoreLabelById={fornitoreLabelById}
+          isOwner={!!isOwner}
+          pronto={!!prontoData}
+        />
       </div>
-
-      {isOwner && (
-        <div className="mb-4">
-          <NuovaAttivitaForm lavoroId={lavoro.id} />
-        </div>
-      )}
-
-      {attivita.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          Nessuna attività ancora. Nessuna è obbligatoria: aggiungi solo quelle che servono.
-        </p>
-      ) : (
-        <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-          {attivita.map((a) => (
-            <AttivitaCard key={a.id} attivita={a} lavoroId={lavoro.id} isOwner={!!isOwner} />
-          ))}
-        </ul>
-      )}
     </div>
   )
 }

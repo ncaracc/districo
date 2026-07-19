@@ -59,19 +59,6 @@ export default async function LavoriPage() {
       : { data: [] }
   const nomeClientePerId = new Map((clienti ?? []).map((c) => [c.id, c.nome]))
 
-  const { data: attivita } =
-    lavoroIds.length > 0
-      ? await supabase.from('attivita').select('lavoro_id, stato').in('lavoro_id', lavoroIds)
-      : { data: [] }
-
-  const conteggioPerLavoro = new Map<string, { aperte: number; bloccate: number }>()
-  for (const a of attivita ?? []) {
-    const curr = conteggioPerLavoro.get(a.lavoro_id) ?? { aperte: 0, bloccate: 0 }
-    if (a.stato !== 'fatta') curr.aperte += 1
-    if (a.stato === 'bloccata') curr.bloccate += 1
-    conteggioPerLavoro.set(a.lavoro_id, curr)
-  }
-
   return (
     <div>
       {invitiConDettagli.length > 0 && (
@@ -90,33 +77,22 @@ export default async function LavoriPage() {
         </p>
       ) : (
         <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-          {lavori.map((l) => {
-            const conteggio = conteggioPerLavoro.get(l.id)
-            return (
-              <li key={l.id}>
-                <Link
-                  href={`/lavori/${l.id}`}
-                  className="block px-4 py-3 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
-                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                      {STATO_LABEL[l.stato] ?? l.stato}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    {nomeClientePerId.get(l.cliente_id)}
-                    {conteggio && conteggio.aperte > 0 && (
-                      <span className={conteggio.bloccate > 0 ? 'ml-2 text-red-600' : 'ml-2 text-gray-500'}>
-                        · {conteggio.aperte} attività aperte
-                        {conteggio.bloccate > 0 ? ` (${conteggio.bloccate} bloccate)` : ''}
-                      </span>
-                    )}
-                  </p>
-                </Link>
-              </li>
-            )
-          })}
+          {lavori.map((l) => (
+            <li key={l.id}>
+              <Link
+                href={`/lavori/${l.id}`}
+                className="block px-4 py-3 hover:bg-gray-50 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    {STATO_LABEL[l.stato] ?? l.stato}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
     </div>

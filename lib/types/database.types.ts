@@ -213,6 +213,7 @@ export type Database = {
             | 'da_consegnare' | 'in_lavorazione' | 'completata'
             | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
           nota: string | null; tipo_appuntamento: string | null
+          data_appuntamento: string | null
           revisione_di: string | null; valore_complessivo: number | null
           fornitore_sede_id: string | null; descrizione_libera: string | null
           data_creazione: string; data_ultimo_cambio_stato: string
@@ -226,6 +227,7 @@ export type Database = {
             | 'da_consegnare' | 'in_lavorazione' | 'completata'
             | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
           nota?: string | null; tipo_appuntamento?: string | null
+          data_appuntamento?: string | null
           revisione_di?: string | null; valore_complessivo?: number | null
           fornitore_sede_id?: string | null; descrizione_libera?: string | null
           data_creazione?: string; data_ultimo_cambio_stato?: string

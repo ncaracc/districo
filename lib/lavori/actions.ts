@@ -63,6 +63,9 @@ export async function creaLavoro(
   return { ok: true, id: lavoroId }
 }
 
+// `accettato_at` è un flag informativo (non un gate): nessun'altra funzionalità del
+// dettaglio Lavoro dipende dal suo valore. `stato` continua a transitare a 'esecuzione'
+// insieme al flag solo come etichetta di stato generale, non come sblocco di funzionalità.
 export async function segnaLavoroAccettato(lavoroId: string): Promise<AzioneResult> {
   const supabase = await createClient()
   const { error } = await supabase
@@ -74,70 +77,5 @@ export async function segnaLavoroAccettato(lavoroId: string): Promise<AzioneResu
 
   revalidatePath(`/lavori/${lavoroId}`)
   revalidatePath('/lavori')
-  return { ok: true }
-}
-
-type TipoAttivita = 'briefing' | 'progetto' | 'preventivo' | 'sopralluogo' | 'campioni'
-
-export async function creaAttivita(
-  lavoroId: string,
-  fields: {
-    tipo: TipoAttivita
-    dataAppuntamento: string | null
-    commenti: string | null
-    importo: number | null
-  },
-): Promise<AzioneResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('attivita').insert({
-    lavoro_id: lavoroId,
-    tipo: fields.tipo,
-    data_appuntamento: fields.dataAppuntamento,
-    commenti: fields.commenti,
-    importo: fields.tipo === 'preventivo' ? fields.importo : null,
-  })
-
-  if (error) return { ok: false, error: 'Errore nella creazione dell’attività, riprova' }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  return { ok: true }
-}
-
-export async function aggiornaAttivita(
-  attivitaId: string,
-  lavoroId: string,
-  patch: { stato?: 'da_fare' | 'in_corso' | 'bloccata' | 'fatta'; commenti?: string | null },
-): Promise<AzioneResult> {
-  const supabase = await createClient()
-  const update = {
-    ...patch,
-    ...(patch.stato === 'fatta' ? { data_chiusura: new Date().toISOString() } : {}),
-  }
-
-  const { error } = await supabase.from('attivita').update(update).eq('id', attivitaId)
-
-  if (error) return { ok: false, error: 'Errore nel salvataggio, riprova' }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  return { ok: true }
-}
-
-export async function nuovaRevisionePreventivo(
-  lavoroId: string,
-  attivitaPrecedenteId: string,
-  fields: { importo: number | null; commenti: string | null },
-): Promise<AzioneResult> {
-  const supabase = await createClient()
-  const { error } = await supabase.from('attivita').insert({
-    lavoro_id: lavoroId,
-    tipo: 'preventivo',
-    revisione_di: attivitaPrecedenteId,
-    importo: fields.importo,
-    commenti: fields.commenti,
-  })
-
-  if (error) return { ok: false, error: 'Errore nella creazione della revisione, riprova' }
-
-  revalidatePath(`/lavori/${lavoroId}`)
   return { ok: true }
 }
