@@ -248,3 +248,88 @@ Vista Admin: accede solo a conteggi/metriche calcolate sopra queste tabelle, mai
 - **Schermata Profilo** (non ancora costruita): dove l'artigiano completerà i dati rimandati dalla registrazione minimale del 19/7 — indirizzo completo (via/civico/CAP/località/provincia), ragione sociale, partita IVA, codice fiscale (obbligatorio se e solo se ha impostato la P.IVA — vincolo già applicato a livello DB), immagine profilo. Voce di menu "Profilo/Impostazioni" già presente come placeholder "in arrivo".
 - **Badge su "Profilo/Impostazioni"** nel menu, visibile finché l'artigiano non ha completato almeno l'indirizzo completo (unico dato tra quelli rimandati che resta necessario al funzionamento dell'app, es. per future esigenze di fatturazione/logistica) — ragione sociale, P.IVA, codice fiscale e foto profilo restano opzionali e non condizionano la scomparsa del badge.
 - **Cambio password dalla schermata Profilo/Impostazioni** (oggi possibile solo via "Password dimenticata" da sloggato).
+
+## Revisione strutturale 2026-07-19 — Modello "a stella" centrato sul Lavoro
+
+> Questa sezione **supera** il modello precedente di Fasi di esecuzione
+> (Fase_Template/Lavoro_Fasi) e il gate manuale "lavoro accettato", oltre a
+> ridefinire la chiusura del Lavoro. Le voci precedenti restano in
+> cronologia sopra per riferimento storico, ma non sono più valide dove
+> in contraddizione con quanto segue.
+
+### Principio generale
+
+Il Lavoro è il centro. Attorno gli ruotano **satelliti**: oggetti con un
+proprio ciclo di stato che rappresentano "le cose che devono succedere
+perché il lavoro proceda". Il lavoro avanza verso il montaggio solo
+quando tutti i satelliti presenti (quelli effettivamente aggiunti a quel
+lavoro) sono verdi. Aggiungere un satellite a lavoro avanzato riapre il
+gate del montaggio finché anche quello non è verde.
+
+Le vecchie Fasi di esecuzione (approvvigionamento/produzione/consegna
+come oggetto mosso a mano) sono superate: lo stato di avanzamento si
+legge dai satelliti, non si muove più manualmente.
+
+### Entità satellite (unica tabella, discriminata per `tipo`)
+
+| Tipo | Stati | Note |
+|---|---|---|
+| `appuntamento` | 🔴 fissato → 🟢 fatto | tipo libero (briefing, rilievo, presentazione...); nota **obbligatoria** al passaggio a verde; **non conta** per lo sblocco del montaggio (informativo/parallelo) |
+| `preventivo` | 🔴 in preparazione → 🟡 presentato → 🟢 accettato | solo se flag "necessario preventivo" sul Lavoro; `revisione_di` per storico; **niente prezzo per riga**, solo eventuale `valore_complessivo` opzionale; precisione economica delegata a Falegname in Cloud, possibile integrazione futura tra le due app |
+| `progetto` | 🔴 in preparazione → 🟡 presentato → 🟢 accettato | solo se flag "necessario progetto"; `revisione_di` per storico |
+| `acquisto_materiale` | 🔴 da acquistare → 🟡 acquistato → 🟢 ricevuto | lista di voci strutturate (`Articolo`: codice, specifiche, descrizione, quantità — **senza prezzo per riga**); `valore_complessivo` opzionale sul satellite; legato a Fornitore/Fornitore_Sede |
+| `acquisto_ferramenta` | stessa logica di `acquisto_materiale` | stesso pattern, tipo separato solo per categorizzazione |
+| `lavorazione_esterna` | 🔴 da consegnare → 🟡 in lavorazione → 🟢 completata | fabbro/vetraio/falegname esterno/laccatore: nessun catalogo `Articolo`, descrizione libera + `valore_complessivo` opzionale |
+| `campione` | 🔴 da preparare → 🟡 preparato → 🟢 ricevuto dal cliente | ripetibile: più cicli sullo stesso Lavoro se servono altre varianti |
+
+`Articolo`: mantenuto per tracciabilità e correttezza dell'ordine verso
+il fornitore (codice/specifiche/descrizione), **rimosso il campo
+prezzo/ultimo_prezzo** — non vogliamo obbligare l'artigiano a verificare
+prezzi, non è l'obiettivo dell'app.
+
+### Chiusura del Lavoro
+
+Il Lavoro è considerato chiuso quando il satellite/traguardo **montaggio
+è verde**, a prescindere dallo stato di acconti/saldo. Il modello
+economico (`Pagamento`: acconto/saldo) resta un tracciamento parallelo,
+utile ma senza effetto sullo stato operativo del Lavoro. *(Questo
+sostituisce la lettura precedente "il saldo chiude il Lavoro".)*
+
+Il **montaggio** stesso resta da definire in dettaglio (prossimo
+argomento aperto).
+
+### Dashboard (nuova home page)
+
+- Sostituisce l'elenco lavori ordinato cronologicamente.
+- Mostra solo i lavori **aperti** (non chiusi); i lavori chiusi restano
+  visibili solo in Statistica.
+- Ordinamento per **punteggio di urgenza**, non cronologico: combina
+  tempo trascorso dall'ultimo cambio di stato di un satellite rosso ×
+  numero di satelliti rossi presenti (i satelliti gialli pesano meno dei
+  rossi nel punteggio); punteggio più alto in cima. Formula esatta da
+  tarare in sviluppo/uso reale, non bloccante per il primo rilascio.
+- Ogni riga lavoro in dashboard mostra un **riepilogo compresso a
+  contatori** dei satelliti (es. "3 rossi · 1 giallo · 2 verdi"), non
+  pallini singoli per satellite — priorità alla leggibilità della
+  schermata.
+- Menu laterale confermato: Dashboard (Lavori), Clienti, Fornitori,
+  Statistica, Account (impostazioni/personalizzazioni).
+
+### Acquisti — distinzione materiale/ferramenta vs. lavorazione esterna
+
+La distinzione è legata a **come lavora il fornitore**, non decisa
+articolo per articolo: fornitori con catalogo (pannelli, ferramenta,
+bordi) → `acquisto_materiale`/`acquisto_ferramenta` con `Articolo`
+strutturato; fornitori "su misura" (fabbro, vetraio, laccatore,
+falegname esterno) → `lavorazione_esterna`, descrizione libera, nessun
+catalogo.
+
+### Prossimi passi aperti (aggiornato)
+
+- Definire in dettaglio l'oggetto/traguardo **montaggio** (gate finale
+  di chiusura Lavoro).
+- Tarare la formula esatta del punteggio di urgenza in dashboard con
+  uso reale.
+- Rivalutare in futuro un'eventuale integrazione tra Districo e
+  Falegname in Cloud per il dettaglio economico dei preventivi.
+- (voci precedenti non ancora affrontate restano valide sotto)

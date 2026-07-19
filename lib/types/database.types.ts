@@ -89,11 +89,13 @@ export type Database = {
         Row: {
           id: string; cliente_id: string; titolo: string; descrizione: string | null
           stato: 'trattativa' | 'esecuzione' | 'chiuso'
+          necessario_preventivo: boolean; necessario_progetto: boolean
           accettato_at: string | null; created_at: string
         }
         Insert: {
           id?: string; cliente_id: string; titolo: string; descrizione?: string | null
           stato?: 'trattativa' | 'esecuzione' | 'chiuso'
+          necessario_preventivo?: boolean; necessario_progetto?: boolean
           accettato_at?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro']['Insert']>
@@ -201,6 +203,42 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['ordine_acquisto_riga']['Insert']>
         Relationships: []
       }
+      lavoro_satellite: {
+        Row: {
+          id: string; lavoro_id: string
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisto_materiale' | 'acquisto_ferramenta' | 'lavorazione_esterna' | 'campione'
+          stato: 'fissato' | 'fatto'
+            | 'in_preparazione' | 'presentato' | 'accettato'
+            | 'da_acquistare' | 'acquistato' | 'ricevuto'
+            | 'da_consegnare' | 'in_lavorazione' | 'completata'
+            | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
+          nota: string | null; tipo_appuntamento: string | null
+          revisione_di: string | null; valore_complessivo: number | null
+          fornitore_sede_id: string | null; descrizione_libera: string | null
+          data_creazione: string; data_ultimo_cambio_stato: string
+        }
+        Insert: {
+          id?: string; lavoro_id: string
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisto_materiale' | 'acquisto_ferramenta' | 'lavorazione_esterna' | 'campione'
+          stato: 'fissato' | 'fatto'
+            | 'in_preparazione' | 'presentato' | 'accettato'
+            | 'da_acquistare' | 'acquistato' | 'ricevuto'
+            | 'da_consegnare' | 'in_lavorazione' | 'completata'
+            | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
+          nota?: string | null; tipo_appuntamento?: string | null
+          revisione_di?: string | null; valore_complessivo?: number | null
+          fornitore_sede_id?: string | null; descrizione_libera?: string | null
+          data_creazione?: string; data_ultimo_cambio_stato?: string
+        }
+        Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>
+        Relationships: []
+      }
+      lavoro_satellite_articolo: {
+        Row: { id: string; satellite_id: string; articolo_id: string | null; descrizione: string; colore_finitura: string | null; quantita: number; created_at: string }
+        Insert: { id?: string; satellite_id: string; articolo_id?: string | null; descrizione: string; colore_finitura?: string | null; quantita: number; created_at?: string }
+        Update: Partial<Database['public']['Tables']['lavoro_satellite_articolo']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -208,6 +246,7 @@ export type Database = {
       is_owner_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
+      lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
     }
   }
 }
