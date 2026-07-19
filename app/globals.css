@@ -3,12 +3,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  /* Colore primario per bottoni/CTA — rosso del logo (#e63946), coerente in
-     tutta l'app. Nota: coincide con la tonalità già usata per lo stato
-     "bloccata" e per i messaggi di errore (text-red-600/bg-red-50) — non
-     più distinguibile a colpo d'occhio dai CTA, a differenza di quanto
-     previsto dalla decisione originale sui colori "a LED". */
-  --primary: #e63946;
+  /* Colore primario per bottoni/CTA — nero sobrio (#111827, lo stesso nero
+     già usato per i testi principali / text-gray-900), coerente in tutta
+     l'app. Il rosso #e63946 introdotto brevemente il 19/7 resta riservato
+     al logo/brand e agli usi già esistenti (stato "bloccata" delle
+     Attività, messaggi di errore nei form) — non è più il colore dei
+     bottoni/CTA. */
+  --primary: #111827;
 }
 
 @theme inline {

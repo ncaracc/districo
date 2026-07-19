@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { PasswordInput } from '@/components/password-input'
+import { applyRememberChoice } from '@/lib/auth/remember'
 
 export default function LoginPage() {
   const router = useRouter()
   const [password, setPassword] = useState('')
+  const [rimaniConnesso, setRimaniConnesso] = useState(true)
   const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({})
   const [loading, setLoading] = useState(false)
 
@@ -51,13 +53,15 @@ export default function LoginPage() {
       return
     }
 
+    applyRememberChoice(rimaniConnesso)
+
     router.push('/lavori')
     router.refresh()
   }
 
   return (
-    <div>
-      <form onSubmit={handleSubmit} noValidate className="space-y-5">
+    <div className="rounded-2xl bg-gray-50 shadow-sm p-6 sm:p-8">
+      <form onSubmit={handleSubmit} noValidate className="space-y-6">
         {errors.form && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
         )}
@@ -101,6 +105,21 @@ export default function LoginPage() {
           {errors.password && (
             <p className="mt-1 text-xs text-red-600">{errors.password}</p>
           )}
+        </div>
+
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={rimaniConnesso}
+              onChange={(e) => setRimaniConnesso(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 accent-primary focus:ring-primary"
+            />
+            Rimani connesso
+          </label>
+          <a href="/password-dimenticata" className="text-sm text-gray-600 underline underline-offset-2 hover:text-gray-900">
+            Hai dimenticato la password?
+          </a>
         </div>
 
         <button

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { clearRememberCookies } from '@/lib/auth/remember'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Lavori' },
@@ -13,7 +14,7 @@ const VOCI_ATTIVE = [
 const VOCI_IN_ARRIVO = ['Fornitori', 'Statistica', 'Profilo/Impostazioni']
 
 // Pagine pubbliche raggiungibili anche da chi non è loggato.
-const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy']
+const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password']
 
 export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname()
@@ -33,6 +34,7 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
     try {
       const supabase = createClient()
       await supabase.auth.signOut()
+      clearRememberCookies()
       setAperto(false)
       router.push('/login')
       router.refresh()
