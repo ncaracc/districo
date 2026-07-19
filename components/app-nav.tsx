@@ -42,7 +42,7 @@ export function AppNav() {
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
         <Link href="/lavori" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/districo_logo.svg" alt="Districo" className="h-9 w-auto" />
+          <img src="/districo_logo.svg" alt="Districo" className="h-12 w-auto" />
         </Link>
 
         {/* Navigazione desktop: sempre visibile, centrata orizzontalmente */}
