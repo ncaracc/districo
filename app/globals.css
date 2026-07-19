@@ -3,10 +3,12 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
-  /* Colore primario per bottoni/CTA — "blu petrolio", coerente in tutta l'app.
-     I colori "a LED" (rosso/giallo/verde) per gli stati di Attività/Fasi/SLA
-     restano separati e non passano da questo token. */
-  --primary: #1d4e5f;
+  /* Colore primario per bottoni/CTA — rosso del logo (#e63946), coerente in
+     tutta l'app. Nota: coincide con la tonalità già usata per lo stato
+     "bloccata" e per i messaggi di errore (text-red-600/bg-red-50) — non
+     più distinguibile a colpo d'occhio dai CTA, a differenza di quanto
+     previsto dalla decisione originale sui colori "a LED". */
+  --primary: #e63946;
 }
 
 @theme inline {
