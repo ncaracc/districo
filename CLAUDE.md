@@ -115,6 +115,8 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-19 | **Template email "Reset Password" di Supabase Auth personalizzato**, stesso trattamento e stesso stile del template "Confirm signup" appena sopra: layout table-based identico, stesso logo PNG con payoff già ospitato su `https://www.districo.it/email-assets/districo-logo-payoff.png` (riusato as-is, nessun nuovo export), stesso bottone nero, stesso schema bilingue italiano-poi-inglese, stesso footer con `info@districo.it`. Oggetto: "Reimposta la tua password". **Verificato che la variabile Supabase è la stessa `{{ .ConfirmationURL }}`** usata in "Confirm signup" (non cambia nome tra i template di default), punta al link che atterra su `/reimposta-password` (già implementata, vedi decisione "Rimani connesso"/flusso password dimenticata del 19/7). HTML pronto salvato in `supabase/email-templates/reset-password.html`, stesso posto e stesso trattamento (riferimento/backup, non eseguito da deploy) del template precedente. |
 | 2026-07-19 | **Sprint 2 revisione strutturale — gap trovato nello schema Sprint 1**: il form "aggiungi appuntamento" della UI dettaglio Lavoro richiede un campo data, ma `lavoro_satellite` (migration 0009) non aveva nessuna colonna libera per questo (solo `data_creazione`/`data_ultimo_cambio_stato`, entrambe automatiche). Segnalato invece di essere risolto in autonomia; l'utente ha scelto di aggiungere una **migration separata** (`0010_lavoro_satellite_data_appuntamento.sql`, `data_appuntamento timestamptz` nullable) invece di riaprire la 0009 già committata, per tenere lo Sprint 1 "congelato" così com'è stato consegnato. |
 | 2026-07-19 | **Modello Attività (trattativa) superato dal modello a satelliti**, stesso trattamento già riservato a `Fase_Template`/`Lavoro_Fasi` nello Sprint 1: la tabella `attivita` resta nello schema Postgres (non cancellata, possibili dati storici), ma **ogni riferimento/uso attivo è stato rimosso dalla UI** — sezione "Attività" nel dettaglio Lavoro (sostituita interamente dalla sezione satelliti), badge "N attività aperte" nella lista Lavori. Rimossi di conseguenza `components/attivita-card.tsx`, `components/nuova-attivita-form.tsx` e le server action `creaAttivita`/`aggiornaAttivita`/`nuovaRevisionePreventivo` in `lib/lavori/actions.ts` (nessun altro chiamante). Nessuna FK esterna referenzia `attivita` (solo un self-FK interno su `revisione_di`), quindi nessuna migration di schema necessaria per questa deprecazione — stesso motivo per cui non ne era servita una per `Fase_Template`/`Lavoro_Fasi`. **`lavoro.accettato_at` cambia natura**: da gate che condizionava l'accesso alla fase di esecuzione a **flag puramente informativo** (verificato che non fosse mai referenziato da nessuna RLS/check constraint — l'unico "gate" era lato UI React nel dettaglio Lavoro), pensato per la futura dashboard (Sprint 3) per distinguere lavori ancora in trattativa informale da lavori confermati dal cliente. Non blocca né sblocca più nulla nel dettaglio Lavoro: i satelliti (già così fin dalla loro introduzione nello Sprint 2) restano utilizzabili indipendentemente dal suo valore. Il bottone "Segna lavoro accettato" resta, così come l'accoppiamento esistente con `lavoro.stato: 'trattativa' → 'esecuzione'` (mera etichetta di stato generale, non referenziata da alcuna policy/vincolo — non toccato, fuori scope di questa decisione). |
+| 2026-07-20 | **Sprint 3 revisione strutturale — ambiguità trovata e risolta con l'utente prima di procedere**: la chiusura del Lavoro nella sezione "Dashboard" era descritta come "montaggio verde", ma il traguardo `montaggio` non esiste ancora come tipo di satellite nello schema (resta da definire, vedi "Prossimi passi aperti"). Confermato con l'utente: si usa il campo `lavoro.stato = 'chiuso'` già esistente dalla 0001 (oggi impostato da nessun codice) come criterio di esclusione dalla dashboard — quando il gate montaggio verrà implementato, sarà lui a far scattare quella transizione, stesso pattern di `accettato_at` → `stato='esecuzione'`. |
+| 2026-07-20 | **Sprint 3 revisione strutturale — dashboard implementata** (migration `0011_lavori_dashboard.sql`, funzione `lavori_dashboard()`): pagina `/lavori` rinominata **"Dashboard"** in UI (titolo H1 e voce di menu `components/app-nav.tsx`; URL invariato). Formula del punteggio di urgenza fissata (vedi sezione "Dashboard (nuova home page)" più sotto per il dettaglio ed esempio numerico): somma su satelliti non-appuntamento, non-verdi, non superati da revisione più recente, di `giorni da data_ultimo_cambio_stato × peso` (1.0 rosso, 0.5 giallo). Calcolo lato SQL in un'unica query (no N+1), `SECURITY INVOKER` (non definer) per restare soggetta alle RLS esistenti senza bisogno di passare `artigiano_id` dall'esterno. Riepilogo a contatori colorati per riga (pallino + numero). Verificato end-to-end con stack Supabase locale + Playwright (ambiente poi smontato completamente). **Non ancora eseguita sul progetto Supabase Cloud di produzione** (vedi "Prossimi passi aperti"). |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -300,22 +302,73 @@ sostituisce la lettura precedente "il saldo chiude il Lavoro".)*
 Il **montaggio** stesso resta da definire in dettaglio (prossimo
 argomento aperto).
 
-### Dashboard (nuova home page)
+### Dashboard (nuova home page) — Sprint 3 implementato 2026-07-20
 
-- Sostituisce l'elenco lavori ordinato cronologicamente.
-- Mostra solo i lavori **aperti** (non chiusi); i lavori chiusi restano
-  visibili solo in Statistica.
-- Ordinamento per **punteggio di urgenza**, non cronologico: combina
-  tempo trascorso dall'ultimo cambio di stato di un satellite rosso ×
-  numero di satelliti rossi presenti (i satelliti gialli pesano meno dei
-  rossi nel punteggio); punteggio più alto in cima. Formula esatta da
-  tarare in sviluppo/uso reale, non bloccante per il primo rilascio.
+- Sostituisce l'elenco lavori ordinato cronologicamente. Resta sulla
+  route `/lavori` (nessun cambio URL), ma l'etichetta nel menu e il
+  titolo H1 della pagina sono ora **"Dashboard"** (coerente con "Menu
+  laterale confermato: Dashboard (Lavori)..." qui sotto).
+- **"Chiuso" = `lavoro.stato = 'chiuso'`** (campo già esistente dalla
+  0001, non il satellite/traguardo "montaggio" — che non esiste ancora
+  come tipo di satellite nello schema, resta da definire in un prossimo
+  sprint). Oggi nessun codice imposta mai `stato = 'chiuso'`: quando il
+  gate "montaggio" verrà implementato, sarà lui a far scattare quella
+  transizione (stesso pattern già in uso per `accettato_at` →
+  `stato = 'esecuzione'`). La dashboard filtra semplicemente `WHERE
+  stato <> 'chiuso'`; i lavori chiusi resteranno visibili solo nella
+  futura sezione Statistica.
+- **Formula del punteggio di urgenza (fissata, non più da tarare)**:
+  per ogni lavoro, somma su tutti i satelliti **non-appuntamento** e
+  **non superati da una revisione più recente** (stessa esclusione già
+  usata da `lavoro_pronto_per_montaggio` per preventivo/progetto — solo
+  l'ultima versione della catena conta) che **non sono nel proprio
+  stato finale ("verde")**:
+
+  `Σ (giorni trascorsi da data_ultimo_cambio_stato) × peso`
+
+  dove `peso = 1.0` se il satellite è nel primo stato della propria
+  sequenza semaforo ("rosso"), `0.5` se è in uno stato intermedio
+  ("giallo"). I satelliti verdi non contribuiscono (peso implicito 0).
+  Gli appuntamenti sono sempre esclusi (coerente con "non contano per
+  il gate montaggio"). Punteggio più alto in cima; un lavoro senza
+  alcun satellite non-verde ha punteggio 0 e finisce in fondo, ma resta
+  visibile. **Esempio concreto verificato in test**: Lavoro con un
+  `acquisto_materiale` rosso fermo da 12 giorni (12 × 1.0 = 12.0) + una
+  `lavorazione_esterna` rossa ferma da 8 giorni (8 × 1.0 = 8.0) +
+  un appuntamento (escluso) → punteggio **20.0**, ordinato prima di un
+  Lavoro con solo un `preventivo` giallo fermo da 1 giorno (1 × 0.5 =
+  **0.5**).
+- **Calcolo lato SQL** (funzione `lavori_dashboard()`, migration
+  `0011_lavori_dashboard.sql`), non lato client: una singola query con
+  `LEFT JOIN LATERAL` per lavoro, non N+1. **SECURITY INVOKER** (non
+  `security definer`): legge `lavoro`/`lavoro_artigiani`/
+  `lavoro_satellite` con i permessi del chiamante, quindi resta
+  soggetta alle RLS già esistenti su quelle tabelle — nessun
+  `artigiano_id` passato dall'esterno, si usa sempre `auth.uid()`
+  internamente (stessa lezione della vulnerabilità corretta il 18/7 in
+  `ultimo_prezzo_articolo`). Ritorna anche i conteggi
+  `satelliti_rossi`/`_gialli`/`_verdi` (stessa esclusione
+  appuntamento/revisione superata) per il riepilogo in UI, evitando un
+  secondo giro di query.
 - Ogni riga lavoro in dashboard mostra un **riepilogo compresso a
-  contatori** dei satelliti (es. "3 rossi · 1 giallo · 2 verdi"), non
-  pallini singoli per satellite — priorità alla leggibilità della
-  schermata.
+  contatori** dei satelliti (pallino colorato + numero, es. 🔴2 🟡1 🟢2),
+  non pallini singoli per satellite — priorità alla leggibilità della
+  schermata. Se un lavoro non ha ancora nessun satellite, mostra "Nessun
+  satellite" invece di contatori tutti a zero.
 - Menu laterale confermato: Dashboard (Lavori), Clienti, Fornitori,
   Statistica, Account (impostazioni/personalizzazioni).
+- **Verificato end-to-end** (stack Supabase locale via CLI 2.109.1 +
+  Playwright, poi tutto smontato — nessuna traccia rimasta): login,
+  titolo/voce menu "Dashboard", lavoro chiuso assente dalla lista,
+  ordinamento per punteggio corretto con lo scenario sopra, contatori
+  colorati corretti su entrambe le righe. **Nota emersa in fase di
+  test**: la CLI Supabase locale 2.109.1 non espone più di default le
+  tabelle nuove ai ruoli `anon`/`authenticated`/`service_role` (flag
+  `auto_expose_new_tables`, deprecato, rimosso il 2026-10-30) — puro
+  artefatto dell'ambiente di test locale (il progetto Supabase Cloud di
+  produzione, creato prima di questo cambiamento, non è affetto),
+  gestito abilitando il flag temporaneamente solo per la sessione di
+  test, `config.toml` poi ripristinato via `git checkout`.
 
 ### Acquisti — distinzione materiale/ferramenta vs. lavorazione esterna
 
@@ -329,9 +382,12 @@ catalogo.
 ### Prossimi passi aperti (aggiornato)
 
 - Definire in dettaglio l'oggetto/traguardo **montaggio** (gate finale
-  di chiusura Lavoro).
-- Tarare la formula esatta del punteggio di urgenza in dashboard con
-  uso reale.
+  di chiusura Lavoro) — da cui dipenderà la transizione reale a
+  `lavoro.stato = 'chiuso'`, oggi mai impostata da nessun codice.
+- **Eseguire `supabase/migrations/0011_lavori_dashboard.sql` sul
+  progetto Supabase Cloud** (SQL Editor) — testata in locale, non
+  ancora applicata in produzione, stesso limite di tutte le migration
+  precedenti.
 - Rivalutare in futuro un'eventuale integrazione tra Districo e
   Falegname in Cloud per il dettaglio economico dei preventivi.
 - (voci precedenti non ancora affrontate restano valide sotto)

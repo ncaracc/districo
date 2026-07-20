@@ -10,6 +10,44 @@ const STATO_LABEL: Record<string, string> = {
   chiuso: 'Chiuso',
 }
 
+const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const
+
+function RiepilogoSatelliti({
+  rossi,
+  gialli,
+  verdi,
+}: {
+  rossi: number
+  gialli: number
+  verdi: number
+}) {
+  if (rossi + gialli + verdi === 0) {
+    return <span className="text-xs text-gray-400">Nessun satellite</span>
+  }
+  return (
+    <div className="flex items-center gap-3 text-xs text-gray-600">
+      {rossi > 0 && (
+        <span className="flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.rosso}`} />
+          {rossi}
+        </span>
+      )}
+      {gialli > 0 && (
+        <span className="flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.giallo}`} />
+          {gialli}
+        </span>
+      )}
+      {verdi > 0 && (
+        <span className="flex items-center gap-1">
+          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.verde}`} />
+          {verdi}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export default async function LavoriPage() {
   const supabase = await createClient()
   const {
@@ -34,22 +72,7 @@ export default async function LavoriPage() {
     }),
   )
 
-  const { data: propriLavori } = await supabase
-    .from('lavoro_artigiani')
-    .select('lavoro_id')
-    .eq('artigiano_id', user.id)
-    .eq('stato', 'accettato')
-
-  const lavoroIds = [...new Set((propriLavori ?? []).map((r) => r.lavoro_id))]
-
-  const { data: lavori } =
-    lavoroIds.length > 0
-      ? await supabase
-          .from('lavoro')
-          .select('id, titolo, stato, cliente_id, created_at')
-          .in('id', lavoroIds)
-          .order('created_at', { ascending: false })
-      : { data: [] }
+  const { data: lavori } = await supabase.rpc('lavori_dashboard')
 
   const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
 
@@ -70,7 +93,7 @@ export default async function LavoriPage() {
       )}
 
       <div className="mb-6 flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Lavori</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <Link
           href="/lavori/nuovo"
           className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
@@ -80,7 +103,7 @@ export default async function LavoriPage() {
       </div>
 
       {!lavori || lavori.length === 0 ? (
-        <p className="text-sm text-gray-500">Non hai ancora nessun lavoro.</p>
+        <p className="text-sm text-gray-500">Non hai ancora nessun lavoro aperto.</p>
       ) : (
         <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
           {lavori.map((l) => (
@@ -95,7 +118,14 @@ export default async function LavoriPage() {
                     {STATO_LABEL[l.stato] ?? l.stato}
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
+                  <RiepilogoSatelliti
+                    rossi={l.satelliti_rossi}
+                    gialli={l.satelliti_gialli}
+                    verdi={l.satelliti_verdi}
+                  />
+                </div>
               </Link>
             </li>
           ))}

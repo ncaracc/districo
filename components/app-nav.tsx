@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
 
 const VOCI_ATTIVE = [
-  { href: '/lavori', label: 'Lavori' },
+  { href: '/lavori', label: 'Dashboard' },
   { href: '/clienti', label: 'Clienti' },
 ]
 

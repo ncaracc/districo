@@ -249,6 +249,16 @@ export type Database = {
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
       lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
+      lavori_dashboard: {
+        Args: Record<string, never>
+        Returns: {
+          id: string; titolo: string
+          stato: 'trattativa' | 'esecuzione' | 'chiuso'
+          cliente_id: string; created_at: string
+          punteggio_urgenza: number
+          satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number
+        }[]
+      }
     }
   }
 }
