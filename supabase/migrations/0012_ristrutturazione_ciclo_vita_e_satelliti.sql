@@ -134,6 +134,35 @@ update lavoro_satellite
   set stato = null
   where tipo in ('appuntamento', 'noleggio');
 
+-- --- Migrazione dati: vecchio vocabolario stato per campione/lavorazione_esterna ---
+-- (mancava in questo giro: trovato in fase di applicazione su Supabase
+-- Cloud, dove esisteva già almeno una riga campione reale con lo stato
+-- vecchio "da_preparare" — vedi CLAUDE.md.)
+update lavoro_satellite
+  set stato = case stato
+    when 'da_preparare'         then 'in_preparazione'
+    when 'preparato'            then 'consegnato'
+    when 'ricevuto_dal_cliente' then 'approvato'
+    else stato
+  end
+  where tipo = 'campione';
+
+update lavoro_satellite
+  set stato = case stato
+    when 'da_consegnare'  then 'da_ordinare'
+    when 'in_lavorazione' then 'ordinato'
+    when 'completata'     then 'completato'
+    else stato
+  end
+  where tipo = 'lavorazione_esterna';
+
+-- serie è una colonna nuova (aggiunta sopra): le righe campione già
+-- esistenti non ne hanno una, ma il nuovo check sotto la richiede
+-- obbligatoria per questo tipo.
+update lavoro_satellite
+  set serie = 'Serie 1'
+  where tipo = 'campione' and serie is null;
+
 -- --- Nuovi check ---
 alter table lavoro_satellite add constraint lavoro_satellite_tipo_check
   check (tipo in (

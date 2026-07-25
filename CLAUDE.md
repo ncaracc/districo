@@ -708,6 +708,40 @@ Supabase reale, migration `0001`→`0012` applicate in sequenza),
 ambiente poi smontato — nessuna modifica a Supabase Cloud, nessun
 deploy, come richiesto esplicitamente.
 
+### Bug trovato in fase di applicazione reale su Supabase Cloud (2026-07-25)
+Primo tentativo di applicare `0012` su Supabase Cloud fallito:
+`lavoro_satellite_tipo_stato_check` violato da una riga reale
+(`tipo='campione'`, `stato='da_preparare'`, creata il 19/7 — con ogni
+probabilità un satellite reale del vecchio modello, non dato di test).
+Causa: la migration migrava il vecchio vocabolario stato solo per
+`acquisto_materiale/ferramenta` (→ `acquisti`) e per `appuntamento`, ma
+**non** per `campione` (vecchio: `da_preparare/preparato/
+ricevuto_dal_cliente`) né per `lavorazione_esterna` (vecchio:
+`da_consegnare/in_lavorazione/completata`) — entrambi vocabolari
+diversi da quelli introdotti dalla `0012`. Diagnosticato con una query
+di sola lettura (simulazione della stessa trasformazione tipo/stato
+della migration, eseguita dall'utente nello SQL Editor) prima di
+decidere come intervenire, invece di modificare a scatola chiusa.
+Trovato anche un secondo problema collegato (non ancora emerso perché
+il primo check blocca prima): `serie`, colonna nuova richiesta
+obbligatoria per `campione` dal check `lavoro_satellite_campione_serie_check`,
+resterebbe `NULL` per questa stessa riga esistente.
+**Corretta direttamente la migration `0012`** (non creata una nuova
+migration numerata): non era mai stata applicata con successo da
+nessuna parte — il fallimento del check ha fatto rollback dell'intera
+transazione, quindi Supabase Cloud restava comunque fermo allo schema
+`0011` — trattarla come "primo tentativo fallito da correggere sul
+posto" anziché come "migration già in produzione da non riaprire",
+stesso principio già seguito per la prima versione (mai deployata) del
+fix della `0006`. Aggiunte le due `UPDATE` mancanti (mappatura vecchio→
+nuovo vocabolario per `campione` e, difensivamente, per
+`lavorazione_esterna`, anche se nessuna riga nota lo richiedeva) più un
+backfill `serie = 'Serie 1'` per righe `campione` preesistenti senza
+serie — inserite prima del blocco "Nuovi check", stesso punto in cui
+già vivevano le migrazioni dati analoghe per acquisti/appuntamento.
+**Ancora da ri-applicare per intero su Supabase Cloud** (non fatto in
+questa sessione).
+
 ## Sprint B (2026-07-25) — UI fase di trattativa
 
 > Chiude il build lasciato volutamente rotto alla fine dello Sprint A su
