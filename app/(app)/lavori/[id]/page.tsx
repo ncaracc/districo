@@ -21,7 +21,7 @@ export default async function LavoroDettaglioPage({
 
   const { data: lavoro } = await supabase
     .from('lavoro')
-    .select('id, titolo, descrizione, stato, cliente_id, accettato_at, necessario_preventivo, necessario_progetto')
+    .select('id, titolo, descrizione, stato, cliente_id, accettato_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -105,8 +105,6 @@ export default async function LavoroDettaglioPage({
       <div className="mb-8">
         <SatellitiSection
           lavoroId={lavoro.id}
-          necessarioPreventivo={lavoro.necessario_preventivo}
-          necessarioProgetto={lavoro.necessario_progetto}
           satelliti={satelliti}
           righeArticolo={righeArticolo}
           fornitori={fornitori}

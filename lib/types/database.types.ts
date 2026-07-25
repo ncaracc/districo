@@ -56,14 +56,32 @@ export type Database = {
         Relationships: []
       }
       fornitore_sede: {
-        Row: { id: string; fornitore_id: string; nome: string; citta: string; indirizzo: string | null; created_at: string }
-        Insert: { id?: string; fornitore_id: string; nome: string; citta: string; indirizzo?: string | null; created_at?: string }
+        Row: {
+          id: string; fornitore_id: string; nome: string
+          citta: string | null; indirizzo: string | null
+          civico: string | null; cap: string | null; provincia: string | null
+          sigla: string | null; nazione: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string; fornitore_id: string; nome: string
+          citta?: string | null; indirizzo?: string | null
+          civico?: string | null; cap?: string | null; provincia?: string | null
+          sigla?: string | null; nazione?: string | null
+          created_at?: string
+        }
         Update: Partial<Database['public']['Tables']['fornitore_sede']['Insert']>
         Relationships: []
       }
       fornitore_sede_contatto: {
-        Row: { id: string; fornitore_sede_id: string; nome: string; email: string | null; telefono: string | null; ruolo: string | null; destinatario_ordini: boolean; created_at: string }
-        Insert: { id?: string; fornitore_sede_id: string; nome: string; email?: string | null; telefono?: string | null; ruolo?: string | null; destinatario_ordini?: boolean; created_at?: string }
+        Row: {
+          id: string; fornitore_sede_id: string; nome: string; cognome: string | null
+          email: string | null; cellulare: string | null; created_at: string
+        }
+        Insert: {
+          id?: string; fornitore_sede_id: string; nome: string; cognome?: string | null
+          email?: string | null; cellulare?: string | null; created_at?: string
+        }
         Update: Partial<Database['public']['Tables']['fornitore_sede_contatto']['Insert']>
         Relationships: []
       }
@@ -88,14 +106,18 @@ export type Database = {
       lavoro: {
         Row: {
           id: string; cliente_id: string; titolo: string; descrizione: string | null
-          stato: 'trattativa' | 'esecuzione' | 'chiuso'
-          necessario_preventivo: boolean; necessario_progetto: boolean
+          stato: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
+          indirizzo: string | null; civico: string | null; cap: string | null
+          citta: string | null; provincia: string | null; sigla: string | null; nazione: string | null
+          tracking: boolean
           accettato_at: string | null; created_at: string
         }
         Insert: {
           id?: string; cliente_id: string; titolo: string; descrizione?: string | null
-          stato?: 'trattativa' | 'esecuzione' | 'chiuso'
-          necessario_preventivo?: boolean; necessario_progetto?: boolean
+          stato?: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
+          indirizzo?: string | null; civico?: string | null; cap?: string | null
+          citta?: string | null; provincia?: string | null; sigla?: string | null; nazione?: string | null
+          tracking?: boolean
           accettato_at?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro']['Insert']>
@@ -206,30 +228,44 @@ export type Database = {
       lavoro_satellite: {
         Row: {
           id: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisto_materiale' | 'acquisto_ferramenta' | 'lavorazione_esterna' | 'campione'
-          stato: 'fissato' | 'fatto'
-            | 'in_preparazione' | 'presentato' | 'accettato'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'lavorazione_esterna' | 'campione' | 'costruzione' | 'noleggio'
+          stato: null
+            | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
+            | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
-            | 'da_consegnare' | 'in_lavorazione' | 'completata'
-            | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
-          nota: string | null; tipo_appuntamento: string | null
+            | 'da_ordinare' | 'ordinato' | 'completato'
+            | 'da_iniziare' | 'in_corso' | 'completata'
+          descrizione: string | null; tipo_appuntamento: 'briefing' | 'verifica_misure' | 'montaggio' | null
+          concluso: boolean; non_necessario: boolean
           data_appuntamento: string | null
           revisione_di: string | null; valore_complessivo: number | null
+          serie: string | null
           fornitore_sede_id: string | null; descrizione_libera: string | null
+          acquisto_categoria: 'materiale' | 'ferramenta' | null
+          data_invio_ordine: string | null; contatto_invio_id: string | null
+          data_inizio: string | null; data_fine: string | null
+          prenotazione_effettuata: boolean; data_da: string | null; data_a: string | null; costo: number | null
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
           id?: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisto_materiale' | 'acquisto_ferramenta' | 'lavorazione_esterna' | 'campione'
-          stato: 'fissato' | 'fatto'
-            | 'in_preparazione' | 'presentato' | 'accettato'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'lavorazione_esterna' | 'campione' | 'costruzione' | 'noleggio'
+          stato?: null
+            | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
+            | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
-            | 'da_consegnare' | 'in_lavorazione' | 'completata'
-            | 'da_preparare' | 'preparato' | 'ricevuto_dal_cliente'
-          nota?: string | null; tipo_appuntamento?: string | null
+            | 'da_ordinare' | 'ordinato' | 'completato'
+            | 'da_iniziare' | 'in_corso' | 'completata'
+          descrizione?: string | null; tipo_appuntamento?: 'briefing' | 'verifica_misure' | 'montaggio' | null
+          concluso?: boolean; non_necessario?: boolean
           data_appuntamento?: string | null
           revisione_di?: string | null; valore_complessivo?: number | null
+          serie?: string | null
           fornitore_sede_id?: string | null; descrizione_libera?: string | null
+          acquisto_categoria?: 'materiale' | 'ferramenta' | null
+          data_invio_ordine?: string | null; contatto_invio_id?: string | null
+          data_inizio?: string | null; data_fine?: string | null
+          prenotazione_effettuata?: boolean; data_da?: string | null; data_a?: string | null; costo?: number | null
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>
@@ -241,6 +277,12 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['lavoro_satellite_articolo']['Insert']>
         Relationships: []
       }
+      lavoro_satellite_allegato: {
+        Row: { id: string; satellite_id: string; nome_file: string; storage_path: string; data_caricamento: string }
+        Insert: { id?: string; satellite_id: string; nome_file: string; storage_path: string; data_caricamento?: string }
+        Update: Partial<Database['public']['Tables']['lavoro_satellite_allegato']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -249,11 +291,15 @@ export type Database = {
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
       lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
+      lavoro_satellite_stato_effettivo: {
+        Args: { p_lavoro_id: string }
+        Returns: { satellite_id: string; stato_effettivo: string | null }[]
+      }
       lavori_dashboard: {
         Args: Record<string, never>
         Returns: {
           id: string; titolo: string
-          stato: 'trattativa' | 'esecuzione' | 'chiuso'
+          stato: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
           cliente_id: string; created_at: string
           punteggio_urgenza: number
           satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number

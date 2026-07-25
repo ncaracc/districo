@@ -391,3 +391,319 @@ catalogo.
 - Rivalutare in futuro un'eventuale integrazione tra Districo e
   Falegname in Cloud per il dettaglio economico dei preventivi.
 - (voci precedenti non ancora affrontate restano valide sotto)
+
+## Revisione strutturale 2026-07-25 — Ciclo di vita Lavoro, Fornitori, ristrutturazione satelliti (Sprint A: schema)
+
+> Questa sezione **supera/estende** la "Revisione strutturale 2026-07-19"
+> precedente (mantenuta sopra per cronologia): cambia la macchina a stati
+> del Lavoro, aggiunge indirizzo e flag tracking al Lavoro, completa le
+> anagrafiche Fornitore (già esistenti dalla 0001 ma mai allineate al
+> nuovo modello indirizzo), e ristruttura profondamente l'entità
+> satellite (nuovi tipi, nuovi stati, nuovi campi, creazione
+> automatica). **Sprint A = solo schema dati** — migration
+> `0012_ristrutturazione_ciclo_vita_e_satelliti.sql` + funzioni SQL di
+> supporto, nessuna modifica alla UI satelliti esistente. Confermato
+> esplicitamente con l'utente: il vecchio codice UI/lib che legge lo
+> schema satellite precedente (`lib/lavori/satelliti.ts`,
+> `lib/lavori/satelliti-meta.ts`, `components/satellite-card.tsx`,
+> `components/nuovo-satellite-form.tsx`, le query in
+> `app/(app)/lavori/[id]/page.tsx`) **resta rotto a compile-time e
+> runtime** fino allo Sprint B dedicato alla UI — non è stato toccato in
+> questo giro, tranne il punto minimo isolato descritto sotto
+> (necessario_preventivo/progetto).
+
+### 1) Lavoro — nuova macchina a stati
+`lavoro.stato` passa da `trattativa/esecuzione/chiuso` a un ciclo **a
+transizioni sempre manuali**: `opportunita` (default alla creazione) →
+`accettato` / `rifiutato` → `completato`. Migrazione dati dei valori
+esistenti: `trattativa→opportunita`, `esecuzione→accettato`,
+`chiuso→completato` (nessuna riga reale nota in produzione, ma la
+migration normalizza comunque prima di stringere il check, per
+sicurezza). `accettato_at` (timestamp storico già esistente, reso
+"informativo" nella revisione del 19/7) **non è stato toccato**: resta
+nello schema, ora ridondante con `stato='accettato'` — non era tra i
+campi elencati per questo sprint, segnalato qui per consapevolezza
+futura, non risolto.
+
+Aggiunti a `lavoro`: indirizzo completo indipendente da quello del
+Cliente collegato — `indirizzo, civico, cap, citta, provincia, sigla,
+nazione` (tutti nullable, compilabili in qualsiasi momento) — e
+`tracking boolean not null default false` (solo il campo: nessuna
+logica di invio email/portale cliente, rimandata a uno sprint
+dedicato).
+
+**Rimossi** `necessario_preventivo`/`necessario_progetto` (introdotti
+nella revisione del 19/7, mai arrivati a coprire un vero bisogno prima
+di questa ristrutturazione). **Verifica fatta prima di rimuoverli come
+richiesto**: risultavano referenziati in produzione in
+`app/(app)/lavori/[id]/page.tsx` (query + props) e
+`components/satelliti-section.tsx` (badge promemoria "manca ancora
+il preventivo/progetto"), oltre che in `lib/types/database.types.ts`.
+Segnalato esplicitamente, **l'utente ha scelto**: rimuovere le colonne
+e fare comunque un pass minimo mirato SOLO a questi due campi (fuori
+dallo scope stretto di "solo schema" di questo sprint, ma richiesto
+esplicitamente per non lasciare due prop orfane isolate) — tolti i due
+prop/badge da `satelliti-section.tsx` e le due colonne dalla query e
+dai props in `lavori/[id]/page.tsx`; il resto della sezione satelliti
+in quei due file resta non toccato e non compila comunque, per la
+ristrutturazione più ampia dei punti 3-9 (vedi sopra).
+
+### 2) Fornitori
+`fornitore`/`fornitore_sede`/`fornitore_sede_contatto` **esistevano
+già** dalla `0001_initial.sql` (previsti dal brief del 16/7, contrariamente
+al sospetto iniziale che non fossero mai stati creati) — nessuna nuova
+tabella, solo adattamento allo stesso modello indirizzo del Lavoro:
+- `fornitore_sede`: aggiunti `civico, cap, provincia, sigla, nazione`
+  (nullable); `citta` (era `not null`) reso nullable per coerenza col
+  resto del blocco indirizzo; `indirizzo` già esistente e già nullable,
+  riusato as-is. Il campo `nome` (label libera della sede, es. "Ferexpert
+  Bologna") **non era nella lista richiesta ma non in conflitto con
+  essa** — lasciato invariato: è tuttora l'unico modo in cui la UI
+  esistente etichetta una sede, rimuoverlo avrebbe rotto
+  `app/(app)/lavori/[id]/page.tsx` senza alcun beneficio.
+- `fornitore_sede_contatto`: aggiunta `cognome` (nullable, per non
+  invalidare eventuali righe esistenti prive di cognome); `telefono`
+  **rinominato** a `cellulare` (stesso dato, nessuna perdita); **rimossi**
+  `ruolo` e `destinatario_ordini` — nessun riferimento applicativo a
+  nessuno dei due fuori da `0001`/`database.types.ts` (verificato),
+  coerente con la decisione esplicita che la scelta del destinatario
+  avviene ad ogni invio (Sprint C), non come flag fisso in anagrafica.
+
+### 3) Satelliti — Appuntamento (entità unica)
+`tipo_appuntamento` (era testo libero, "Briefing, rilievo,
+presentazione...") diventa un **sottotipo vincolato**: `briefing`,
+`verifica_misure`, `montaggio` (stesso nome di colonna per minimizzare
+churn, ora con `check` sui valori + `not null` quando `tipo='appuntamento'`).
+Dati legacy: eventuali righe con un valore fuori da questi tre (essendo
+prima testo libero) vengono normalizzate a `briefing` prima di
+applicare il nuovo check — fallback arbitrario ma innocuo, nessuna riga
+nota in produzione.
+
+`nota` **rinominata** `descrizione` (stesso identico contenuto/colonna,
+solo il nome cambia per riflettere il nuovo significato: testo esteso
+multi-riga, sempre facoltativo, compilabile sia prima che dopo
+l'appuntamento). **Rimosso** il vecchio check "nota obbligatoria al
+passaggio a `fatto`" (0009) — non più coerente col nuovo modello.
+
+Il semaforo non usa più `stato` (che per `tipo='appuntamento'` è ora
+sempre `NULL` — vincolato dal check generale) ma il nuovo flag
+`concluso boolean not null default false` (false=rosso, true=verde).
+Aggiunto `non_necessario boolean not null default false`, bloccato a
+`false` quando `sottotipo='briefing'` tramite check `(tipo_appuntamento
+<> 'briefing' or non_necessario = false)` — un briefing non può mai
+essere segnato "non necessario". `data_appuntamento` (già esistente
+dalla `0010`) riusata come campo "data" dell'appuntamento, invariata.
+Più istanze dello stesso sottotipo sullo stesso Lavoro (es. più
+appuntamenti di montaggio) erano già possibili prima (nessun vincolo di
+unicità) e restano tali, nessuna modifica necessaria.
+
+### 4) Satelliti — Progetto e Preventivo
+Nuovo set di stati: `in_preparazione` (rosso) → `presentato` (giallo) →
+`necessaria_revisione` (giallo) → `accettato` (verde) /
+`non_necessario` (verde). La creazione automatica di una nuova
+revisione quando lo stato passa a `necessaria_revisione` **resta
+applicativa** (come oggi), da implementare nello Sprint B — questo
+sprint prepara solo lo schema (colonna `revisione_di` già esistente,
+riusata invariata).
+
+**Stato "effettivo" per lo storico onesto**: nuova funzione
+`lavoro_satellite_stato_effettivo(p_lavoro_id uuid)` (SQL, `stable`,
+`security invoker`, stessa filosofia di `lavori_dashboard()`: nessun
+`security definer`, legge con i permessi del chiamante, soggetta alle
+RLS già esistenti su `lavoro_satellite`). Per ogni satellite di tipo
+`preventivo`/`progetto`/`campione`, risale la catena `revisione_di` con
+una CTE ricorsiva fino all'ultima revisione (quella senza successori);
+se quell'ultima è in uno stato verde (`accettato`/`non_necessario`/
+`approvato`), **tutte** le revisioni precedenti della stessa catena
+appaiono con quello stato nel risultato della funzione — **senza alcuna
+scrittura sulle righe reali**, che restano quello che sono davvero nel
+DB (nessun trigger che riscrive lo storico, come richiesto). Chi legge
+lo stato "vero" di una singola riga continua a interrogare
+`lavoro_satellite.stato` direttamente; chi vuole lo stato "da mostrare"
+userà questa funzione (consumo previsto dalla UI dello Sprint B).
+
+`valore_complessivo`: **solo Preventivo**, non Progetto. **Discrepanza
+corretta rispetto al codice esistente**: la `0009` (e
+`lib/lavori/satelliti-meta.ts`, costante `TIPI_CON_VALORE`) includevano
+già anche `progetto` fra i tipi con valore, contraddicendo la premessa
+"invariato" del prompt di questo sprint — la migration ora non applica
+più alcuna aspettativa di valore per `progetto` (nessun check DB lo
+impediva né lo impedisce ora: resta una colonna nullable generica,
+`progetto` semplicemente non dovrebbe più popolarla da Sprint B in poi).
+
+`lavoro_pronto_per_montaggio()` aggiornata: verde per
+preventivo/progetto ora è `stato in ('accettato', 'non_necessario')`
+(prima solo `accettato`).
+
+### 5) Satelliti — Campione
+Stesso pattern a 5 stati di Progetto/Preventivo, lessico adattato:
+`in_preparazione` (rosso) → `consegnato` (giallo) →
+`necessario_nuovo_campione` (giallo) → `approvato` (verde) /
+`non_necessario` (verde). Stessa funzione `lavoro_satellite_stato_effettivo`
+(punto 4) copre anche `campione`.
+
+Aggiunta colonna `serie text` per raggruppare le revisioni di una
+stessa serie di campione (es. "campione ante" vs "campione maniglie"
+sullo stesso Lavoro, ciascuna con la propria catena `revisione_di`
+indipendente). **Reso `not null` quando `tipo='campione'`** (check
+dedicato): senza un'etichetta di serie non sarebbe possibile
+raggrupparle in UI. La coerenza "stessa serie lungo tutta la catena di
+revisione" (ogni nuova revisione deve copiare il valore `serie` della
+precedente) **resta una responsabilità applicativa** (Sprint B), non
+imposta da un vincolo DB — validarla via trigger richiederebbe
+camminare la catena `revisione_di` ad ogni insert, complessità non
+giustificata per ora.
+
+### 6) Allegati sui satelliti
+Nuova tabella `lavoro_satellite_allegato` (`satellite_id` FK,
+`nome_file`, `storage_path`, `data_caricamento`, stesso pattern di
+`allegato` a livello Lavoro). **Nessuna restrizione di tipo** (a
+differenza di `lavoro_satellite_articolo`, che resta vincolata via
+trigger ad `acquisti`/`lavorazione_esterna`): la richiesta elenca
+appuntamento/progetto/preventivo/campione come applicazione minima
+("almeno"), non come lista esaustiva — un allegato ha senso su
+qualunque satellite, nessun motivo tecnico per impedirlo altrove. Il
+repository generale `allegato` (per Lavoro, non legato a un satellite)
+resta invariato e disponibile in parallelo, come da richiesta.
+
+### 7) Satelliti — Acquisti e Lavorazione esterna
+`acquisto_materiale`/`acquisto_ferramenta` **accorpati** in un unico
+tipo `acquisti`. Dati legacy migrati (`update ... set tipo = 'acquisti'`
+prima di stringere il check su `tipo`) con sotto-categorizzazione
+preservata nella nuova colonna `acquisto_categoria text check (... in
+('materiale', 'ferramenta'))`, nullable, popolata dal vecchio `tipo`
+per le righe esistenti — **scelta di tenerla** (il prompt lasciava la
+decisione a discrezione): utile in UI per continuare a distinguere
+visivamente un ordine ferramenta da uno pannelli anche se il fornitore
+non li separa sempre lui stesso.
+
+`lavoro_satellite_articolo` (righe testuali, niente prezzo) **estesa
+anche a `lavorazione_esterna`** (prima solo acquisti): il trigger
+`check_satellite_articolo_tipo()` ora accetta `satellite_id` di
+satelliti `acquisti` **o** `lavorazione_esterna` — coerente con "stessa
+logica identica" richiesta per i due tipi. `descrizione_libera` (colonna
+esistente, prima unico contenuto testuale di `lavorazione_esterna`)
+resta disponibile come campo descrittivo generale, non sostituita dalle
+righe ma complementare.
+
+Nuovi stati: **Acquisti** `da_acquistare` (rosso) → `acquistato`
+(giallo) → `ricevuto` (verde) — nomi invariati dalla `0009`. **Lavorazione
+esterna** `da_ordinare` (rosso) → `ordinato` (giallo) → `completato`
+(verde) — **scelta esplicita tra le due varianti proposte nel prompt**
+("da_acquistare/da_ordinare" e "acquistato/ordinato" e
+"ricevuto/completato"): per Acquisti si mantiene il lessico "acquisto"
+già in uso; per Lavorazione esterna si preferisce "ordinato/completato"
+perché descrive meglio l'affidare un lavoro a un terzo (fabbro,
+vetraio...) rispetto ad "acquistare" qualcosa, e per non mischiare
+"acquistato" con un flusso che non passa da un catalogo Articolo.
+
+Aggiunti (su entrambi i tipi) `data_invio_ordine timestamptz` e
+`contatto_invio_id uuid references fornitore_sede_contatto(id)`: solo
+spazio schema per registrare a chi/quando è stato inviato l'ordine —
+nessuna logica di invio email in questo sprint (arriverà nello Sprint
+C, come da richiesta). Più istanze dello stesso tipo sullo stesso
+Lavoro (più ordini successivi): già supportato dal modello esistente
+(nessun vincolo di unicità), nessuna modifica necessaria.
+
+### 8) Satelliti — Costruzione
+**Nessuna traccia trovata** di un tipo `costruzione` in nessuna
+migration (`0009`/`0010`/`0011`) né in questa sezione di CLAUDE.md prima
+di oggi — contrariamente a quanto ipotizzato nel prompt ("dovrebbero
+esistere da un giro precedente"), il tipo **non esisteva affatto**.
+Segnalato per trasparenza, poi introdotto qui da zero seguendo la
+descrizione data: testo libero facoltativo (riusa `descrizione_libera`,
+già generica in tabella) + `data_inizio timestamptz` (transizione
+rosso→giallo) + `data_fine timestamptz` (transizione giallo→verde).
+Stati: `da_iniziare` (rosso, `data_inizio` non ancora impostata) →
+`in_corso` (giallo, `data_inizio` impostata) → `completata` (verde,
+`data_fine` impostata) — il campo `stato` resta comunque la fonte di
+verità principale (stesso pattern del resto della tabella), le due date
+sono un tracciamento parallelo, non popolate automaticamente da un
+trigger legato al cambio di `stato` (nessuna richiesta esplicita in tal
+senso, evitato per non introdurre comportamento implicito non
+richiesto).
+
+### 9) Nuovo satellite — Noleggio
+Nuovo tipo `noleggio`: `non_necessario boolean not null default false`;
+`prenotazione_effettuata boolean not null default false` — semaforo
+**binario** (false=rosso, true=verde, nessun giallo: `stato` resta
+sempre `NULL` per questo tipo, stesso trattamento di `appuntamento`);
+`data_da timestamptz`, `data_a timestamptz` (durata, entrambe nullable);
+`costo numeric(12,2)` (nullable, check `>= 0` per coerenza con le altre
+colonne economiche della tabella).
+
+### 10) Creazione automatica dei satelliti — trigger SQL (non applicativa)
+**Scelta**: implementata come **trigger a livello DB**, non come
+logica applicativa rimandata allo Sprint B. Motivazione: lo stesso
+principio già seguito per le RLS in questo progetto ("garanzia
+strutturale, non solo nascosta in UI/codice") — un trigger garantisce
+la creazione dei segnaposto indipendentemente da quale codice
+crei/aggiorni un Lavoro in futuro (app Next.js, script, altra
+integrazione), mentre una funzione applicativa richiederebbe che *ogni*
+punto di creazione/transizione la richiami esplicitamente. Inoltre
+resta coerente con lo scope "Sprint A: solo schema + funzioni SQL" del
+prompt, senza toccare `lib/lavori/actions.ts`.
+
+Due funzioni/trigger, entrambe `security definer` (necessario: al
+momento dell'`INSERT` su `lavoro`, la riga owner in `lavoro_artigiani`
+**non esiste ancora** — viene creata dall'applicazione nello statement
+successivo, stesso ordine già noto dal fix della `0006` — quindi
+`is_owner_del_lavoro()` risulterebbe `false` e l'`INSERT` sui satelliti
+verrebbe respinto dalla RLS `"lavoro_satellite: scrittura solo owner"`
+se il trigger girasse con i permessi del chiamante; `security definer`
+bypassa il problema, stesso pattern già usato per
+`possiede_cliente_del_lavoro`/`handle_new_artigiano`). Entrambe con
+`search_path = public` esplicito e **`EXECUTE` revocato da `PUBLIC`,
+`anon` e `authenticated`** (non devono mai essere chiamabili
+direttamente, solo innescate dal trigger — stesso trattamento già
+riservato a `handle_new_artigiano` nella `0005`, verificato allora che
+non serve alcun grant perché l'esecuzione via trigger non passa dal
+controllo `EXECUTE` di una chiamata diretta):
+
+- `crea_satelliti_iniziali()` (`after insert on lavoro`): crea
+  Appuntamento(`briefing`), Progetto, Preventivo, Campione (prima serie,
+  `serie = 'Serie 1'`), tutti nello stato iniziale rosso/`in_preparazione`.
+- `crea_satelliti_post_accettazione()` (`after update on lavoro when
+  new.stato = 'accettato' and old.stato is distinct from 'accettato'`):
+  crea Appuntamento(`verifica_misure`), Acquisti, Lavorazione_esterna,
+  Costruzione, Noleggio, Appuntamento(`montaggio`), tutti come
+  segnaposto nello stato iniziale. **Guardia di idempotenza aggiunta**
+  (non richiesta esplicitamente ma economica): se il Lavoro dovesse
+  transitare `accettato → rifiutato → accettato` di nuovo, il trigger
+  **non ricrea** un secondo set di segnaposto se esiste già almeno un
+  satellite di uno dei quattro tipi non-appuntamento introdotti da
+  questo evento (`acquisti`/`lavorazione_esterna`/`costruzione`/
+  `noleggio`) — evita un doppione confuso in caso di andirivieni sullo
+  stato, senza impedire comunque le aggiunte manuali successive.
+
+**Segnalazione esplicita come richiesto**: creare 4+6 segnaposto vuoti
+in un colpo solo può risultare tanto per un artigiano alle prime armi —
+soprattutto il secondo evento (6 satelliti insieme all'accettazione).
+Procedo comunque con questa logica come base indicata, ma è un punto
+da **rivalutare con l'utente** una volta vista la UI reale dello
+Sprint B (es. possibile mostrare i segnaposto collassati/raggruppati
+finché non vengono toccati, invece di 6 card vuote subito in evidenza).
+
+Il trigger `set_satellite_data_ultimo_cambio_stato()` (dalla `0009`,
+aggiorna `data_ultimo_cambio_stato`) è stato **esteso** per scattare
+anche su cambio di `concluso` (appuntamento) e `prenotazione_effettuata`
+(noleggio), non solo su `stato` — altrimenti quei due tipi (che non
+usano `stato`) non aggiornerebbero mai questo timestamp, rilevante per
+un futuro calcolo di urgenza in dashboard che li includa.
+
+### 11) Gate "pronto per il montaggio" — aggiornato
+`lavoro_pronto_per_montaggio()` riscritta per il nuovo set di tipi
+bloccanti: `acquisti`, `lavorazione_esterna`, `costruzione`, `noleggio`
+(oltre a `preventivo`/`progetto`/`campione`, già trattati ai punti 4-5)
+devono essere tutti in stato verde/accettato/non_necessario per non
+bloccare il gate. Gli appuntamenti (incluso il sottotipo `montaggio`,
+ora parte della stessa entità Appuntamento) restano sempre esclusi dal
+calcolo, invariato.
+
+### Verifica locale (Sprint A)
+Testata con Postgres 17 in Docker + shim (stesso metodo delle migration
+`0004`-`0007`: schema `auth` minimale, `auth.uid()`, ruoli
+`anon`/`authenticated` con gli stessi default privileges di un progetto
+Supabase reale, migration `0001`→`0012` applicate in sequenza),
+ambiente poi smontato — nessuna modifica a Supabase Cloud, nessun
+deploy, come richiesto esplicitamente.

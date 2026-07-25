@@ -17,8 +17,6 @@ import {
 
 export function SatellitiSection({
   lavoroId,
-  necessarioPreventivo,
-  necessarioProgetto,
   satelliti,
   righeArticolo,
   fornitori,
@@ -27,8 +25,6 @@ export function SatellitiSection({
   pronto,
 }: {
   lavoroId: string
-  necessarioPreventivo: boolean
-  necessarioProgetto: boolean
   satelliti: Satellite[]
   righeArticolo: SatelliteArticolo[]
   fornitori: FornitoreOpzione[]
@@ -78,9 +74,6 @@ export function SatellitiSection({
     return aData - bData
   })
 
-  const hasPreventivoAttivo = altri.some((s) => s.tipo === 'preventivo' && !supersededIds.has(s.id))
-  const hasProgettoAttivo = altri.some((s) => s.tipo === 'progetto' && !supersededIds.has(s.id))
-
   const revisioniDisponibili = altri
     .filter((s) => (s.tipo === 'preventivo' || s.tipo === 'progetto') && !supersededIds.has(s.id))
     .map((s) => ({
@@ -90,10 +83,6 @@ export function SatellitiSection({
         s.data_creazione,
       ).toLocaleDateString('it-IT')})`,
     }))
-
-  function apri(tipo: TipoSatellite) {
-    setFormTipo(tipo)
-  }
 
   function onCreato() {
     setFormTipo(null)
@@ -116,13 +105,6 @@ export function SatellitiSection({
           </p>
         )}
       </div>
-
-      {isOwner && necessarioPreventivo && !hasPreventivoAttivo && (
-        <PromemoriaBadge label="Manca ancora il preventivo" onClick={() => apri('preventivo')} />
-      )}
-      {isOwner && necessarioProgetto && !hasProgettoAttivo && (
-        <PromemoriaBadge label="Manca ancora il progetto" onClick={() => apri('progetto')} />
-      )}
 
       <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-sm font-semibold text-gray-700">Avanzamento lavoro</h2>
@@ -186,21 +168,6 @@ export function SatellitiSection({
           </ul>
         </div>
       )}
-    </div>
-  )
-}
-
-function PromemoriaBadge({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <div className="mb-2 flex items-center justify-between gap-4 rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-      <span>{label}</span>
-      <button
-        type="button"
-        onClick={onClick}
-        className="shrink-0 rounded-lg border border-yellow-300 bg-white px-3 py-1 text-xs font-medium text-yellow-800 hover:bg-yellow-100 transition-colors"
-      >
-        Aggiungi
-      </button>
     </div>
   )
 }
