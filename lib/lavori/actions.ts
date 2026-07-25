@@ -63,17 +63,27 @@ export async function creaLavoro(
   return { ok: true, id: lavoroId }
 }
 
-// `accettato_at` è un flag informativo (non un gate): nessun'altra funzionalità del
-// dettaglio Lavoro dipende dal suo valore. `stato` continua a transitare a 'esecuzione'
-// insieme al flag solo come etichetta di stato generale, non come sblocco di funzionalità.
-export async function segnaLavoroAccettato(lavoroId: string): Promise<AzioneResult> {
+// Transizione manuale opportunità -> accettato/rifiutato. Nessun vincolo sullo stato
+// dei satelliti di trattativa (coerente con "transizioni sempre manuali" della
+// revisione 2026-07-25 e con la filosofia già in uso per il vecchio gate "lavoro
+// accettato": l'artigiano decide, il sistema non blocca in base a condizioni
+// automatiche). `accettato_at` continua a essere popolato per continuità con la UI
+// esistente, pur essendo ora ridondante con stato='accettato'.
+export async function segnaLavoroStato(
+  lavoroId: string,
+  nuovoStato: 'accettato' | 'rifiutato',
+): Promise<AzioneResult> {
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('lavoro')
-    .update({ accettato_at: new Date().toISOString(), stato: 'esecuzione' })
-    .eq('id', lavoroId)
 
-  if (error) return { ok: false, error: 'Errore, riprova' }
+  const update: { stato: 'accettato' | 'rifiutato'; accettato_at?: string } = { stato: nuovoStato }
+  if (nuovoStato === 'accettato') update.accettato_at = new Date().toISOString()
+
+  const { error } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
+
+  if (error) {
+    console.error('segnaLavoroStato: update fallito', error)
+    return { ok: false, error: 'Errore, riprova' }
+  }
 
   revalidatePath(`/lavori/${lavoroId}`)
   revalidatePath('/lavori')

@@ -707,3 +707,194 @@ Testata con Postgres 17 in Docker + shim (stesso metodo delle migration
 Supabase reale, migration `0001`→`0012` applicate in sequenza),
 ambiente poi smontato — nessuna modifica a Supabase Cloud, nessun
 deploy, come richiesto esplicitamente.
+
+## Sprint B (2026-07-25) — UI fase di trattativa
+
+> Chiude il build lasciato volutamente rotto alla fine dello Sprint A su
+> `app/(app)/lavori/[id]/page.tsx`, `lib/lavori/actions.ts`,
+> `lib/lavori/satelliti.ts`. Copre la gestione dei satelliti di
+> trattativa (Appuntamento briefing, Progetto, Preventivo, Campione) e
+> la transizione di stato del Lavoro. Non tocca i satelliti di
+> esecuzione (Sprint C).
+
+### 1) Vista satelliti — fase trattativa
+Riscritti da zero `lib/lavori/satelliti-meta.ts` (tipi/stati/colori/
+costruzione catene per famiglia) e `lib/lavori/satelliti.ts` (server
+action), eliminati i file del vecchio modello satellite ormai privi di
+senso (`components/satellite-card.tsx`, `nuovo-satellite-form.tsx`,
+`satelliti-section.tsx`, `segna-accettato-button.tsx` — nessun
+riferimento residuo verificato prima della rimozione). Nuovi componenti
+mirati invece di un'unica sezione generica:
+- `components/satellite-briefing.tsx`: data, descrizione (`<textarea>`,
+  newline preservati sia in modifica sia in visualizzazione via
+  `whitespace-pre-wrap`), flag `concluso`, allegati. Nessun controllo su
+  `non_necessario` in UI (per il briefing è bloccato a `false` solo dal
+  check DB della 0012 — qui semplicemente non viene mai esposto un
+  controllo per cambiarlo, coerente con "va nascosto").
+- `components/satellite-revisionabile.tsx` (`RevisionabileChain`):
+  componente riutilizzato tale e quale per Progetto, Preventivo e,
+  per-serie, per Campione — parametrizzato su `tipo` (che sceglie il set
+  di stati/etichette/colori) più due flag (`mostraValore` solo
+  Preventivo, `mostraDescrizione` solo Campione). Mostra la revisione
+  **corrente** (leaf: nessun'altra riga referenzia il suo id via
+  `revisione_di`) con i controlli attivi, e le revisioni storiche in
+  elenco compatto sotto. **Colore/etichetta di ogni riga (corrente e
+  storiche) letti da `lavoro_satellite_stato_effettivo()`**, mai dallo
+  stato grezzo direttamente: è così che una revisione superata appare
+  "Accettato" quando l'ultima della catena lo è, senza che la riga
+  storica venga mai scritta. **Verificato anche a livello DB** in fase
+  di test (vedi sotto): la riga superata resta `necessaria_revisione`
+  nella colonna reale.
+- `components/satellite-campione.tsx`: raggruppa i satelliti Campione
+  per `serie` (`raggruppaPerSerie`), una `RevisionabileChain` per
+  gruppo, più form "+ Nuova serie" che chiama `creaNuovaSerieCampione()`
+  (nuova riga radice, `revisione_di` nullo, stato `in_preparazione`).
+- Richiesta di revisione (`impostaStatoRevisionabile`, in
+  `lib/lavori/satelliti.ts`): se il nuovo stato è quello "richiede
+  nuova revisione" per la famiglia (`necessaria_revisione` per
+  progetto/preventivo, `necessario_nuovo_campione` per campione), la
+  server action **inserisce prima** la nuova riga (`revisione_di` =
+  riga corrente, stato `in_preparazione`, stessa `serie` se campione),
+  **poi** aggiorna lo stato della riga precedente — se il secondo passo
+  fallisce, la riga appena creata viene eliminata (stesso pattern di
+  rollback già in uso in `creaLavoro`/`creaSatellite`). Nessuna
+  "navigazione" esplicita verso la nuova revisione: dopo
+  `router.refresh()` compare semplicemente in cima come nuova riga
+  "Corrente", già pronta per essere lavorata.
+- **Semplificazione consapevole sugli allegati nella catena**: upload
+  mostrato solo sulla revisione corrente (non su ogni riga storica) —
+  gli allegati esistenti restano comunque visibili in lettura su
+  qualunque riga li abbia; evita di affollare la UI di widget di upload
+  su righe ormai chiuse. Non esplicitamente richiesto in questi termini,
+  scelta per restare essenziali.
+- **Descrizione libera non aggiunta a Progetto/Preventivo**: il prompt
+  la richiedeva esplicitamente solo per Appuntamento e Campione — non
+  estesa per coerenza con quanto chiesto, pur essendo la colonna
+  `descrizione` generica e già disponibile per qualunque tipo.
+
+### 2) Transizione di stato del Lavoro
+`lib/lavori/actions.ts`: `segnaLavoroAccettato()` sostituita da
+`segnaLavoroStato(lavoroId, 'accettato' | 'rifiutato')`.
+**"Segna come accettato" resa sempre disponibile, senza vincolare lo
+stato dei satelliti di trattativa** (nessun controllo tipo "tutti verdi
+prima di poter accettare"). Motivazione: coerente con "transizioni
+SEMPRE MANUALI" — testualmente la decisione che ha introdotto questa
+stessa macchina a stati nello Sprint A — e con la filosofia già in uso
+nel vecchio gate "lavoro accettato" (mai stato condizionato dallo stato
+delle Attività di trattativa). L'artigiano decide quando un'opportunità
+è matura per diventare un lavoro accettato; il sistema non blocca in
+base a condizioni automatiche sui satelliti, che restano modificabili
+liberamente anche a lavoro già accettato. "Segna come rifiutato" sempre
+disponibile da `opportunita`, nessuna condizione. Entrambi i bottoni
+spariscono non appena lo stato non è più `opportunita` (nessuna
+"marcia indietro" implementata, non richiesta).
+`accettato_at` continua a essere popolato alla transizione verso
+`accettato`, pur restando ridondante con `stato = 'accettato'` (già
+segnalato come ridondanza nota nello Sprint A, non risolta qui:
+toccarla non era nello scope di questo sprint).
+`components/lavoro-stato-azioni.tsx` (ex `SegnaAccettatoButton`): due
+bottoni, "Segna come accettato" con lo stile primario (`bg-primary`,
+usato per l'azione principale), "Segna come rifiutato" con lo stesso
+stile secondario/outline già usato altrove per "Annulla" (bordo grigio,
+non rosso) — **deliberatamente non rosso**: il rosso/LED resta
+riservato agli stati dei satelliti (decisione UI originale), non alle
+azioni sul Lavoro, per non introdurre una seconda semantica di colore
+bottone nella stessa schermata.
+Badge stato Lavoro reso più prominente (font-medium, non solo
+`text-gray-600`) ma **volutamente ancora neutro/grigio**, non colorato:
+coerente con la decisione originale che distingue esplicitamente
+`lavoro.stato` (fase/lifecycle) dagli stati satellite (che sole usano i
+colori "a LED").
+
+### 3) Allegati sui satelliti
+**Nessun meccanismo di upload esisteva già da riusare** (verificato:
+nessuna route/azione toccava `storage_path` o cartelle upload in
+nessun punto del codice) — gli Allegati erano stati esplicitamente
+rimandati fin dal 18/7 ("Non implementato in questo giro... Allegati").
+Costruito da zero seguendo l'architettura già decisa il 17/7 (cartella
+dedicata sul VPS, proxy applicativo invece di file statici Nginx, per
+rispettare le RLS):
+- `lib/lavori/allegati.ts` — `caricaAllegatiSatellite()`: scrive su
+  disco sotto `path.join(process.cwd(), 'uploads', 'lavori', lavoroId,
+  satelliteId, '<uuid>-<nomefile-sanificato>')` — `process.cwd()`
+  risolve a `/app` in produzione (il `Dockerfile` esistente già crea
+  `/app/uploads` e monta lì il volume host `/srv/apps/districo/uploads`
+  secondo le decisioni pregresse, mai attuate finora) e alla root del
+  repo in locale, senza bisogno di una nuova variabile d'ambiente.
+  Insert su `lavoro_satellite_allegato` **dopo** la scrittura su disco;
+  se l'insert fallisce (es. RLS, artigiano non owner) il file appena
+  scritto viene eliminato — difesa aggiuntiva anche se la UI non
+  espone mai l'upload a un non-owner.
+- `app/api/allegati/satellite/[id]/route.ts` — GET che legge la riga
+  `lavoro_satellite_allegato` con il client Supabase **autenticato
+  lato server** (non admin): la RLS di lettura ("chi è nel lavoro")
+  filtra da sola l'accesso, un `id` di un allegato non proprio
+  restituisce semplicemente nessuna riga → 404, senza bisogno di un
+  controllo esplicito nel codice della route. File letto da disco e
+  restituito con `Content-Type` dedotto da una piccola mappa
+  estensione→mime (pdf/jpg/jpeg/png/webp/gif) e
+  `Content-Disposition: inline`. Non aggiunta al middleware come rotta
+  pubblica: se la sessione scade, l'utente viene rediretto a `/login`
+  invece di ricevere un 401 JSON — accettabile per un link cliccato da
+  dentro l'app, non è un'API di terze parti.
+- `components/satellite-allegati.tsx`: widget condiviso (lista +
+  upload multiplo) riusato identico in `satellite-briefing.tsx` e
+  `satellite-revisionabile.tsx`.
+
+### Scoperta e correzione fuori dallo scope letterale: dashboard rotta dal nuovo `lavoro.stato`
+`app/(app)/lavori/page.tsx` non risultava tra i file "da sistemare"
+segnalati a fine Sprint A, ma **restava silenziosamente rotto dal punto
+di vista funzionale** (non a compile-time) dopo la revisione del
+17/25: `STATO_LABEL` mappava ancora `trattativa/esecuzione/chiuso`
+(mostrava il valore grezzo del nuovo enum come testo, es. "opportunita",
+per qualunque lavoro), e soprattutto `lavori_dashboard()` (`0011`)
+filtrava `where l.stato <> 'chiuso'` — valore che non esiste più nel
+nuovo modello, quindi **nessun lavoro sarebbe mai stato escluso dalla
+dashboard**, nemmeno quelli `completato`. Analizzando la stessa
+funzione è emerso un secondo problema, anch'esso mai toccato dalla
+0012: la classificazione rosso/verde per il punteggio di urgenza
+referenziava ancora `acquisto_materiale`/`acquisto_ferramenta` e gli
+stati vecchi di `lavorazione_esterna`, e non copriva affatto
+`campione`/`costruzione`/`noleggio` — questi tre sarebbero sempre
+risultati "né rossi né verdi", quindi sempre pesati 0.5 nel punteggio
+indipendentemente dal loro stato reale.
+**Corretto in `supabase/migrations/0013_lavori_dashboard_nuovo_stato.sql`**
+(non riaprendo la 0012, già committata — stesso principio già seguito
+per la 0009/0010): `lavori_dashboard()` ora filtra con un allow-list
+esplicito `where l.stato in ('opportunita', 'accettato')` (un lavoro
+`rifiutato` è terminale quanto uno `completato`, non ha più bisogno di
+comparire nella dashboard operativa), e la classificazione rosso/verde
+copre tutti gli 8 tipi del nuovo modello, incluso `noleggio` (che non
+usa `stato` ma `prenotazione_effettuata`/`non_necessario`).
+`STATO_LABEL` in `lavori/page.tsx` aggiornata al nuovo enum. Questa
+correzione **non era nella lista esplicita di file da sistemare**
+fornita a inizio Sprint B: segnalata qui perché è un effetto diretto
+del cambio di modello `lavoro.stato` introdotto nello Sprint A, non
+un'estensione di funzionalità — lasciarla rotta avrebbe significato
+consegnare una dashboard con etichette e filtri silenziosamente errati
+insieme alla nuova UI di trattativa.
+
+### Verifica end-to-end (Sprint B)
+Stack Supabase locale via CLI 2.109.1 (porte temporaneamente spostate
+di +1000 in `config.toml` per non collidere con lo stack Docker già
+attivo di Falegname in Cloud sulla stessa macchina, più
+`auto_expose_new_tables` abilitato temporaneamente per lo stesso motivo
+già noto dallo Sprint 3 — `config.toml` ripristinato via `git checkout`
+a fine test) + Playwright headless, eseguiti su una copia isolata del
+progetto (per via del lock di Next.js che impedisce due `next dev` sulla
+stessa directory: il dev server dell'utente su porta 3456 non è mai
+stato toccato). Copertura: registrazione e sessione, creazione Lavoro
+con verifica dei 4 segnaposto automatici, compilazione briefing
+(descrizione multi-riga verificata via `.inputValue()` dopo reload) e
+upload di un allegato (verificato anche su disco), richiesta di
+revisione su Progetto con **verifica diretta sul DB** che la riga
+superata mantenga `stato = 'necessaria_revisione'` mentre la UI la
+mostra "Accettato" tramite `lavoro_satellite_stato_effettivo()`,
+compilazione valore su Preventivo, creazione di una seconda serie di
+Campione (entrambe le serie visibili e distinte), transizione di due
+Lavori diversi rispettivamente a `accettato` (placeholder esecuzione
+mostrato, bottoni spariti) e a `rifiutato` (nessun placeholder,
+coerente con l'assenza di satelliti di esecuzione per un lavoro mai
+accettato). Ambiente smontato interamente al termine (container,
+volumi Docker, copia isolata del progetto, dev server di test);
+`npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.

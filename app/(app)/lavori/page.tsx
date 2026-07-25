@@ -5,9 +5,10 @@ import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const STATO_LABEL: Record<string, string> = {
-  trattativa: 'In trattativa',
-  esecuzione: 'In esecuzione',
-  chiuso: 'Chiuso',
+  opportunita: 'Opportunità',
+  accettato: 'Accettato',
+  rifiutato: 'Rifiutato',
+  completato: 'Completato',
 }
 
 const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const

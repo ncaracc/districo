@@ -1,15 +1,20 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { SegnaAccettatoButton } from '@/components/segna-accettato-button'
-import { SatellitiSection } from '@/components/satelliti-section'
-import type { FornitoreOpzione, Satellite, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
+import { LavoroStatoAzioni } from '@/components/lavoro-stato-azioni'
+import { SatelliteBriefing } from '@/components/satellite-briefing'
+import { RevisionabileChain } from '@/components/satellite-revisionabile'
+import { SatelliteCampione } from '@/components/satellite-campione'
+import { costruisciCatena, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 const STATO_LAVORO_LABEL: Record<string, string> = {
-  trattativa: 'In trattativa',
-  esecuzione: 'In esecuzione',
-  chiuso: 'Chiuso',
+  opportunita: 'Opportunità',
+  accettato: 'Accettato',
+  rifiutato: 'Rifiutato',
+  completato: 'Completato',
 }
+
+const TIPI_ESECUZIONE = ['acquisti', 'lavorazione_esterna', 'costruzione', 'noleggio']
 
 export default async function LavoroDettaglioPage({
   params,
@@ -27,42 +32,40 @@ export default async function LavoroDettaglioPage({
 
   if (!lavoro) notFound()
 
-  const [{ data: cliente }, { data: isOwner }, { data: satellitiGrezzi }, { data: prontoData }] =
+  const [{ data: cliente }, { data: isOwner }, { data: satellitiGrezzi }, { data: statoEffettivoGrezzo }] =
     await Promise.all([
       supabase.from('cliente').select('id, nome').eq('id', lavoro.cliente_id).maybeSingle(),
       supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
-      supabase
-        .from('lavoro_satellite')
-        .select(
-          'id, tipo, stato, nota, tipo_appuntamento, data_appuntamento, revisione_di, valore_complessivo, fornitore_sede_id, descrizione_libera, data_creazione',
-        )
-        .eq('lavoro_id', id),
-      supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: id }),
+      supabase.from('lavoro_satellite').select('*').eq('lavoro_id', id),
+      supabase.rpc('lavoro_satellite_stato_effettivo', { p_lavoro_id: id }),
     ])
 
   const satelliti: Satellite[] = satellitiGrezzi ?? []
   const satelliteIds = satelliti.map((s) => s.id)
 
-  const [{ data: righeGrezze }, { data: fornitoreSedi }, { data: fornitoriGrezzi }] = await Promise.all([
+  const { data: allegatiGrezzi } =
     satelliteIds.length > 0
-      ? supabase
-          .from('lavoro_satellite_articolo')
-          .select('id, satellite_id, articolo_id, descrizione, colore_finitura, quantita')
-          .in('satellite_id', satelliteIds)
-      : Promise.resolve({ data: [] as SatelliteArticolo[] }),
-    supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta'),
-    supabase.from('fornitore').select('id, ragione_sociale'),
-  ])
+      ? await supabase.from('lavoro_satellite_allegato').select('*').in('satellite_id', satelliteIds)
+      : { data: [] as SatelliteAllegato[] }
 
-  const righeArticolo: SatelliteArticolo[] = righeGrezze ?? []
+  const allegati: SatelliteAllegato[] = allegatiGrezzi ?? []
+  const allegatiById: Record<string, SatelliteAllegato[]> = {}
+  for (const a of allegati) {
+    ;(allegatiById[a.satellite_id] ??= []).push(a)
+  }
 
-  const ragioneSocialeById = new Map((fornitoriGrezzi ?? []).map((f) => [f.id, f.ragione_sociale]))
-  const fornitori: FornitoreOpzione[] = (fornitoreSedi ?? []).map((s) => ({
-    id: s.id,
-    label: `${ragioneSocialeById.get(s.fornitore_id) ?? '—'} — ${s.nome} (${s.citta})`,
-  }))
-  const fornitoreLabelById: Record<string, string> = Object.fromEntries(
-    fornitori.map((f) => [f.id, f.label]),
+  const statoEffettivoById: Record<string, string> = {}
+  for (const s of statoEffettivoGrezzo ?? []) {
+    if (s.stato_effettivo) statoEffettivoById[s.satellite_id] = s.stato_effettivo
+  }
+
+  const briefing = satelliti.find((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'briefing')
+  const progettoSatelliti = satelliti.filter((s) => s.tipo === 'progetto')
+  const preventivoSatelliti = satelliti.filter((s) => s.tipo === 'preventivo')
+  const campioneSatelliti = satelliti.filter((s) => s.tipo === 'campione')
+
+  const satellitiEsecuzione = satelliti.filter(
+    (s) => TIPI_ESECUZIONE.includes(s.tipo) || (s.tipo === 'appuntamento' && s.tipo_appuntamento !== 'briefing'),
   )
 
   return (
@@ -85,33 +88,79 @@ export default async function LavoroDettaglioPage({
             <p className="mt-1 text-sm text-gray-600">{lavoro.descrizione}</p>
           )}
         </div>
-        <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
+        <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
           {STATO_LAVORO_LABEL[lavoro.stato] ?? lavoro.stato}
         </span>
       </div>
 
       <div className="mb-8">
-        {lavoro.accettato_at ? (
-          <p className="text-sm text-gray-500">
-            Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
-          </p>
-        ) : isOwner ? (
-          <SegnaAccettatoButton lavoroId={lavoro.id} />
+        {lavoro.stato === 'opportunita' ? (
+          isOwner ? (
+            <LavoroStatoAzioni lavoroId={lavoro.id} />
+          ) : (
+            <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
+          )
         ) : (
-          <p className="text-sm text-gray-500">Lavoro non ancora accettato.</p>
+          lavoro.accettato_at && (
+            <p className="text-sm text-gray-500">
+              Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
+            </p>
+          )
         )}
       </div>
 
-      <div className="mb-8">
-        <SatellitiSection
-          lavoroId={lavoro.id}
-          satelliti={satelliti}
-          righeArticolo={righeArticolo}
-          fornitori={fornitori}
-          fornitoreLabelById={fornitoreLabelById}
-          isOwner={!!isOwner}
-          pronto={!!prontoData}
-        />
+      <div className="space-y-4">
+        {briefing && (
+          <SatelliteBriefing
+            satellite={briefing}
+            lavoroId={lavoro.id}
+            allegati={allegatiById[briefing.id] ?? []}
+            isOwner={!!isOwner}
+          />
+        )}
+
+        {progettoSatelliti.length > 0 && (
+          <RevisionabileChain
+            tipo="progetto"
+            titolo="Progetto"
+            catena={[...costruisciCatena(progettoSatelliti)].reverse()}
+            statoEffettivoById={statoEffettivoById}
+            allegatiById={allegatiById}
+            isOwner={!!isOwner}
+            lavoroId={lavoro.id}
+          />
+        )}
+
+        {preventivoSatelliti.length > 0 && (
+          <RevisionabileChain
+            tipo="preventivo"
+            titolo="Preventivo"
+            catena={[...costruisciCatena(preventivoSatelliti)].reverse()}
+            statoEffettivoById={statoEffettivoById}
+            allegatiById={allegatiById}
+            isOwner={!!isOwner}
+            lavoroId={lavoro.id}
+            mostraValore
+          />
+        )}
+
+        {(campioneSatelliti.length > 0 || isOwner) && (
+          <SatelliteCampione
+            satelliti={campioneSatelliti}
+            statoEffettivoById={statoEffettivoById}
+            allegatiById={allegatiById}
+            isOwner={!!isOwner}
+            lavoroId={lavoro.id}
+          />
+        )}
+
+        {lavoro.stato !== 'opportunita' && satellitiEsecuzione.length > 0 && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <p className="text-sm text-gray-600">
+              {satellitiEsecuzione.length} elementi in preparazione, dettaglio nel prossimo aggiornamento.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
