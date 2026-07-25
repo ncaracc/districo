@@ -9,9 +9,11 @@ import { clearRememberCookies } from '@/lib/auth/remember'
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
   { href: '/clienti', label: 'Clienti' },
+  { href: '/fornitori', label: 'Fornitori' },
+  { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' },
 ]
 
-const VOCI_IN_ARRIVO = ['Fornitori', 'Statistica', 'Profilo/Impostazioni']
+const VOCI_IN_ARRIVO = ['Statistica']
 
 // Pagine pubbliche raggiungibili anche da chi non è loggato.
 const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password', '/registrazione']

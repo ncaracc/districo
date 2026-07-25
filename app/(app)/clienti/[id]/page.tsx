@@ -5,9 +5,10 @@ import { ClienteForm } from '@/components/cliente-form'
 import { NuovoLavoroForm } from '@/components/nuovo-lavoro-form'
 
 const STATO_LABEL: Record<string, string> = {
-  trattativa: 'In trattativa',
-  esecuzione: 'In esecuzione',
-  chiuso: 'Chiuso',
+  opportunita: 'Opportunità',
+  accettato: 'Accettato',
+  rifiutato: 'Rifiutato',
+  completato: 'Completato',
 }
 
 export default async function ClienteDettaglioPage({

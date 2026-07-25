@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { aggiornaBriefing } from '@/lib/lavori/satelliti'
+import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
@@ -17,21 +17,26 @@ function aDatetimeLocal(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-export function SatelliteBriefing({
+export function SatelliteAppuntamento({
   satellite,
   lavoroId,
+  titolo,
   allegati,
   isOwner,
+  mostraNonNecessario,
 }: {
   satellite: Satellite
   lavoroId: string
+  titolo: string
   allegati: SatelliteAllegato[]
   isOwner: boolean
+  mostraNonNecessario: boolean
 }) {
   const router = useRouter()
   const [data, setData] = useState(aDatetimeLocal(satellite.data_appuntamento))
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
+  const [nonNecessario, setNonNecessario] = useState(satellite.non_necessario)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [salvato, setSalvato] = useState(false)
@@ -41,10 +46,11 @@ export function SatelliteBriefing({
     setErrore(null)
     setSalvato(false)
 
-    const result = await aggiornaBriefing(satellite.id, lavoroId, {
+    const result = await aggiornaAppuntamento(satellite.id, lavoroId, {
       data: data ? new Date(data).toISOString() : null,
       descrizione: descrizione.trim() || null,
       concluso,
+      nonNecessario: mostraNonNecessario ? nonNecessario : false,
     })
 
     setLoading(false)
@@ -56,23 +62,25 @@ export function SatelliteBriefing({
     router.refresh()
   }
 
+  const verde = mostraNonNecessario ? concluso || nonNecessario : concluso
+
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${concluso ? 'bg-green-500' : 'bg-red-500'}`} />
-          Briefing
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
+          {titolo}
         </p>
       </div>
 
       {isOwner ? (
         <div className="space-y-3">
           <div>
-            <label htmlFor="briefing-data" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
               Data
             </label>
             <input
-              id="briefing-data"
+              id={`app-data-${satellite.id}`}
               type="datetime-local"
               value={data}
               onChange={(e) => setData(e.target.value)}
@@ -81,11 +89,11 @@ export function SatelliteBriefing({
           </div>
 
           <div>
-            <label htmlFor="briefing-descrizione" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
               Descrizione <span className="text-gray-400">(opz.)</span>
             </label>
             <textarea
-              id="briefing-descrizione"
+              id={`app-descrizione-${satellite.id}`}
               rows={4}
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
@@ -102,6 +110,18 @@ export function SatelliteBriefing({
             />
             Concluso
           </label>
+
+          {mostraNonNecessario && (
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={nonNecessario}
+                onChange={(e) => setNonNecessario(e.target.checked)}
+                className="accent-primary"
+              />
+              Non necessario
+            </label>
+          )}
 
           {errore && <p className="text-xs text-red-600">{errore}</p>}
           <div className="flex items-center gap-2">

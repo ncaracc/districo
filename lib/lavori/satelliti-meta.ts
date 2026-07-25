@@ -10,6 +10,12 @@ export type TipoSatellite =
 
 export type SottotipoAppuntamento = 'briefing' | 'verifica_misure' | 'montaggio'
 
+export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string> = {
+  briefing: 'Briefing',
+  verifica_misure: 'Verifica misure',
+  montaggio: 'Montaggio',
+}
+
 export type TipoRevisionabile = 'preventivo' | 'progetto' | 'campione'
 
 export type StatoRevisionabile =
@@ -48,6 +54,14 @@ export type Satellite = {
   costo: number | null
   data_creazione: string
   data_ultimo_cambio_stato: string
+}
+
+export type SatelliteArticolo = {
+  id: string
+  satellite_id: string
+  descrizione: string
+  colore_finitura: string | null
+  quantita: number
 }
 
 export type SatelliteAllegato = {
@@ -174,6 +188,64 @@ export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
     corrente = successivo
   }
   return ordinata
+}
+
+// --- Acquisti / Lavorazione esterna ---
+export type TipoOrdine = 'acquisti' | 'lavorazione_esterna'
+
+export type StatoOrdine = 'da_acquistare' | 'acquistato' | 'ricevuto' | 'da_ordinare' | 'ordinato' | 'completato'
+
+export const STATO_ORDINE_LABEL: Record<TipoOrdine, Record<string, string>> = {
+  acquisti: { da_acquistare: 'Da acquistare', acquistato: 'Acquistato', ricevuto: 'Ricevuto' },
+  lavorazione_esterna: { da_ordinare: 'Da ordinare', ordinato: 'Ordinato', completato: 'Completato' },
+}
+
+const STATO_INIZIALE_ORDINE = { acquisti: 'da_acquistare', lavorazione_esterna: 'da_ordinare' } satisfies Record<TipoOrdine, StatoOrdine>
+const STATO_FINALE_ORDINE = { acquisti: 'ricevuto', lavorazione_esterna: 'completato' } satisfies Record<TipoOrdine, StatoOrdine>
+
+export function statoInizialeOrdine(tipo: TipoOrdine): StatoOrdine {
+  return STATO_INIZIALE_ORDINE[tipo]
+}
+
+export function labelStatoOrdine(tipo: TipoOrdine, stato: string): string {
+  return STATO_ORDINE_LABEL[tipo][stato] ?? stato
+}
+
+export function coloreOrdine(tipo: TipoOrdine, stato: string): ColoreSemaforo {
+  if (stato === STATO_INIZIALE_ORDINE[tipo]) return 'red'
+  if (stato === STATO_FINALE_ORDINE[tipo]) return 'green'
+  return 'yellow'
+}
+
+export function azioniPossibiliOrdine(tipo: TipoOrdine, statoAttuale: string): { stato: StatoOrdine; label: string }[] {
+  const [rosso, giallo, verde] = Object.keys(STATO_ORDINE_LABEL[tipo]) as StatoOrdine[]
+  if (statoAttuale === rosso) return [{ stato: giallo, label: `Segna come ${STATO_ORDINE_LABEL[tipo][giallo].toLowerCase()}` }]
+  if (statoAttuale === giallo) return [{ stato: verde, label: `Segna come ${STATO_ORDINE_LABEL[tipo][verde].toLowerCase()}` }]
+  return []
+}
+
+export const ACQUISTO_CATEGORIA_LABEL: Record<string, string> = {
+  materiale: 'Materiale',
+  ferramenta: 'Ferramenta',
+}
+
+// --- Costruzione ---
+export const STATO_COSTRUZIONE_LABEL: Record<string, string> = {
+  da_iniziare: 'Da iniziare',
+  in_corso: 'In corso',
+  completata: 'Completata',
+}
+
+export function coloreCostruzione(stato: string): ColoreSemaforo {
+  if (stato === 'da_iniziare') return 'red'
+  if (stato === 'completata') return 'green'
+  return 'yellow'
+}
+
+export function azioniPossibiliCostruzione(statoAttuale: string): { stato: string; label: string }[] {
+  if (statoAttuale === 'da_iniziare') return [{ stato: 'in_corso', label: 'Segna come iniziata' }]
+  if (statoAttuale === 'in_corso') return [{ stato: 'completata', label: 'Segna come completata' }]
+  return []
 }
 
 export function raggruppaPerSerie(satelliti: Satellite[]): { serie: string; satelliti: Satellite[] }[] {

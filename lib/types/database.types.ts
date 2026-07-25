@@ -20,6 +20,8 @@ export type Database = {
           via: string | null; civico: string | null; cap: string | null
           localita: string | null; provincia: string | null; paese: string
           immagine_profilo: string | null
+          smtp_host: string | null; smtp_porta: number | null; smtp_username: string | null
+          smtp_password_cifrata: string | null; smtp_sicurezza: 'ssl' | 'starttls' | 'nessuna' | null
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -30,6 +32,8 @@ export type Database = {
           via?: string | null; civico?: string | null; cap?: string | null
           localita?: string | null; provincia?: string | null; paese?: string
           immagine_profilo?: string | null
+          smtp_host?: string | null; smtp_porta?: number | null; smtp_username?: string | null
+          smtp_password_cifrata?: string | null; smtp_sicurezza?: 'ssl' | 'starttls' | 'nessuna' | null
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>

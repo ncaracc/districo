@@ -63,19 +63,22 @@ export async function creaLavoro(
   return { ok: true, id: lavoroId }
 }
 
-// Transizione manuale opportunità -> accettato/rifiutato. Nessun vincolo sullo stato
-// dei satelliti di trattativa (coerente con "transizioni sempre manuali" della
-// revisione 2026-07-25 e con la filosofia già in uso per il vecchio gate "lavoro
-// accettato": l'artigiano decide, il sistema non blocca in base a condizioni
-// automatiche). `accettato_at` continua a essere popolato per continuità con la UI
-// esistente, pur essendo ora ridondante con stato='accettato'.
+// Transizioni manuali del ciclo di vita del Lavoro (opportunità -> accettato/
+// rifiutato, accettato -> completato). Nessun vincolo automatico in nessuno dei due
+// casi: coerente con "transizioni sempre manuali" della revisione 2026-07-25 — anche
+// "Segna lavoro completato" resta disponibile a prescindere dal gate
+// lavoro_pronto_per_montaggio() o da quanti appuntamenti di montaggio esistono/sono
+// conclusi, che restano solo un'informazione a supporto della decisione
+// dell'artigiano, non un vincolo. `accettato_at` continua a essere popolato alla
+// transizione verso 'accettato' per continuità con la UI esistente, pur essendo
+// ridondante con stato='accettato'.
 export async function segnaLavoroStato(
   lavoroId: string,
-  nuovoStato: 'accettato' | 'rifiutato',
+  nuovoStato: 'accettato' | 'rifiutato' | 'completato',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
-  const update: { stato: 'accettato' | 'rifiutato'; accettato_at?: string } = { stato: nuovoStato }
+  const update: { stato: 'accettato' | 'rifiutato' | 'completato'; accettato_at?: string } = { stato: nuovoStato }
   if (nuovoStato === 'accettato') update.accettato_at = new Date().toISOString()
 
   const { error } = await supabase.from('lavoro').update(update).eq('id', lavoroId)

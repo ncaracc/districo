@@ -898,3 +898,229 @@ coerente con l'assenza di satelliti di esecuzione per un lavoro mai
 accettato). Ambiente smontato interamente al termine (container,
 volumi Docker, copia isolata del progetto, dev server di test);
 `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+## Sprint C (2026-07-25) — UI fase di esecuzione, Fornitori, invio email ordini
+
+> Chiude il placeholder minimo lasciato dallo Sprint B per i satelliti di
+> esecuzione (Appuntamento verifica_misure/montaggio, Acquisti,
+> Lavorazione esterna, Costruzione, Noleggio), costruisce l'anagrafica
+> Fornitori (era solo placeholder di menu), e aggiunge l'invio email
+> ordine. Usa le migration 0012/0013 già pronte dallo Sprint A/B più una
+> nuova migration 0014 (credenziali SMTP personali per artigiano, vedi
+> punto 3) — nessuna migration ancora applicata a Supabase Cloud.
+
+### 1) Anagrafica Fornitori
+**RLS verificata prima di procedere, nessuna ambiguità trovata**:
+`fornitore`/`fornitore_sede`/`fornitore_sede_contatto` hanno policy
+`for all using (auth.uid() is not null)` fin dalla `0001` (mai toccate
+dalla `0012`) — CRUD pieno per qualunque artigiano autenticato, nessuna
+colonna `artigiano_id`: modello condiviso esattamente come da brief del
+16/7, non serve alcuna modifica RLS. `lib/fornitori/actions.ts` non fa
+quindi alcun controllo di proprietà, solo autenticazione implicita
+tramite il client Supabase server-side.
+
+Pagine `app/(app)/fornitori` (lista + ricerca per ragione sociale, GET
+`?q=`, stesso pattern di `clienti`), `/fornitori/nuovo`,
+`/fornitori/[id]` (anagrafica fornitore + elenco sedi, ciascuna con i
+propri contatti). CRUD completo a tutti e tre i livelli
+(`FornitoreForm`, `FornitoreSedeForm`, `FornitoreSedeContattoForm`),
+eliminazione con conferma `confirm()` nativa (nessun modale custom nel
+progetto finora, non introdotto per questo). Voce **"Fornitori"**
+spostata da `VOCI_IN_ARRIVO` a `VOCI_ATTIVE` in `app-nav.tsx`.
+
+Indirizzo sede: stessi 7 campi del Lavoro (`indirizzo, civico, cap,
+citta, provincia, sigla, nazione`), stesso componente di scelta nazione
+con label provincia dinamica (`lib/paesi.ts`, già in uso per
+Artigiano/Lavoro).
+
+`cercaFornitoreSedi()` (per il form "nuovo ordine" nel dettaglio
+Lavoro): il catalogo condiviso è caricato per intero (fornitori + sedi)
+e filtrato lato JS sia su ragione sociale sia su nome sede — scelta
+deliberata invece di due query `ilike` separate, perché il catalogo è
+censito collettivamente da tutti gli artigiani (non per singolo
+artigiano) e resta di dimensioni contenute; da rivedere con una vera
+ricerca server-side se in futuro cresce molto.
+
+### 2) Satelliti — fase esecuzione
+`components/satellite-briefing.tsx` (Sprint B) generalizzato in
+`components/satellite-appuntamento.tsx` (`SatelliteAppuntamento`),
+riusato identico per `briefing` (`mostraNonNecessario={false}`, invariato)
+e per `verifica_misure`/`montaggio` (`mostraNonNecessario={true}`: qui
+il flag è liberamente impostabile, a differenza del briefing dove resta
+bloccato a `false` dal check DB della `0012`). `components/satellite-
+nuovo-appuntamento.tsx`: due bottoni "+ Verifica misure"/"+ Montaggio"
+per aggiungerne altri manualmente — verificato che più istanze di
+`montaggio` sullo stesso Lavoro convivano senza alcun collegamento tra
+loro, come richiesto.
+
+`components/satellite-nuovo-ordine.tsx` (creazione) +
+`components/satellite-ordine.tsx` (card esistente) per Acquisti/
+Lavorazione esterna: ricerca fornitore_sede con debounce (stesso
+pattern di `nuovo-lavoro-standalone-form.tsx`), righe libere
+(descrizione + quantità, riuso di `lavoro_satellite_articolo` già esteso
+a `lavorazione_esterna` dalla `0012`), valore complessivo, categoria
+(solo Acquisti). Bottoni di stato generati dinamicamente da
+`azioniPossibiliOrdine()` (un solo bottone alla volta, verso lo stato
+successivo della sequenza). Più istanze dello stesso tipo sullo stesso
+Lavoro: nessun vincolo, verificato in test (il segnaposto creato
+all'accettazione convive con gli ordini creati manualmente).
+
+`components/satellite-costruzione.tsx`: testo libero (`descrizione_libera`,
+già generico in tabella), stati con `data_inizio`/`data_fine` impostate
+**automaticamente** dalla server action `avanzaStatoCostruzione()` al
+cambio di stato (non dall'utente) — tempo trascorso calcolato e
+mostrato (`giorni` se ≥1, altrimenti `ore`, arrotondato per difetto con
+minimo 1 ora per evitare "0 ore").
+
+`components/satellite-noleggio.tsx`: date da/a, costo, `prenotazione_
+effettuata` e `non_necessario` — semaforo binario (nessun giallo),
+esattamente come vincolato dallo schema (`stato` sempre `NULL` per
+questo tipo).
+
+### 3) Invio email ordine
+**Corretto in corso di sprint, su indicazione esplicita dopo una prima
+implementazione con SMTP di sistema**: l'invio ordini usa le
+**credenziali SMTP personali di ciascun artigiano** (mittente reale =
+la sua email), configurabili in Profilo/Impostazioni — **non** lo SMTP
+Aruba (`info@districo.it`) già in uso per gli inviti "a quattro mani" e
+per le email transazionali applicative. I due canali email dell'app
+restano quindi tre in totale, ciascuno con un mittente diverso: mailer
+di sistema Supabase Auth (conferma/reset, non configurabile da codice),
+SMTP Aruba di sistema (`lib/email/send-email.ts`, solo inviti a quattro
+mani), SMTP personale per artigiano (`lib/email/send-email-personale.ts`,
+solo ordini).
+
+**Schema** (migration `0014_smtp_personale_artigiano.sql`): 5 colonne
+nullable aggiunte direttamente su `artigiano` (`smtp_host`, `smtp_porta`,
+`smtp_username`, `smtp_password_cifrata`, `smtp_sicurezza` — check su
+`'ssl'|'starttls'|'nessuna'`), non una tabella dedicata: relazione 1:1,
+stesso trattamento già riservato a `ragione_sociale`/`partita_iva`.
+Nessuna nuova RLS: le policy "artigiano vede/aggiorna solo se stesso"
+(0001) coprono già queste colonne.
+
+**Cifratura della password a riposo** (`lib/crypto/credenziali-smtp.ts`):
+AES-256-GCM, chiave in `SMTP_CREDENZIALI_KEY` (32 byte, base64) — **solo
+nell'ambiente applicativo, mai nel database**: chi accede al solo DB
+(dump, SQL Editor) vede un ciphertext, non la password. Nessun
+meccanismo di cifratura preesistente nel progetto: introdotto da zero,
+scelta motivata dalla disponibilità nativa in Node (nessuna nuova
+dipendenza) e dall'autenticazione integrata di GCM (rileva manomissioni
+del ciphertext). **La password non viene mai rimandata al client**:
+`ProfiloSmtpForm` mostra sempre il campo vuoto con placeholder
+"lascia vuoto per non modificarla" — un submit vuoto lascia
+`smtp_password_cifrata` invariata, solo un valore non vuoto la
+ricifra e sostituisce. Verificato in test che il campo torni
+sempre vuoto dopo il salvataggio/reload, mai popolato col valore
+esistente.
+
+**Pagina Profilo/Impostazioni** (`app/(app)/profilo/impostazioni`,
+prima solo placeholder di menu "in arrivo", ora voce attiva):
+form minimale (host, porta, sicurezza, username/email, password) via
+`lib/profilo/actions.ts` → `aggiornaCredenzialiSmtp()`.
+
+**Nuovo `lib/lavori/ordini-email.ts`**:
+- `contattiPerInvio(fornitoreSedeId)`: solo i contatti **con email**
+  (senza, non ha senso proporli nel dropdown — un contatto solo-
+  cellulare non è escluso dall'anagrafica, solo dalla selezione invio).
+- `inviaOrdineSatellite()`: **verifica per prima cosa le credenziali SMTP
+  dell'artigiano corrente** (tutti e 4 i campi host/porta/username/
+  password devono essere presenti) — se mancano anche solo in parte,
+  ritorna un risultato con `richiedeConfigurazione: true` e un messaggio
+  dedicato, che `SatelliteOrdine` mostra con un link diretto a
+  `/profilo/impostazioni` (`components/satellite-ordine.tsx`) invece del
+  generico errore di invio. **Nessun tentativo di invio silenzioso**:
+  verificato in test che senza credenziali non parta alcuna chiamata
+  SMTP (Mailpit riceve zero messaggi).
+- Oggetto `Ordine [materiale|ferramenta|lavorazione esterna] rif. [nome
+  cliente]` — **scelta per il caso non previsto dal template**: se un
+  Acquisti non ha `acquisto_categoria` impostata (campo facoltativo), il
+  testo tra parentesi diventa "acquisti" (fallback generico, non
+  "materiale" per non affermare il falso). Corpo HTML fedele al
+  template fisso richiesto (righe unite da `<br>`), **firma corretta in
+  corso di sprint**: inizialmente hardcoded a "Nicola" (testo letterale
+  del prompt originale), disallineata non appena il mittente è diventato
+  l'email personale di un artigiano qualsiasi — corretta per usare
+  `artigiano.nome` (stesso valore già usato come nome mittente
+  nell'header dell'email), coerente col tono informale "Ciao [contatto]"
+  già presente nel template. Invio in try/catch —
+  errori SMTP (credenziali errate, server irraggiungibile) **non
+  bloccano l'app**: ritornano un messaggio d'errore alla UI (pannello
+  "Invia ordine" resta aperto) invece di lanciare un'eccezione.
+  Registrazione dell'invio (`data_invio_ordine`, `contatto_invio_id`)
+  fatta **dopo** l'invio riuscito; se anche solo quella fallisse (RLS,
+  errore di rete), l'email è comunque già partita — segnalato con un
+  messaggio dedicato ("Email inviata, ma non è stato possibile
+  registrare l'invio") invece del generico errore di invio, per non far
+  credere all'utente che l'ordine non sia stato mandato.
+
+**Verificato end-to-end** (stesso stack Supabase locale + Mailpit +
+Playwright, poi smontato): tentativo di invio senza credenziali →
+bloccato con messaggio e link funzionante, **zero email inviate**
+(verificato su Mailpit); configurazione credenziali (puntate a Mailpit
+come "server SMTP personale" per il test) → password mai ripresentata
+in chiaro nel form; secondo tentativo di invio → riuscito, email
+intercettata da Mailpit con **mittente reale = l'indirizzo email
+personale configurato dall'artigiano, non `info@districo.it`**
+(asserzione esplicita di non-uguaglianza). Verificato anche a livello
+DB che `smtp_password_cifrata` contenga ciphertext (formato
+`iv.tag.dati`, tutti base64), non la password in chiaro.
+
+### 4) Gate "pronto per il montaggio" e completamento
+Banner + azione unificati in `components/lavoro-segna-completato.tsx`,
+visibile solo quando `lavoro.stato === 'accettato'`. **"Segna lavoro
+completato" reso sempre disponibile, senza vincolo sul gate né sul
+numero/stato degli appuntamenti di montaggio** — stessa motivazione già
+data per "Segna come accettato" nello Sprint B ("transizioni sempre
+manuali"): il gate resta un'informazione a supporto ("Pronto"/"Non
+ancora pronto per il montaggio", stesso banner colore neutro verde/grigio
+già usato nello Sprint 1/2 per l'analogo indicatore), mai un blocco.
+`segnaLavoroStato()` (già introdotta nello Sprint B per accettato/
+rifiutato) estesa per accettare anche `'completato'`, stessa funzione,
+nessuna duplicazione.
+
+### Scoperta e correzione fuori dallo scope letterale: STATO_LABEL residuo in `clienti/[id]/page.tsx`
+Stessa classe di problema già corretta nello Sprint B per la dashboard:
+la lista "Lavori associati" nel dettaglio Cliente aveva ancora
+`STATO_LABEL` con `trattativa/esecuzione/chiuso`. Corretta al nuovo
+enum (`opportunita/accettato/rifiutato/completato`) — nessuna migration
+coinvolta, solo un dizionario UI lato client. Verificato con `grep` che
+non restassero altri residui dello stesso tipo altrove nel progetto.
+
+### Verifica end-to-end (Sprint C)
+Stesso metodo degli sprint precedenti (Supabase locale via CLI 2.109.1,
+porte spostate temporaneamente, `config.toml` ripristinato via `git
+checkout` a fine test, copia isolata del progetto per il lock di
+`next dev`, dev server reale dell'utente su `:3456` mai toccato) +
+Playwright, con l'aggiunta di **Mailpit** (incluso nello stack Supabase
+locale, porta SMTP `1025` esposta abilitando `smtp_port` in
+`config.toml`) come "servizio di test tipo Mailhog" richiesto: le env
+var `SMTP_*` dell'app puntate a Mailpit invece che ad Aruba per la sola
+sessione di test, email intercettate e verificate via l'API HTTP di
+Mailpit (oggetto, destinatario, corpo) invece di un invio reale.
+**Bug trovato e corretto nel test stesso, non nell'app**: un primo
+tentativo con `SMTP_USER=test` (non un indirizzo email valido) faceva
+fallire l'invio con "553 The address is not a valid RFC 5321 address"
+sul `MAIL FROM` — corretto usando un indirizzo con formato valido nelle
+credenziali di test.
+**Secondo bug trovato e corretto nel test**: l'asserzione iniziale su
+"gate pronto" usava un match di sottostringa (`text=Pronto per il
+montaggio`) che risultava vero anche quando il banner mostrava "**Non
+ancora** pronto per il montaggio" (sottostringa contenuta), dando un
+falso positivo mentre a DB un satellite Acquisti era ancora rosso.
+Corretto con: un controllo negativo esplicito prima (il banner deve
+mostrare "non ancora"), un match esatto sul testo dopo, e una verifica
+indipendente chiamando `lavoro_pronto_per_montaggio()` via REST
+direttamente contro il DB per far concordare UI e funzione SQL. Anche
+un'ambiguità di selettore sul bottone "Salva" del Noleggio (matchava un
+div contenitore più ampio condiviso con altre card) è stata corretta
+scoping sulla card specifica.
+Copertura completa: censimento fornitore con sede e contatto (con
+ricerca), creazione di un ordine Acquisti con fornitore/riga/valore,
+invio email verificato end-to-end via Mailpit (oggetto con categoria e
+cliente corretti, corpo con la riga d'ordine, destinatario corretto),
+registrazione `data_invio_ordine` verificata sia in UI sia a DB,
+appuntamenti multipli di montaggio, gate verificato falso poi vero
+(con cross-check DB), transizione lavoro a `completato`. Ambiente
+smontato al termine (container, volumi, copia isolata, dev server di
+test); `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero
+progetto.
