@@ -85,8 +85,11 @@ export default async function LavoroDettaglioPage({
   const preventivoSatelliti = satelliti.filter((s) => s.tipo === 'preventivo')
   const campioneSatelliti = satelliti.filter((s) => s.tipo === 'campione')
 
-  const appuntamentiEsecuzione = satelliti
-    .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento !== 'briefing')
+  const appuntamentiVerificaMisure = satelliti
+    .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'verifica_misure')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
+  const appuntamentiMontaggio = satelliti
+    .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'montaggio')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const acquistiSatelliti = satelliti.filter((s) => s.tipo === 'acquisti')
   const lavorazioneEsternaSatelliti = satelliti.filter((s) => s.tipo === 'lavorazione_esterna')
@@ -116,7 +119,8 @@ export default async function LavoroDettaglioPage({
   )
 
   const haEsecuzione =
-    appuntamentiEsecuzione.length > 0 ||
+    appuntamentiVerificaMisure.length > 0 ||
+    appuntamentiMontaggio.length > 0 ||
     acquistiSatelliti.length > 0 ||
     lavorazioneEsternaSatelliti.length > 0 ||
     !!costruzioneSatellite ||
@@ -223,7 +227,7 @@ export default async function LavoroDettaglioPage({
           <div className="mt-6 space-y-4">
             <h2 className="text-sm font-semibold text-gray-700">Esecuzione</h2>
 
-            {appuntamentiEsecuzione.map((a) => (
+            {appuntamentiVerificaMisure.map((a) => (
               <SatelliteAppuntamento
                 key={a.id}
                 satellite={a}
@@ -267,6 +271,18 @@ export default async function LavoroDettaglioPage({
             {noleggioSatellite && (
               <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />
             )}
+
+            {appuntamentiMontaggio.map((a) => (
+              <SatelliteAppuntamento
+                key={a.id}
+                satellite={a}
+                lavoroId={lavoro.id}
+                titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
+                allegati={allegatiById[a.id] ?? []}
+                isOwner={!!isOwner}
+                mostraNonNecessario
+              />
+            ))}
           </div>
         )}
       </div>
