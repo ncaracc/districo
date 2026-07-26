@@ -75,6 +75,7 @@ export async function creaLavoro(
 export async function aggiornaLavoro(
   lavoroId: string,
   fields: {
+    titolo: string
     descrizione: string | null
     dataLavoro: string | null
     indirizzo: string | null
@@ -90,6 +91,7 @@ export async function aggiornaLavoro(
   const { error } = await supabase
     .from('lavoro')
     .update({
+      titolo: fields.titolo,
       descrizione: fields.descrizione,
       data_lavoro: fields.dataLavoro,
       indirizzo: fields.indirizzo,

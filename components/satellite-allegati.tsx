@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { caricaAllegatiSatellite } from '@/lib/lavori/allegati'
+import { caricaAllegatiSatellite, eliminaAllegatoSatellite } from '@/lib/lavori/allegati'
 import type { SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 export function SatelliteAllegati({
@@ -20,6 +20,7 @@ export function SatelliteAllegati({
   const inputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
@@ -52,12 +53,21 @@ export function SatelliteAllegati({
     }
   }
 
+  async function handleElimina(allegatoId: string) {
+    if (!confirm("Eliminare questo allegato? L'operazione non è reversibile.")) return
+    setEliminandoId(allegatoId)
+    const result = await eliminaAllegatoSatellite(allegatoId, lavoroId)
+    setEliminandoId(null)
+    if (!result.ok) alert(result.error)
+    else router.refresh()
+  }
+
   return (
     <div className="mt-2">
       {allegati.length > 0 && (
         <ul className="space-y-1">
           {allegati.map((a) => (
-            <li key={a.id}>
+            <li key={a.id} className="flex items-center gap-2">
               <a
                 href={`/api/allegati/satellite/${a.id}`}
                 target="_blank"
@@ -66,6 +76,16 @@ export function SatelliteAllegati({
               >
                 {a.nome_file}
               </a>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleElimina(a.id)}
+                  disabled={eliminandoId === a.id}
+                  className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50"
+                >
+                  {eliminandoId === a.id ? 'Eliminazione…' : 'Elimina'}
+                </button>
+              )}
             </li>
           ))}
         </ul>

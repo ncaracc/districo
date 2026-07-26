@@ -155,7 +155,6 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
         return [
           { stato: 'necessario_nuovo_campione', label: 'Richiedi nuovo campione', variante: 'warn' },
           { stato: 'approvato', label: 'Segna come approvato', variante: 'primary' },
-          { stato: 'non_necessario', label: 'Segna come non necessario', variante: 'muted' },
         ]
       default:
         return []
@@ -172,7 +171,6 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
       return [
         { stato: 'necessaria_revisione', label: 'Richiedi nuova revisione', variante: 'warn' },
         { stato: 'accettato', label: 'Segna come accettato', variante: 'primary' },
-        { stato: 'non_necessario', label: 'Segna come non necessario', variante: 'muted' },
       ]
     default:
       return []

@@ -6,6 +6,7 @@ import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
 
 type LavoroInfoFields = {
+  titolo: string
   descrizione: string | null
   data_lavoro: string | null
   indirizzo: string | null
@@ -45,6 +46,7 @@ export function LavoroInfo({
       <LavoroForm
         lavoroId={lavoroId}
         initialValues={{
+          titolo: fields.titolo,
           descrizione: fields.descrizione ?? '',
           dataLavoro: fields.data_lavoro ?? '',
           indirizzo: fields.indirizzo ?? '',

@@ -48,9 +48,8 @@ export default async function LavoroDettaglioPage({
 
   if (!lavoro) notFound()
 
-  const [{ data: cliente }, { data: isOwner }, { data: satellitiGrezzi }, { data: statoEffettivoGrezzo }, { data: pronto }] =
+  const [{ data: isOwner }, { data: satellitiGrezzi }, { data: statoEffettivoGrezzo }, { data: pronto }] =
     await Promise.all([
-      supabase.from('cliente').select('id, nome').eq('id', lavoro.cliente_id).maybeSingle(),
       supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
       supabase.from('lavoro_satellite').select('*').eq('lavoro_id', id),
       supabase.rpc('lavoro_satellite_stato_effettivo', { p_lavoro_id: id }),
@@ -135,14 +134,12 @@ export default async function LavoroDettaglioPage({
   return (
     <div>
       <div className="mb-2">
-        {cliente && (
-          <Link
-            href={`/clienti/${cliente.id}`}
-            className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            ← {cliente.nome}
-          </Link>
-        )}
+        <Link
+          href="/lavori"
+          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          ← Dashboard
+        </Link>
       </div>
 
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -153,6 +150,7 @@ export default async function LavoroDettaglioPage({
               lavoroId={lavoro.id}
               isOwner={!!isOwner}
               fields={{
+                titolo: lavoro.titolo,
                 descrizione: lavoro.descrizione,
                 data_lavoro: lavoro.data_lavoro,
                 indirizzo: lavoro.indirizzo,

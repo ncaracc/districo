@@ -1823,3 +1823,68 @@ anzitutto se il dominio è proxato (header `server: cloudflare`, IP
 risolti sul range Cloudflare invece che sull'IP diretto del VPS) e
 controllare i Security Events per blocchi corrispondenti a orario/path,
 prima di assumere che la causa sia nell'app.
+
+## Quattro fix rapidi UI/UX dettaglio Lavoro, da test reale (2026-07-26)
+
+1) **Link "torna indietro"**: nel dettaglio Lavoro, il link in alto puntava
+al dettaglio Cliente (`← [Nome Cliente]`) — non aveva senso tornare al
+cliente da un lavoro aperto dalla dashboard. Cambiato in `← Dashboard`,
+punta a `/lavori`. La query del Cliente in `app/(app)/lavori/[id]/page.tsx`
+(usata solo per questo link) è stata rimossa insieme al link, non essendo
+più referenziata da nient'altro nella pagina.
+
+2) **Titolo del Lavoro modificabile**: `LavoroForm` (Fix 1 del 25/7)
+permetteva di modificare descrizione/data/indirizzo ma non il titolo —
+omissione non intenzionale, non c'era alcuna decisione che lo escludesse
+deliberatamente. Aggiunto come primo campo del form, stesso pattern degli
+altri (obbligatorio, validazione client). `aggiornaLavoro()` esteso di
+conseguenza. L'`<h1>` in cima alla pagina resta un campo separato
+(server-rendered, si aggiorna dopo `router.refresh()`), non spostato
+dentro `LavoroInfo` — nessuna duplicazione visibile, dato che gli altri
+campi già seguono lo stesso schema (mostrati una sola volta, non anche
+altrove nella pagina).
+
+3) **Eliminazione allegati sui satelliti**: gli allegati potevano essere
+solo aggiunti, mai rimossi. Aggiunta `eliminaAllegatoSatellite()` in
+`lib/lavori/allegati.ts` (elimina la riga DB, poi il file su disco — RLS
+"allegato satellite: eliminazione solo owner" già esistente dalla 0012,
+nessuna migration necessaria) e un bottone "Elimina" per allegato in
+`components/satellite-allegati.tsx`, con `confirm()` nativo prima di
+procedere — **non** esiste in realtà un "pattern di eliminazione
+satellite" a cui allinearsi (nessun satellite è mai stato eliminabile in
+questo progetto): usato invece lo stesso pattern già in uso per
+eliminare una sede/contatto Fornitore (`confirm()` + azione server +
+`router.refresh()`), l'unico precedente reale di eliminazione con
+conferma nell'app. **Il "repository generale del Lavoro" per gli
+allegati (tabella `allegato`, distinta da quella per satellite) non ha
+mai avuto un'interfaccia** — esiste solo nello schema/tipi dalla
+`0001_initial.sql`, mai costruita (rimandata esplicitamente fin dal
+18/7, mai più ripresa). Questo fix copre quindi solo gli allegati sui
+satelliti, gli unici che esistono davvero in UI.
+
+4) **Visibilità "non necessario" per Progetto/Preventivo/Campione**:
+l'opzione era disponibile in qualunque stato (anche dopo `presentato`/
+`consegnato`), pur non avendo più senso una volta che il satellite è
+avanzato oltre lo stato iniziale — la necessità è già dimostrata dai
+fatti a quel punto. Rimossa da `azioniPossibiliRevisionabile()`
+(`lib/lavori/satelliti-meta.ts`) per gli stati intermedi
+(`presentato`/`consegnato`), resta disponibile solo su
+`in_preparazione` (comportamento già corretto, non toccato) — e torna
+naturalmente disponibile su una nuova revisione appena creata (che
+riparte sempre da `in_preparazione`). **Appuntamento e Noleggio non
+toccati** come esplicitamente richiesto: il loro flag `non_necessario`
+resta liberamente impostabile in ogni momento, indipendente da qualsiasi
+nozione di "stato iniziale" (sono semafori binari, non hanno una
+sequenza di stati intermedi come i tipi revisionabili).
+
+Verificato end-to-end (Supabase locale + Playwright, ambiente smontato a
+fine test, stesso metodo delle sessioni precedenti): link "← Dashboard"
+presente e funzionante; titolo modificato e persistito dopo reload;
+allegato caricato su un satellite (Briefing), poi eliminato con successo
+(sparisce dalla lista dopo conferma); "non necessario" presente su
+Preventivo/Campione in `in_preparazione`, scompare dopo la transizione a
+`presentato`/`consegnato` (restano le altre azioni corrette: "Richiedi
+nuova revisione"/"Segna come accettato"); checkbox "Non necessario"
+ancora presente e libero su un Appuntamento (verifica misure), confermando
+che quel tipo non è stato alterato. `npm run build`/`tsc --noEmit`/
+`eslint` puliti sull'intero progetto.

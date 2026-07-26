@@ -6,6 +6,7 @@ import { aggiornaLavoro } from '@/lib/lavori/actions'
 import { PAESI, trovaPaese } from '@/lib/paesi'
 
 type Fields = {
+  titolo: string
   descrizione: string
   dataLavoro: string
   indirizzo: string
@@ -44,6 +45,11 @@ export function LavoroForm({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
 
+    if (!fields.titolo.trim()) {
+      setErrore('Il titolo è obbligatorio')
+      return
+    }
+
     if (!fields.dataLavoro) {
       setErrore('La data è obbligatoria')
       return
@@ -53,6 +59,7 @@ export function LavoroForm({
     setErrore(null)
 
     const result = await aggiornaLavoro(lavoroId, {
+      titolo: fields.titolo.trim(),
       descrizione: fields.descrizione.trim() || null,
       dataLavoro: fields.dataLavoro,
       indirizzo: fields.indirizzo.trim() || null,
@@ -76,6 +83,13 @@ export function LavoroForm({
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
       {errore && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errore}</p>}
+
+      <div>
+        <label htmlFor="lavoro-titolo" className="mb-1 block text-xs font-medium text-gray-700">
+          Titolo <span className="text-red-500">*</span>
+        </label>
+        <input id="lavoro-titolo" value={fields.titolo} onChange={set('titolo')} className={inputClass()} />
+      </div>
 
       <div>
         <label htmlFor="lavoro-descrizione" className="mb-1 block text-xs font-medium text-gray-700">

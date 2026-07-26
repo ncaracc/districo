@@ -98,3 +98,31 @@ export async function caricaAllegatiSatellite(
   revalidatePath(`/lavori/${lavoroId}`)
   return { ok: true }
 }
+
+export async function eliminaAllegatoSatellite(allegatoId: string, lavoroId: string): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const { data: allegato } = await supabase
+    .from('lavoro_satellite_allegato')
+    .select('storage_path')
+    .eq('id', allegatoId)
+    .maybeSingle()
+
+  if (!allegato) {
+    return { ok: false, error: 'Allegato non trovato' }
+  }
+
+  // RLS ("allegato satellite: eliminazione solo owner") garantisce che solo
+  // l'owner del lavoro possa eliminare — nessun controllo aggiuntivo qui.
+  const { error } = await supabase.from('lavoro_satellite_allegato').delete().eq('id', allegatoId)
+
+  if (error) {
+    console.error('eliminaAllegatoSatellite: delete fallito', error)
+    return { ok: false, error: "Errore nell'eliminazione, riprova" }
+  }
+
+  await fs.unlink(path.join(UPLOADS_DIR, allegato.storage_path)).catch(() => {})
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  return { ok: true }
+}
