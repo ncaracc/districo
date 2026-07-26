@@ -33,3 +33,28 @@ export async function sendEmailPersonale({
     html,
   })
 }
+
+// Traduce gli errori grezzi di nodemailer/SMTP (spesso criptici, in inglese, a
+// volte solo un codice numerico del server) in un messaggio comprensibile per
+// l'artigiano. Usata da testaCredenzialiSmtp() — non tocca inviaOrdineSatellite,
+// che resta con il suo messaggio generico esistente, fuori dallo scope di questa
+// aggiunta.
+export function traduciErroreSmtp(err: unknown): string {
+  const code = (err as { code?: string } | null)?.code
+  const responseCode = (err as { responseCode?: number } | null)?.responseCode
+
+  if (code === 'EAUTH' || responseCode === 535 || responseCode === 534) {
+    return 'Autenticazione fallita: verifica username e password.'
+  }
+  if (
+    code === 'ECONNECTION' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ESOCKET' ||
+    code === 'ENOTFOUND' ||
+    code === 'ECONNREFUSED' ||
+    code === 'EDNS'
+  ) {
+    return 'Impossibile raggiungere il server: verifica host e porta.'
+  }
+  return 'Invio fallito: verifica le credenziali e riprova.'
+}

@@ -2,9 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { cifraPassword } from '@/lib/crypto/credenziali-smtp'
+import { cifraPassword, decifraPassword } from '@/lib/crypto/credenziali-smtp'
+import { sendEmailPersonale, traduciErroreSmtp } from '@/lib/email/send-email-personale'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
+type TestSmtpResult = { ok: true; email: string } | { ok: false; error: string }
 
 type CredenzialiSmtpFields = {
   host: string
@@ -49,4 +51,55 @@ export async function aggiornaCredenzialiSmtp(fields: CredenzialiSmtpFields): Pr
 
   revalidatePath('/profilo/impostazioni')
   return { ok: true }
+}
+
+// Testa le credenziali SMTP personali GIÀ SALVATE (non i valori eventualmente
+// modificati e non ancora inviati nel form): apre una connessione reale e invia
+// un'email di prova all'artigiano stesso (mittente e destinatario coincidono),
+// stessa infrastruttura di invio già usata per gli ordini
+// (lib/email/send-email-personale.ts) — nessun meccanismo separato.
+export async function testaCredenzialiSmtp(): Promise<TestSmtpResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const { data: artigiano } = await supabase
+    .from('artigiano')
+    .select('nome, email, smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (
+    !artigiano ||
+    !artigiano.smtp_host ||
+    !artigiano.smtp_porta ||
+    !artigiano.smtp_username ||
+    !artigiano.smtp_password_cifrata ||
+    !artigiano.smtp_sicurezza
+  ) {
+    return { ok: false, error: 'Nessuna credenziale SMTP salvata: configurale e salvale prima di testarle.' }
+  }
+
+  try {
+    await sendEmailPersonale({
+      smtp: {
+        host: artigiano.smtp_host,
+        porta: artigiano.smtp_porta,
+        username: artigiano.smtp_username,
+        password: decifraPassword(artigiano.smtp_password_cifrata),
+        sicurezza: artigiano.smtp_sicurezza,
+      },
+      mittenteNome: artigiano.nome,
+      to: artigiano.email,
+      subject: 'Test credenziali SMTP - Districo',
+      html: '<p>Questa email conferma che le tue credenziali SMTP personali su Districo funzionano correttamente.</p>',
+    })
+  } catch (err) {
+    console.error('testaCredenzialiSmtp: invio fallito', err)
+    return { ok: false, error: traduciErroreSmtp(err) }
+  }
+
+  return { ok: true, email: artigiano.email }
 }

@@ -119,6 +119,7 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-20 | **Sprint 3 revisione strutturale — dashboard implementata** (migration `0011_lavori_dashboard.sql`, funzione `lavori_dashboard()`): pagina `/lavori` rinominata **"Dashboard"** in UI (titolo H1 e voce di menu `components/app-nav.tsx`; URL invariato). Formula del punteggio di urgenza fissata (vedi sezione "Dashboard (nuova home page)" più sotto per il dettaglio ed esempio numerico): somma su satelliti non-appuntamento, non-verdi, non superati da revisione più recente, di `giorni da data_ultimo_cambio_stato × peso` (1.0 rosso, 0.5 giallo). Calcolo lato SQL in un'unica query (no N+1), `SECURITY INVOKER` (non definer) per restare soggetta alle RLS esistenti senza bisogno di passare `artigiano_id` dall'esterno. Riepilogo a contatori colorati per riga (pallino + numero). Verificato end-to-end con stack Supabase locale + Playwright (ambiente poi smontato completamente). **Non ancora eseguita sul progetto Supabase Cloud di produzione** (vedi "Prossimi passi aperti"). |
 | 2026-07-26 | **Fix post-test end-to-end (4 fix) sul dettaglio Lavoro** — vedi sezione "Sprint D" più sotto per il dettaglio: (1) aggiunta la modifica del Lavoro dopo la creazione (descrizione, data di apertura `data_lavoro` — nuova colonna, migration `0015` —, indirizzo completo); (2) **"Segna lavoro completato" ora bloccato (client E server) se `lavoro_pronto_per_montaggio()` è falso** — supera esplicitamente la decisione dello Sprint C che lo lasciava sempre libero; (3) verificato (nessun fix necessario) che il flag `non_necessario` per gli appuntamenti `verifica_misure`/`montaggio` fosse già correttamente implementato dallo Sprint C; (4) convenzione UI uniformata in **tutti** i form dell'app: asterisco rosso sui campi obbligatori, nessuna etichetta testuale "(opz.)" sui facoltativi (impliciti per assenza di asterisco). |
 | 2026-07-26 | **Fix 5 e 6 (stesso giro dei 4 fix sopra)** — vedi sezione "Sprint D" per il dettaglio: (5) azione **"Riapri lavoro"** su un Lavoro `completato`/`rifiutato`, con conferma nativa (`window.confirm`), che riporta lo stato al valore precedente logico (completato→accettato, rifiutato→opportunità) senza toccare satelliti/dati collegati; (6) voce di menu **"Statistica" attivata** (era placeholder "in arrivo"), nuova pagina `/statistiche` con lista minima dei Lavori chiusi (completato/rifiutato: titolo, cliente, data, stato, link al dettaglio), ordinata per `data_lavoro` decrescente, nessun KPI/grafico in questo giro. **Pulizia dati di prova eseguita in produzione prima del commit**: eliminati i 2 Lavori di test presenti sul progetto Supabase Cloud reale (incluso uno con `stato='completato'` nonostante satelliti bloccanti ancora rossi — sintomo di un test manuale precedente all'introduzione del gate del fix 2), via DELETE diretto con la service role key già presente in `.env.local`, cascata su tutte le tabelle figlie (già tutte `on delete cascade` dalla 0001/0009/0012, nessuna migration necessaria), verificato con una query di conteggio che `lavoro` risultasse a 0 righe; Clienti e Fornitori non toccati (nessuna FK nella direzione opposta). |
+| 2026-07-26 | **Fix 7 (stesso giro dei fix 1-6 sopra)** — vedi sezione "Sprint D" per il dettaglio: bottone **"Testa credenziali"** in Profilo/Impostazioni (visibile solo se credenziali SMTP personali già salvate), che invia una vera email di prova a se stessi (mittente = destinatario = email dell'artigiano) riusando `sendEmailPersonale()` già esistente (nessun meccanismo di invio separato). Nuova `testaCredenzialiSmtp()` in `lib/profilo/actions.ts` e `traduciErroreSmtp()` in `lib/email/send-email-personale.ts` per tradurre gli errori grezzi di nodemailer (auth/connessione) in messaggi comprensibili. Nessuna migration. |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -1161,7 +1162,7 @@ smontato al termine (container, volumi, copia isolata, dev server di
 test); `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero
 progetto.
 
-## Sprint D (2026-07-26) — 6 fix sul dettaglio Lavoro/Statistica, emersi dal test end-to-end in produzione
+## Sprint D (2026-07-26) — 7 fix sul dettaglio Lavoro/Statistica/Profilo, emersi dal test end-to-end in produzione
 
 ### 1) Modifica del Lavoro dopo la creazione
 Il Lavoro non era mai modificabile dopo la creazione (solo `titolo` e
@@ -1381,10 +1382,75 @@ mentre il terzo resta escluso. Ambiente smontato al termine (container,
 volumi, copia isolata, config.toml ripristinato); `npm run build`/
 `tsc --noEmit`/`eslint` puliti sull'intero progetto.
 
+### 7) Bottone "Testa credenziali" in Profilo/Impostazioni
+Aggiunto un bottone **"Testa credenziali"** in `components/profilo-
+smtp-form.tsx`, visibile solo se `configurata` è vero (stesso segnale
+già usato per il messaggio "lascia vuota per non modificarla" sulla
+password — credenziali già salvate a DB). Al click, testa le
+credenziali **salvate** (non gli eventuali valori non ancora inviati
+nel form): nuova `testaCredenzialiSmtp()` in `lib/profilo/actions.ts`
+rilegge `artigiano.smtp_*` da DB (stesso controllo di completezza già
+usato in `inviaOrdineSatellite()` — se manca anche un solo campo,
+errore dedicato "nessuna credenziale salvata"), decifra la password con
+`decifraPassword()` e invia un'email di prova **a se stessi**
+(mittente e destinatario coincidono, l'indirizzo è `artigiano.email`)
+tramite `sendEmailPersonale()` — **stessa identica infrastruttura già
+costruita per l'invio ordini, nessun meccanismo di invio separato**,
+oggetto "Test credenziali SMTP - Districo".
+
+**Traduzione errori** (`traduciErroreSmtp()`, nuova funzione in
+`lib/email/send-email-personale.ts`, non usata da `inviaOrdineSatellite`
+— quella resta con il suo messaggio generico esistente, fuori scope):
+legge `err.code`/`err.responseCode` di nodemailer — `EAUTH` o risposta
+535/534 → "Autenticazione fallita: verifica username e password.";
+`ECONNECTION`/`ETIMEDOUT`/`ESOCKET`/`ENOTFOUND`/`ECONNREFUSED`/`EDNS` →
+"Impossibile raggiungere il server: verifica host e porta."; altrimenti
+un messaggio generico di fallback — mai il messaggio tecnico grezzo del
+server SMTP mostrato in UI.
+
+### Verifica end-to-end (fix 7)
+Sessione di test separata, stesso metodo delle precedenti (Supabase
+locale via CLI 2.109.1, porte +1000, grant allargati per parità con
+Cloud, copia isolata in scratchpad, dev server reale su `:3456` mai
+toccato), con l'aggiunta di **Mailpit** (incluso nello stack locale,
+`smtp_port` abilitato in `config.toml`) come server SMTP di test reale:
+le credenziali salvate in Profilo puntavano a `127.0.0.1:55325`
+(porta SMTP di Mailpit), sicurezza "nessuna" (Mailpit non richiede
+TLS/auth). **Nuova variabile d'ambiente scoperta necessaria per il
+test**: `SMTP_CREDENZIALI_KEY` (chiave AES-256 richiesta da
+`lib/crypto/credenziali-smtp.ts`) non risultava configurata in nessun
+file `.env*` del repo — è quindi impostata solo runtime sul VPS
+(docker-compose, non tracciata nei sorgenti, stesso pattern già noto
+per altre config VPS); generata una chiave di test dedicata, mai usata
+altrove.
+
+Copertura: bottone assente prima di salvare credenziali, presente dopo;
+**test con credenziali corrette** → messaggio di successo con
+l'indirizzo destinatario corretto, email verificata su Mailpit (via API
+HTTP) con esattamente 1 messaggio ricevuto, oggetto corretto, mittente e
+destinatario entrambi uguali all'email dell'artigiano; **test con
+porta/host sbagliati** (nessun servizio in ascolto) → messaggio
+"Impossibile raggiungere il server: verifica host e porta." mostrato in
+UI, nessun messaggio tecnico grezzo (`ECONNREFUSED`/stack trace)
+visibile, zero email effettivamente inviate (verificato su Mailpit),
+nessun crash dell'app. **Non verificato empiricamente il ramo
+"autenticazione fallita"**: Mailpit accetta qualunque credenziale senza
+verificarle, quindi non può generare un errore `EAUTH` reale in locale
+— quel ramo resta verificato solo a livello di codice (codici di errore
+nodemailer documentati e stabili), non con un test end-to-end contro un
+server che rifiuta l'autenticazione. Ambiente smontato al termine
+(container, volumi, copia isolata, config.toml ripristinato); `npm run
+build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
 ### Prossimi passi aperti (aggiornato)
 - **Eseguire `supabase/migrations/0015_lavoro_data_apertura.sql` sul
   progetto Supabase Cloud** (SQL Editor) — testata in locale, non
   ancora applicata in produzione, stesso limite di tutte le migration
-  precedenti. **Unica migration introdotta in questo giro complessivo**:
-  i fix 5 e 6 non hanno richiesto alcuna modifica di schema.
+  precedenti. **Unica migration introdotta in questo Sprint D
+  complessivo** (fix 1-7): nessuno degli altri fix ha richiesto
+  modifiche di schema.
+- ~~Verificare che `SMTP_CREDENZIALI_KEY` sia configurata sul VPS~~ —
+  **verificato**: già presente in `/srv/apps/districo/.env` su apphub
+  (non tracciata nei sorgenti, come atteso). Il fix 7 può funzionare in
+  produzione senza altre azioni manuali oltre al deploy.
 - (voci precedenti non ancora affrontate restano valide sopra)

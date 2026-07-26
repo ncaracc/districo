@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { aggiornaCredenzialiSmtp } from '@/lib/profilo/actions'
+import { aggiornaCredenzialiSmtp, testaCredenzialiSmtp } from '@/lib/profilo/actions'
 
 type Sicurezza = 'ssl' | 'starttls' | 'nessuna'
 
@@ -26,6 +26,8 @@ export function ProfiloSmtpForm({
   const [errore, setErrore] = useState<string | null>(null)
   const [salvato, setSalvato] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [testando, setTestando] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; messaggio: string } | null>(null)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -49,6 +51,19 @@ export function ProfiloSmtpForm({
     setPassword('')
     setSalvato(true)
     router.refresh()
+  }
+
+  async function handleTest() {
+    setTestando(true)
+    setTestResult(null)
+    const result = await testaCredenzialiSmtp()
+    setTestando(false)
+
+    setTestResult(
+      result.ok
+        ? { ok: true, messaggio: `Email di test inviata a ${result.email}, controlla la tua casella.` }
+        : { ok: false, messaggio: result.error },
+    )
   }
 
   return (
@@ -134,6 +149,24 @@ export function ProfiloSmtpForm({
       >
         {loading ? 'Salvataggio in corso…' : 'Salva credenziali'}
       </button>
+
+      {configurata && (
+        <div className="border-t border-gray-200 pt-5">
+          <button
+            type="button"
+            onClick={handleTest}
+            disabled={testando}
+            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {testando ? 'Invio in corso…' : 'Testa credenziali'}
+          </button>
+          {testResult && (
+            <p className={`mt-2 text-sm ${testResult.ok ? 'text-gray-700' : 'text-red-600'}`}>
+              {testResult.messaggio}
+            </p>
+          )}
+        </div>
+      )}
     </form>
   )
 }
