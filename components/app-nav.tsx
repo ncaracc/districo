@@ -19,6 +19,27 @@ const VOCI_IN_ARRIVO: string[] = []
 // Pagine pubbliche raggiungibili anche da chi non è loggato.
 const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password', '/registrazione']
 
+// Una voce è "attiva" sulla pagina esatta o su una sua sotto-pagina (es.
+// /lavori/[id], /clienti/nuovo) — non solo su un match esatto dell'href.
+function voceAttiva(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+// Icona "power" (spegnimento/uscita): linee sottili, nessun riempimento,
+// stesso stile stroke-based dell'hamburger già in uso in questo componente.
+// Disegnata a mano (path circolare aperto + linea verticale, forma standard
+// dell'icona "power" universale), nessuna libreria di icone in uso nel
+// progetto: coerente con il pattern già seguito altrove (password-input,
+// hamburger, favicon) di SVG inline senza dipendenze aggiuntive.
+function IconaPower({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M18.36 6.64a9 9 0 1 1-12.73 0" strokeLinecap="round" />
+      <line x1="12" y1="2" x2="12" y2="12" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -57,19 +78,30 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
           <img src="/districo_logo.svg" alt="Districo" className="h-12 w-auto" />
         </Link>
 
-        {/* Navigazione desktop: sempre visibile, centrata orizzontalmente */}
+        {/* Navigazione desktop: sempre visibile, centrata orizzontalmente.
+            La voce della pagina corrente e l'hover condividono lo stesso
+            indicatore minimale (sottile linea sotto la voce), solo
+            l'intensità cambia: pieno/scuro se attiva, chiaro al passaggio
+            del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
-          {VOCI_ATTIVE.map((voce) => (
-            <Link
-              key={voce.href}
-              href={voce.href}
-              className="text-sm text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              {voce.label}
-            </Link>
-          ))}
+          {VOCI_ATTIVE.map((voce) => {
+            const attiva = voceAttiva(pathname, voce.href)
+            return (
+              <Link
+                key={voce.href}
+                href={voce.href}
+                className={`border-b-2 pb-0.5 text-sm transition-colors ${
+                  attiva
+                    ? 'border-gray-900 font-medium text-gray-900'
+                    : 'border-transparent text-gray-700 hover:border-gray-300 hover:text-gray-900'
+                }`}
+              >
+                {voce.label}
+              </Link>
+            )
+          })}
           {VOCI_IN_ARRIVO.map((label) => (
-            <span key={label} className="text-sm text-gray-300 cursor-not-allowed">
+            <span key={label} className="border-b-2 border-transparent pb-0.5 text-sm text-gray-300 cursor-not-allowed">
               {label}
             </span>
           ))}
@@ -80,9 +112,11 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
             type="button"
             onClick={handleLogout}
             disabled={uscendo}
-            className="text-sm text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50"
+            aria-label={uscendo ? 'Uscita in corso…' : 'Esci'}
+            title={uscendo ? 'Uscita in corso…' : 'Esci'}
+            className="rounded-lg p-2 text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors disabled:opacity-50"
           >
-            {uscendo ? 'Uscita in corso…' : 'Esci'}
+            <IconaPower className="h-5 w-5" />
           </button>
         </div>
 
@@ -109,20 +143,25 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
       {aperto && (
         <nav className="border-t border-gray-200 bg-white md:hidden">
           <ul className="max-w-2xl mx-auto px-4 py-2">
-            {VOCI_ATTIVE.map((voce) => (
-              <li key={voce.href}>
-                <Link
-                  href={voce.href}
-                  onClick={() => setAperto(false)}
-                  className="block rounded-lg px-2 py-2.5 text-sm text-gray-900 hover:bg-gray-50 transition-colors"
-                >
-                  {voce.label}
-                </Link>
-              </li>
-            ))}
+            {VOCI_ATTIVE.map((voce) => {
+              const attiva = voceAttiva(pathname, voce.href)
+              return (
+                <li key={voce.href}>
+                  <Link
+                    href={voce.href}
+                    onClick={() => setAperto(false)}
+                    className={`block rounded-lg border-l-2 py-2.5 pl-[10px] pr-2 text-sm transition-colors hover:bg-gray-50 ${
+                      attiva ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-600'
+                    }`}
+                  >
+                    {voce.label}
+                  </Link>
+                </li>
+              )
+            })}
             {VOCI_IN_ARRIVO.map((label) => (
               <li key={label}>
-                <span className="flex cursor-not-allowed items-center justify-between px-2 py-2.5 text-sm text-gray-400">
+                <span className="flex cursor-not-allowed items-center justify-between border-l-2 border-transparent py-2.5 pl-[10px] pr-2 text-sm text-gray-400">
                   {label}
                   <span className="text-xs text-gray-300">in arrivo</span>
                 </span>
@@ -133,8 +172,9 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
                 type="button"
                 onClick={handleLogout}
                 disabled={uscendo}
-                className="block w-full rounded-lg px-2 py-2.5 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
               >
+                <IconaPower className="h-4 w-4" />
                 {uscendo ? 'Uscita in corso…' : 'Esci'}
               </button>
             </li>

@@ -110,7 +110,7 @@ export default async function LavoriPage() {
             href="/lavori/nuovo"
             className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
           >
-            + Nuovo Lavoro
+            Nuovo Lavoro
           </Link>
         </div>
 

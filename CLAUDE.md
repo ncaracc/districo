@@ -2048,3 +2048,81 @@ verso il dettaglio Lavoro, nessun overflow orizzontale a 1920px/1440px/
 375px, lavoro `rifiutato` correttamente escluso dalla dashboard (regola
 preesistente di `lavori_dashboard()`, non toccata). `npm run build`/
 `tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+## Rifinitura visiva Header/Footer, layout condiviso (2026-07-26)
+
+**Header** (`components/app-nav.tsx`): il layout logo-sinistra/menu-
+centro/Esci-destra su desktop **esisteva già** (grid a 3 colonne
+introdotta il 19/7) — verificato che restasse tale, nessuna modifica
+strutturale necessaria lì. Aggiunte le parti mancanti:
+
+- **Voce di menu attiva**: nuovo helper `voceAttiva(pathname, href)`
+  (match esatto o su una sotto-pagina, es. `/lavori/[id]` evidenzia
+  "Dashboard", `/clienti/nuovo` evidenzia "Clienti"). Indicatore
+  minimale condiviso con l'hover: un sottile `border-b-2` sotto la
+  voce — pieno/scuro (`border-gray-900`, testo `font-medium
+  text-gray-900`) se attiva, assente (`border-transparent`) altrimenti,
+  e visibile in versione chiara (`border-gray-300`) al passaggio del
+  mouse. Stesso meccanismo (bordo, non sfondo) per attivo e hover,
+  solo l'intensità cambia — coerente con "niente sfondo pieno o bordi
+  vistosi" richiesto. Nel menu mobile (lista verticale), lo stesso
+  principio ma con un **bordo a sinistra** (`border-l-2`) invece che
+  sotto, più naturale in un elenco impilato — la voce attiva ha anche
+  `font-medium text-gray-900`, le altre `text-gray-600` (schiarito
+  rispetto a prima per dare risalto al contrasto con l'attiva).
+
+- **Bottone "Esci" → icona "power"**: sostituito il testo con
+  un'icona SVG inline disegnata a mano (nessuna libreria di icone nel
+  progetto, stesso pattern già seguito per l'hamburger e per
+  `password-input.tsx`) — un cerchio aperto (`path` con arco, aperto
+  in alto) più una linea verticale corta al centro, la forma standard
+  universale del simbolo di accensione/spegnimento. `stroke="currentColor"
+  strokeWidth="1.8" fill="none"`, stessa spessore di tratto
+  dell'hamburger per coerenza visiva. **Su desktop il bottone è
+  icon-only** (solo `aria-label`/`title="Esci"` per accessibilità/
+  tooltip, nessun testo visibile) — nel dropdown mobile invece
+  **icona + testo** ("Esci"/"Uscita in corso…"), perché lì è affiancato
+  ad altre voci testuali in un elenco verticale e il solo simbolo
+  sarebbe stato meno chiaro in quel contesto. Stato di caricamento
+  (`uscendo`) gestito con lo stesso pattern già in uso altrove
+  nell'app (`disabled:opacity-50`), nessun nuovo stile introdotto.
+
+**Bottone "Nuovo Lavoro"**: rimosso il prefisso "+" dal testo (ridondante).
+**Non toccato** un secondo bottone con testo simile ma diverso, "+ Nuovo
+lavoro" (minuscolo), nel form inline di creazione lavoro dal dettaglio
+Cliente (`components/nuovo-lavoro-form.tsx`) — è un bottone diverso, che
+funge da toggle per espandere un form (il "+" lì comunica un'azione di
+espansione/aggiunta, non solo un'etichetta ridondante), e non era
+esplicitamente nominato nella richiesta.
+
+**Footer** (`components/site-footer.tsx`): la struttura a 3 colonne
+(logo/link/email) **esisteva già** — tutte e tre le colonne erano però
+centrate (`justify-center`) anche su desktop. Cambiato solo
+l'allineamento orizzontale da `md:` in su (stesso breakpoint già in uso
+nel resto del componente): logo `md:justify-start`, email
+`md:justify-end`, i link Privacy/Cookie restano centrati (colonna
+centrale, nessun cambiamento). Su mobile (`grid-cols-1`, colonne
+impilate) tutto resta centrato come prima — cambiare l'allineamento lì
+non avrebbe avuto senso con un'unica colonna.
+
+**Verifica "condiviso con login/registrazione" richiesta esplicitamente**:
+l'header (`AppNav`) già **non compare** su `/login` per una decisione
+precedente (19/7) — invariato, nessuna modifica necessaria lì. Il footer
+(`SiteFooter`) invece **è sempre condiviso** (renderizzato nel root
+layout `app/layout.tsx` per ogni pagina, login incluso) — le modifiche
+si applicano quindi automaticamente anche a login/registrazione/pagine
+pubbliche, senza bisogno di toccare altri file.
+
+Verificato end-to-end (Supabase locale + Playwright, ambiente smontato
+a fine test): header assente su `/login` (invariato) con footer
+comunque presente e già riorganizzato; bottone Esci icon-only su
+desktop con icona SVG verificata nel DOM; voce "Dashboard" evidenziata
+su `/lavori`, "Clienti" evidenziata su `/clienti` (nessuna delle due
+quando non è la pagina corrente); bottone "Nuovo Lavoro" senza "+";
+posizioni orizzontali di logo/nav/Esci e logo/link/email verificate
+relative al contenitore `max-w-5xl` già esistente dell'header/footer
+(non alla viewport grezza); su mobile, hamburger invariato, bordo
+sinistro sulla voce attiva, icona+testo su "Esci" nel dropdown, nessun
+overflow orizzontale col menu aperto. Screenshot controllati
+visivamente su desktop (1440px) e mobile (375px). `npm run build`/
+`tsc --noEmit`/`eslint` puliti sull'intero progetto.
