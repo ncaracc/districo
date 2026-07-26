@@ -118,14 +118,20 @@ export function labelStatoRevisionabile(tipo: TipoRevisionabile, stato: string):
   return tipo === 'campione' ? STATO_CAMPIONE_LABEL[stato] ?? stato : STATO_PROGETTO_PREVENTIVO_LABEL[stato] ?? stato
 }
 
+// necessaria_revisione/necessario_nuovo_campione sono un rifiuto esplicito del
+// cliente (richiede un nuovo tentativo), non una semplice attesa di risposta
+// come presentato/consegnato — trattati come rosso, non giallo, per tutti i
+// tipi revisionabili (coerenza tra preventivo/progetto/campione).
 export function coloreRevisionabile(tipo: TipoRevisionabile, stato: string): ColoreSemaforo {
   if (stato === 'in_preparazione') return 'red'
   if (tipo === 'campione') {
     if (stato === 'approvato' || stato === 'non_necessario') return 'green'
-    return 'yellow' // consegnato, necessario_nuovo_campione
+    if (stato === 'necessario_nuovo_campione') return 'red'
+    return 'yellow' // consegnato
   }
   if (stato === 'accettato' || stato === 'non_necessario') return 'green'
-  return 'yellow' // presentato, necessaria_revisione
+  if (stato === 'necessaria_revisione') return 'red'
+  return 'yellow' // presentato
 }
 
 // Stato che, se impostato, genera automaticamente una nuova revisione collegata.

@@ -54,6 +54,7 @@ export function SatelliteCampione({
           isOwner={isOwner}
           lavoroId={lavoroId}
           mostraDescrizione
+          storicoConStatoReale
         />
       ))}
 

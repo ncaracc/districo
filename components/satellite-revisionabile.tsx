@@ -39,6 +39,7 @@ export function RevisionabileChain({
   lavoroId,
   mostraValore,
   mostraDescrizione,
+  storicoConStatoReale,
 }: {
   tipo: TipoRevisionabile
   titolo: string
@@ -49,6 +50,13 @@ export function RevisionabileChain({
   lavoroId: string
   mostraValore?: boolean
   mostraDescrizione?: boolean
+  // Per default lo storico "retro-proietta" lo stato finale della catena sulle
+  // revisioni superate (decisione Sprint B, usata da Preventivo/Progetto: una
+  // volta accettato il preventivo, le versioni precedenti mostrano "Accettato"
+  // invece del loro stato reale). Per Campione questo nasconde il motivo di un
+  // rifiuto una volta approvato il tentativo finale — con questo flag true lo
+  // storico mostra sempre lo stato reale della singola riga, mai retro-proiettato.
+  storicoConStatoReale?: boolean
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -192,14 +200,19 @@ export function RevisionabileChain({
 
       {/* Storico revisioni superate */}
       {storico.length > 0 && (
-        <ul className="mt-2 space-y-1 border-l border-gray-200 pl-3">
+        <ul className="mt-2 space-y-2 border-l border-gray-200 pl-3">
           {storico.map((s) => {
-            const effettivo = statoEffettivoById[s.id] ?? s.stato ?? ''
+            const effettivo = storicoConStatoReale ? s.stato ?? '' : statoEffettivoById[s.id] ?? s.stato ?? ''
             return (
-              <li key={s.id} className="flex items-center gap-2 text-xs text-gray-500">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_COLOR[coloreRevisionabile(tipo, effettivo)]}`} />
-                <span>{labelStatoRevisionabile(tipo, effettivo)}</span>
-                <span className="text-gray-400">— {new Date(s.data_creazione).toLocaleDateString('it-IT')}</span>
+              <li key={s.id} className="text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_COLOR[coloreRevisionabile(tipo, effettivo)]}`} />
+                  <span>{labelStatoRevisionabile(tipo, effettivo)}</span>
+                  <span className="text-gray-400">— {new Date(s.data_creazione).toLocaleDateString('it-IT')}</span>
+                </div>
+                {mostraDescrizione && s.descrizione && (
+                  <p className="mt-0.5 whitespace-pre-wrap pl-4 text-gray-600">{s.descrizione}</p>
+                )}
               </li>
             )
           })}

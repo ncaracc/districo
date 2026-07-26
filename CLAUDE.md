@@ -1718,3 +1718,48 @@ stessa modifica speculare in entrambe le funzioni SQL **più** il mirror
 JS `satellitiBloccantiMontaggio()`, che deve restare sincronizzato a
 mano (non è generato dalla stessa fonte) — tenerlo a mente per il
 prossimo cambio di questo tipo.
+
+## Cronologia Campione e semantica colore "necessaria revisione" (2026-07-26)
+
+**Bug segnalato dall'utente**: il dettaglio Lavoro non mostrava la
+cronologia completa di un Campione con più tentativi nella stessa
+serie in modo utile — la revisione rifiutata veniva mostrata gialla
+("Consegnato") invece di rossa, e una volta approvato il tentativo
+finale la storia veniva **retro-proiettata** a verde/"Approvato" anche
+sulla revisione originariamente rifiutata, cancellando di fatto la
+prova che un tentativo era stato respinto dal cliente.
+
+**Fix 1 — colore "necessaria revisione" spostato da giallo a rosso**,
+per **tutti** i tipi revisionabili (preventivo/progetto/campione), non
+solo Campione: `necessaria_revisione`/`necessario_nuovo_campione` sono
+un rifiuto esplicito che richiede una nuova iterazione, non una
+semplice attesa di risposta come `presentato`/`consegnato` — trattarli
+come giallo li rendeva visivamente indistinguibili da uno stato di
+attesa normale. Implementato in `coloreRevisionabile()`
+(`lib/lavori/satelliti-meta.ts`).
+
+**Fix 2 — niente più retro-proiezione dello stato per Campione**: la
+regola Sprint B ("se l'ultima revisione della catena è verde, tutte le
+revisioni superate mostrano quello stesso stato") resta valida per
+Preventivo/Progetto (dove ha senso: una volta accettato il preventivo,
+le versioni precedenti sono semplicemente superate, non "rifiutate" in
+senso stretto), ma per Campione nascondeva il motivo di un rifiuto reale
+del cliente. Aggiunto un nuovo prop `storicoConStatoReale?: boolean` a
+`RevisionabileChain` (`components/satellite-revisionabile.tsx`): se
+`true`, lo storico mostra lo stato **reale** della riga (colonna
+`stato`, mai la funzione `lavoro_satellite_stato_effettivo()`) invece
+di quello retro-proiettato. Attivato solo per Campione
+(`components/satellite-campione.tsx`), Preventivo/Progetto invariati.
+Nessuna migration necessaria: la funzione SQL
+`lavoro_satellite_stato_effettivo()` resta invariata e continua a
+essere usata da Preventivo/Progetto — per Campione la UI semplicemente
+non la consulta più per lo storico.
+
+Verificato end-to-end (Supabase locale + Playwright, ambiente smontato
+a fine test) riproducendo esattamente la sequenza: campione rosso →
+consegnato (giallo) → rifiutato (ora rosso, non più giallo) → nuovo
+tentativo con nuova descrizione (rosso, descrizione precedente ancora
+visibile in storico) → consegnato (giallo) → approvato (verde) — con
+verifica esplicita che il tentativo rifiutato **resti** rosso/"Necessario
+nuovo campione" anche dopo l'approvazione finale del tentativo
+successivo, invece di essere ridipinto verde/"Approvato".
