@@ -41,7 +41,7 @@ export default async function LavoroDettaglioPage({
   const { data: lavoro } = await supabase
     .from('lavoro')
     .select(
-      'id, titolo, descrizione, stato, cliente_id, accettato_at, data_lavoro, indirizzo, civico, cap, citta, provincia, sigla, nazione',
+      'id, titolo, descrizione, stato, cliente_id, accettato_at, data_lavoro, indirizzo, civico, cap, citta, sigla_provincia, nazione',
     )
     .eq('id', id)
     .maybeSingle()
@@ -159,8 +159,7 @@ export default async function LavoroDettaglioPage({
                 civico: lavoro.civico,
                 cap: lavoro.cap,
                 citta: lavoro.citta,
-                provincia: lavoro.provincia,
-                sigla: lavoro.sigla,
+                sigla_provincia: lavoro.sigla_provincia,
                 nazione: lavoro.nazione,
               }}
             />

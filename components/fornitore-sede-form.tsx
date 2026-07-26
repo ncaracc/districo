@@ -11,8 +11,7 @@ type Fields = {
   civico: string
   cap: string
   citta: string
-  provincia: string
-  sigla: string
+  siglaProvincia: string
   nazione: string
 }
 
@@ -22,8 +21,7 @@ const CAMPI_VUOTI: Fields = {
   civico: '',
   cap: '',
   citta: '',
-  provincia: '',
-  sigla: '',
+  siglaProvincia: '',
   nazione: PAESE_DEFAULT,
 }
 
@@ -73,8 +71,7 @@ export function FornitoreSedeForm({
       civico: fields.civico.trim() || null,
       cap: fields.cap.trim() || null,
       citta: fields.citta.trim() || null,
-      provincia: fields.provincia.trim() || null,
-      sigla: fields.sigla.trim() || null,
+      sigla_provincia: fields.siglaProvincia.trim() || null,
       nazione: fields.nazione || null,
     }
 
@@ -140,19 +137,17 @@ export function FornitoreSedeForm({
             ))}
           </select>
         </div>
-        {labelProvincia && (
-          <div>
-            <label htmlFor="sede-provincia" className="mb-1 block text-xs font-medium text-gray-700">
-              {labelProvincia}
-            </label>
-            <input id="sede-provincia" value={fields.provincia} onChange={set('provincia')} className={inputClass()} />
-          </div>
-        )}
         <div>
-          <label htmlFor="sede-sigla" className="mb-1 block text-xs font-medium text-gray-700">
-            Sigla {labelProvincia ? `${labelProvincia.toLowerCase()}` : ''}
+          <label htmlFor="sede-sigla-provincia" className="mb-1 block text-xs font-medium text-gray-700">
+            {labelProvincia ?? 'Sigla provincia'}
           </label>
-          <input id="sede-sigla" value={fields.sigla} onChange={set('sigla')} placeholder="Es. BO" className={inputClass()} />
+          <input
+            id="sede-sigla-provincia"
+            value={fields.siglaProvincia}
+            onChange={set('siglaProvincia')}
+            placeholder="Es. BO"
+            className={inputClass()}
+          />
         </div>
       </div>
 

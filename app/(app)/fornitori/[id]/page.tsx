@@ -22,7 +22,7 @@ export default async function FornitoreDettaglioPage({
 
   const { data: sedi } = await supabase
     .from('fornitore_sede')
-    .select('id, nome, indirizzo, civico, cap, citta, provincia, sigla, nazione')
+    .select('id, nome, indirizzo, civico, cap, citta, sigla_provincia, nazione')
     .eq('fornitore_id', id)
     .order('nome')
 

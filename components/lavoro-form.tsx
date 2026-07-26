@@ -12,8 +12,7 @@ type Fields = {
   civico: string
   cap: string
   citta: string
-  provincia: string
-  sigla: string
+  siglaProvincia: string
   nazione: string
 }
 
@@ -60,8 +59,7 @@ export function LavoroForm({
       civico: fields.civico.trim() || null,
       cap: fields.cap.trim() || null,
       citta: fields.citta.trim() || null,
-      provincia: fields.provincia.trim() || null,
-      sigla: fields.sigla.trim() || null,
+      siglaProvincia: fields.siglaProvincia.trim() || null,
       nazione: fields.nazione || null,
     })
 
@@ -142,22 +140,14 @@ export function LavoroForm({
             ))}
           </select>
         </div>
-        {labelProvincia && (
-          <div>
-            <label htmlFor="lavoro-provincia" className="mb-1 block text-xs font-medium text-gray-700">
-              {labelProvincia}
-            </label>
-            <input id="lavoro-provincia" value={fields.provincia} onChange={set('provincia')} className={inputClass()} />
-          </div>
-        )}
         <div>
-          <label htmlFor="lavoro-sigla" className="mb-1 block text-xs font-medium text-gray-700">
-            Sigla {labelProvincia ? labelProvincia.toLowerCase() : ''}
+          <label htmlFor="lavoro-sigla-provincia" className="mb-1 block text-xs font-medium text-gray-700">
+            {labelProvincia ?? 'Sigla provincia'}
           </label>
           <input
-            id="lavoro-sigla"
-            value={fields.sigla}
-            onChange={set('sigla')}
+            id="lavoro-sigla-provincia"
+            value={fields.siglaProvincia}
+            onChange={set('siglaProvincia')}
             placeholder="Es. BO"
             className={inputClass()}
           />

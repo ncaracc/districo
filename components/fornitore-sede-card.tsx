@@ -13,8 +13,7 @@ type Sede = {
   civico: string | null
   cap: string | null
   citta: string | null
-  provincia: string | null
-  sigla: string | null
+  sigla_provincia: string | null
   nazione: string | null
 }
 
@@ -28,8 +27,13 @@ type Contatto = {
 
 function formattaIndirizzo(s: Sede): string | null {
   const via = [s.indirizzo, s.civico].filter(Boolean).join(' ')
-  const cittaProv = [s.citta, s.sigla ? `(${s.sigla})` : s.provincia].filter(Boolean).join(' ')
-  const parti = [via, [s.cap, cittaProv].filter(Boolean).join(' '), s.nazione].filter(Boolean)
+  const cittaProv = [s.citta, s.sigla_provincia ? `(${s.sigla_provincia})` : null].filter(Boolean).join(' ')
+  const capCittaProv = [s.cap, cittaProv].filter(Boolean).join(' ')
+  // La nazione da sola (es. default "Italia" impostato già alla creazione della sede,
+  // mai il segnale di un indirizzo davvero compilato) non basta per considerare
+  // l'indirizzo "specificato" — altrimenti "Indirizzo non specificato" non scatterebbe mai.
+  if (!via && !capCittaProv) return null
+  const parti = [via, capCittaProv, s.nazione].filter(Boolean)
   return parti.length > 0 ? parti.join(', ') : null
 }
 
@@ -78,8 +82,7 @@ export function FornitoreSedeCard({
             civico: sede.civico ?? '',
             cap: sede.cap ?? '',
             citta: sede.citta ?? '',
-            provincia: sede.provincia ?? '',
-            sigla: sede.sigla ?? '',
+            siglaProvincia: sede.sigla_provincia ?? '',
             nazione: sede.nazione ?? 'Italia',
           }}
           onSalvato={() => setModifica(false)}
@@ -96,7 +99,7 @@ export function FornitoreSedeCard({
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-gray-900">{sede.nome}</p>
-          {indirizzo && <p className="mt-0.5 text-xs text-gray-500">{indirizzo}</p>}
+          <p className="mt-0.5 text-xs text-gray-500">{indirizzo ?? 'Indirizzo non specificato'}</p>
         </div>
         <div className="flex shrink-0 gap-3">
           <button

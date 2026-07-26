@@ -14,8 +14,7 @@ type SedeFields = {
   civico: string | null
   cap: string | null
   citta: string | null
-  provincia: string | null
-  sigla: string | null
+  sigla_provincia: string | null
   nazione: string | null
 }
 

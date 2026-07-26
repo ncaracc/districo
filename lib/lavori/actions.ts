@@ -81,8 +81,7 @@ export async function aggiornaLavoro(
     civico: string | null
     cap: string | null
     citta: string | null
-    provincia: string | null
-    sigla: string | null
+    siglaProvincia: string | null
     nazione: string | null
   },
 ): Promise<AzioneResult> {
@@ -97,8 +96,7 @@ export async function aggiornaLavoro(
       civico: fields.civico,
       cap: fields.cap,
       citta: fields.citta,
-      provincia: fields.provincia,
-      sigla: fields.sigla,
+      sigla_provincia: fields.siglaProvincia,
       nazione: fields.nazione,
     })
     .eq('id', lavoroId)

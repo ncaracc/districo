@@ -11,16 +11,19 @@ type LavoroInfoFields = {
   civico: string | null
   cap: string | null
   citta: string | null
-  provincia: string | null
-  sigla: string | null
+  sigla_provincia: string | null
   nazione: string | null
 }
 
 function formattaIndirizzo(f: LavoroInfoFields): string | null {
   const via = [f.indirizzo, f.civico].filter(Boolean).join(', ')
   const localita = [f.cap, f.citta].filter(Boolean).join(' ')
-  const provinciaSigla = f.sigla ? ` (${f.sigla})` : ''
-  const riga2 = `${localita}${provinciaSigla}`.trim()
+  const siglaProvincia = f.sigla_provincia ? ` (${f.sigla_provincia})` : ''
+  const riga2 = `${localita}${siglaProvincia}`.trim()
+  // La nazione da sola (es. default "Italia" mai toccato dall'utente) non conta come
+  // "indirizzo specificato": senza almeno via o città/CAP resterebbe un indirizzo
+  // fasullo mostrato al posto di "Indirizzo non specificato".
+  if (!via && !riga2) return null
   const parti = [via, riga2, f.nazione].filter((p) => p && p.trim())
   return parti.length > 0 ? parti.join(' — ') : null
 }
@@ -47,8 +50,7 @@ export function LavoroInfo({
           civico: fields.civico ?? '',
           cap: fields.cap ?? '',
           citta: fields.citta ?? '',
-          provincia: fields.provincia ?? '',
-          sigla: fields.sigla ?? '',
+          siglaProvincia: fields.sigla_provincia ?? '',
           nazione: fields.nazione ?? PAESE_DEFAULT,
         }}
         onAnnulla={() => setModifica(false)}
@@ -65,7 +67,7 @@ export function LavoroInfo({
     <div className="space-y-1 text-sm text-gray-600">
       {fields.descrizione && <p className="whitespace-pre-wrap">{fields.descrizione}</p>}
       {dataFormattata && <p className="text-gray-500">Aperto il {dataFormattata}</p>}
-      {indirizzoFormattato && <p className="text-gray-500">{indirizzoFormattato}</p>}
+      <p className="text-gray-500">{indirizzoFormattato ?? 'Indirizzo non specificato'}</p>
       {isOwner && (
         <button
           type="button"

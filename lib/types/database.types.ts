@@ -63,15 +63,15 @@ export type Database = {
         Row: {
           id: string; fornitore_id: string; nome: string
           citta: string | null; indirizzo: string | null
-          civico: string | null; cap: string | null; provincia: string | null
-          sigla: string | null; nazione: string | null
+          civico: string | null; cap: string | null
+          sigla_provincia: string | null; nazione: string | null
           created_at: string
         }
         Insert: {
           id?: string; fornitore_id: string; nome: string
           citta?: string | null; indirizzo?: string | null
-          civico?: string | null; cap?: string | null; provincia?: string | null
-          sigla?: string | null; nazione?: string | null
+          civico?: string | null; cap?: string | null
+          sigla_provincia?: string | null; nazione?: string | null
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['fornitore_sede']['Insert']>
@@ -112,7 +112,7 @@ export type Database = {
           id: string; cliente_id: string; titolo: string; descrizione: string | null
           stato: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
           indirizzo: string | null; civico: string | null; cap: string | null
-          citta: string | null; provincia: string | null; sigla: string | null; nazione: string | null
+          citta: string | null; sigla_provincia: string | null; nazione: string | null
           tracking: boolean
           data_lavoro: string | null
           accettato_at: string | null; created_at: string
@@ -121,7 +121,7 @@ export type Database = {
           id?: string; cliente_id: string; titolo: string; descrizione?: string | null
           stato?: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
           indirizzo?: string | null; civico?: string | null; cap?: string | null
-          citta?: string | null; provincia?: string | null; sigla?: string | null; nazione?: string | null
+          citta?: string | null; sigla_provincia?: string | null; nazione?: string | null
           tracking?: boolean
           data_lavoro?: string | null
           accettato_at?: string | null; created_at?: string
