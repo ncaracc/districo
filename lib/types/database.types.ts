@@ -22,6 +22,9 @@ export type Database = {
           immagine_profilo: string | null
           smtp_host: string | null; smtp_porta: number | null; smtp_username: string | null
           smtp_password_cifrata: string | null; smtp_sicurezza: 'ssl' | 'starttls' | 'nessuna' | null
+          target_preventivo_giorni: number; target_progetto_giorni: number
+          target_produzione_giorni: number; target_montaggio_giorni: number
+          kpi_finestra_mesi: number
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -34,6 +37,9 @@ export type Database = {
           immagine_profilo?: string | null
           smtp_host?: string | null; smtp_porta?: number | null; smtp_username?: string | null
           smtp_password_cifrata?: string | null; smtp_sicurezza?: 'ssl' | 'starttls' | 'nessuna' | null
+          target_preventivo_giorni?: number; target_progetto_giorni?: number
+          target_produzione_giorni?: number; target_montaggio_giorni?: number
+          kpi_finestra_mesi?: number
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -115,7 +121,9 @@ export type Database = {
           citta: string | null; sigla_provincia: string | null; nazione: string | null
           tracking: boolean
           data_lavoro: string | null
-          accettato_at: string | null; created_at: string
+          accettato_at: string | null
+          prima_accettazione_at: string | null; completato_at: string | null
+          created_at: string
         }
         Insert: {
           id?: string; cliente_id: string; titolo: string; descrizione?: string | null
@@ -124,7 +132,9 @@ export type Database = {
           citta?: string | null; sigla_provincia?: string | null; nazione?: string | null
           tracking?: boolean
           data_lavoro?: string | null
-          accettato_at?: string | null; created_at?: string
+          accettato_at?: string | null
+          prima_accettazione_at?: string | null; completato_at?: string | null
+          created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro']['Insert']>
         Relationships: []
@@ -251,6 +261,7 @@ export type Database = {
           data_invio_ordine: string | null; contatto_invio_id: string | null
           data_inizio: string | null; data_fine: string | null
           prenotazione_effettuata: boolean; data_da: string | null; data_a: string | null; costo: number | null
+          data_presentazione: string | null
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
@@ -272,6 +283,7 @@ export type Database = {
           data_invio_ordine?: string | null; contatto_invio_id?: string | null
           data_inizio?: string | null; data_fine?: string | null
           prenotazione_effettuata?: boolean; data_da?: string | null; data_a?: string | null; costo?: number | null
+          data_presentazione?: string | null
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>
@@ -309,6 +321,16 @@ export type Database = {
           cliente_id: string; created_at: string
           punteggio_urgenza: number
           satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number
+          valore_preventivo_accettato: number | null
+        }[]
+      }
+      kpi_durate: {
+        Args: Record<string, never>
+        Returns: {
+          tempo_preventivazione_giorni: number | null; tempo_preventivazione_campione: number
+          tempo_progetto_giorni: number | null; tempo_progetto_campione: number
+          tempo_produzione_giorni: number | null; tempo_produzione_campione: number
+          tempo_montaggio_giorni: number | null; tempo_montaggio_campione: number
         }[]
       }
     }

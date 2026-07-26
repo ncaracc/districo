@@ -2126,3 +2126,138 @@ sinistro sulla voce attiva, icona+testo su "Esci" nel dropdown, nessun
 overflow orizzontale col menu aperto. Screenshot controllati
 visivamente su desktop (1440px) e mobile (375px). `npm run build`/
 `tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+## KPI di durata con target configurabili (2026-07-26)
+
+Implementati i 4 KPI diagnosticati in precedenza (vedi sezione "Diagnosi
+KPI" più sopra), con le 3 colonne timestamp immutabili lì individuate
+come mancanti, target configurabili per artigiano, e visualizzazione
+sia neutra (Lavori conclusi) sia colorata vs obiettivo (Dashboard).
+Migration `0018_kpi_durate_e_target.sql`.
+
+### Schema
+
+- `lavoro_satellite.data_presentazione timestamptz` (nullable): valorizzata
+  **una sola volta** alla prima transizione a `presentato` per Preventivo/
+  Progetto, mai più sovrascritta. Gestito in `impostaStatoRevisionabile()`
+  (`lib/lavori/satelliti.ts`): il payload di update include
+  `data_presentazione` solo se `tipo in (preventivo, progetto)`,
+  `nuovoStato === 'presentato'` **e** la riga letta prima dell'update ha
+  ancora `data_presentazione` null (letta con una SELECT separata: il
+  client Supabase non supporta `coalesce(colonna, now())` diretto nel
+  payload di un `update()`). "Annulla accettazione" (`accettato ->
+  presentato`, stessa riga) non la tocca più, essendo già valorizzata.
+- `lavoro.prima_accettazione_at timestamptz` (nullable): valorizzata una
+  sola volta alla prima transizione a `accettato`, **immutabile** dopo
+  — a differenza di `accettato_at` (0001) che viene sovrascritta a ogni
+  ri-accettazione. Gestito in `segnaLavoroStato()`
+  (`lib/lavori/actions.ts`) con lo stesso pattern "leggi poi scrivi solo
+  se null".
+- `lavoro.completato_at timestamptz` (nullable): valorizzata quando il
+  Lavoro passa a `completato` (`segnaLavoroStato()`), **azzerata
+  esplicitamente** da `riapriLavoro()` quando il lavoro esce da
+  `completato` — altrimenti resterebbe un timestamp fantasma di un
+  completamento poi annullato, falsando il KPI durata montaggio se il
+  lavoro viene poi ricompletato.
+- `artigiano`: 5 nuove colonne target, tutte `integer not null`, default
+  `target_preventivo_giorni=10`, `target_progetto_giorni=7`,
+  `target_produzione_giorni=60`, `target_montaggio_giorni=7`,
+  `kpi_finestra_mesi=12`. Nessuna nuova RLS (le policy "artigiano vede/
+  aggiorna solo se stesso" già coprono queste colonne).
+
+### Formule (funzione SQL `kpi_durate()`, `security invoker`)
+
+Ogni KPI è una media in giorni (`extract(epoch from (a - b)) / 86400.0`),
+filtrata sulla finestra temporale letta da `artigiano.kpi_finestra_mesi`
+del chiamante (non passata dall'esterno), e ristretta ai lavori
+dell'artigiano corrente (join `lavoro_artigiani` con
+`artigiano_id = auth.uid()`, stesso pattern di `lavori_dashboard()`):
+
+1. **Tempo di preventivazione**: media di
+   `data_presentazione - data_creazione` su `lavoro_satellite` con
+   `tipo='preventivo'` e `data_presentazione` valorizzata nella finestra
+   (finestra calcolata su `data_presentazione`).
+2. **Tempo di progetto**: stessa formula, `tipo='progetto'`.
+3. **Accettazione → produzione**: media di
+   `costruzione.data_inizio - lavoro.prima_accettazione_at` sui lavori
+   dove entrambi i valori esistono (finestra su `data_inizio`).
+4. **Durata montaggio**: media di
+   `lavoro.completato_at - primo_montaggio.data_creazione` (il più
+   vecchio satellite `tipo='appuntamento'`/`tipo_appuntamento='montaggio'`
+   per quel lavoro, join laterale con `order by data_creazione asc limit 1`)
+   sui lavori con `completato_at` valorizzato (finestra su `completato_at`).
+
+Ogni CTE aggregata (`avg`/`count` senza `group by`) restituisce sempre
+esattamente una riga anche a fronte di zero risultati (`avg=null`,
+`count=0`) — la UI usa il conteggio (`*_campione`) per distinguere
+"nessun dato ancora disponibile" da "media pari a un valore reale",
+mai uno zero fuorviante (`lib/lavori/kpi.ts`, `formattaGiorni()`/
+`semaforoKpi()`: `campione === 0` → stato `'neutro'`, mostrato come "—"
+con etichetta "Dati insufficienti", indipendentemente dal target).
+
+### Soglie del semaforo (solo Dashboard, non "Lavori conclusi")
+
+`semaforoKpi(mediaGiorni, campione, targetGiorni)` in `lib/lavori/kpi.ts`:
+- **verde**: `mediaGiorni <= targetGiorni`
+- **giallo**: `mediaGiorni <= targetGiorni * 1.2`
+- **rosso**: oltre
+- **neutro** (grigio, nessun colore "a LED"): `campione === 0`
+
+Solo il pallino indicatore è colorato (`components/kpi-durate-dashboard.tsx`),
+mai lo sfondo della card intera — coerente con la palette B&W dell'app
+(colori riservati agli stati, non decorativi). La pagina "Lavori
+conclusi" (`components/kpi-durate-neutro.tsx`) mostra lo stesso dato
+**senza alcuna colorazione**: è una lettura storica, non un confronto
+con un obiettivo.
+
+### Profilo/Impostazioni — sezione "Obiettivi"
+
+Nuovo form `components/profilo-obiettivi-form.tsx` + azione
+`aggiornaObiettiviKpi()` (`lib/profilo/actions.ts`), stesso pattern del
+form SMTP già esistente: 5 campi numerici precompilati con i valori
+correnti (o i default se non ancora impostati), salvabili
+indipendentemente dalle credenziali SMTP. Il salvataggio invalida sia
+`/profilo/impostazioni` sia `/lavori` e `/statistiche` (i target
+condizionano il colore delle card KPI in Dashboard).
+
+### Parte 0 — rifiniture tabella Dashboard
+Colonna "Semafori" rinominata in **"Avanzamento"** (stesso contenuto,
+solo l'etichetta cambia). Aggiunta colonna **"Valore"** (allineata a
+destra): `valore_complessivo` dell'ultimo Preventivo con `stato='accettato'`
+per quel Lavoro, o "—" se assente. Implementata estendendo
+`lavori_dashboard()` con un secondo join laterale dedicato (separato da
+quello esistente per i conteggi rosso/giallo/verde, che aggrega su
+tutti i satelliti — qui serve solo la riga preventivo accettata).
+**Nota tecnica**: `CREATE OR REPLACE FUNCTION` non permette di cambiare
+l'elenco delle colonne di ritorno di una funzione esistente (errore
+Postgres 42P13) — la migration include un `DROP FUNCTION` esplicito
+prima di ricreare `lavori_dashboard()` con la colonna aggiuntiva.
+
+### Verifica end-to-end
+Supabase locale + Playwright, ambiente smontato a fine test. Flusso
+completo: Lavoro creato → Preventivo backdatato e presentato (verificato
+`data_presentazione` impostata, e **non** sovrascritta dal successivo
+"Segna come accettato") → Progetto backdatato e presentato/accettato →
+Campione "non necessario" → Lavoro accettato (verificato
+`prima_accettazione_at` impostata) → backdatati `prima_accettazione_at`
+(-3gg) e il primo appuntamento di montaggio (-8gg) → **ciclo "Riporta a
+opportunità" + ri-accettazione, verificato che `prima_accettazione_at`
+resti il valore backdatato e non torni a essere sovrascritto** →
+Costruzione avanzata a "iniziata" poi "completata" → tutti gli altri
+satelliti bloccanti portati a verde → gate verificato pronto → Lavoro
+completato (verificato `completato_at` impostato) → **i 4 KPI letti
+dalla Dashboard corrispondono esattamente ai valori attesi dai
+backdating** (6.5/4.0/3.0/8.0 giorni) → stessi identici valori sulla
+pagina "Lavori conclusi", **senza alcun indicatore colorato** → colonna
+"Valore" verificata su un secondo Lavoro con preventivo accettato →
+**semaforo verificato rispondere ai target**: cambiando
+`target_preventivo_giorni` in Profilo/Impostazioni, la card passa
+correttamente da verde (target ampio) a rosso (target molto più basso
+del reale) a giallo (target scelto per una via di mezzo, ~8% sopra il
+reale). `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero
+progetto.
+
+**Non ancora applicata a Supabase Cloud**: `supabase/migrations/
+0018_kpi_durate_e_target.sql`, stesso limite di tutte le migration
+precedenti (nessuna connection string diretta disponibile in locale) —
+va eseguita a mano sullo SQL Editor prima del deploy.

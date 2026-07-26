@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { KpiDurateNeutro } from '@/components/kpi-durate-neutro'
 
 const STATO_LABEL: Record<string, string> = {
   rifiutato: 'Rifiutato',
@@ -9,11 +10,15 @@ const STATO_LABEL: Record<string, string> = {
 export default async function StatistichePage() {
   const supabase = await createClient()
 
-  const { data: lavori } = await supabase
-    .from('lavoro')
-    .select('id, titolo, stato, cliente_id, data_lavoro')
-    .in('stato', ['completato', 'rifiutato'])
-    .order('data_lavoro', { ascending: false, nullsFirst: false })
+  const [{ data: lavori }, { data: kpiGrezzo }] = await Promise.all([
+    supabase
+      .from('lavoro')
+      .select('id, titolo, stato, cliente_id, data_lavoro')
+      .in('stato', ['completato', 'rifiutato'])
+      .order('data_lavoro', { ascending: false, nullsFirst: false }),
+    supabase.rpc('kpi_durate'),
+  ])
+  const kpi = kpiGrezzo?.[0] ?? null
 
   const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
   const { data: clienti } =
@@ -23,6 +28,8 @@ export default async function StatistichePage() {
   return (
     <div>
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori conclusi</h1>
+
+      <KpiDurateNeutro kpi={kpi} />
 
       <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
 

@@ -141,8 +141,30 @@ export async function segnaLavoroStato(
     }
   }
 
-  const update: { stato: 'accettato' | 'rifiutato' | 'completato'; accettato_at?: string } = { stato: nuovoStato }
-  if (nuovoStato === 'accettato') update.accettato_at = new Date().toISOString()
+  const update: {
+    stato: 'accettato' | 'rifiutato' | 'completato'
+    accettato_at?: string
+    prima_accettazione_at?: string
+    completato_at?: string
+  } = { stato: nuovoStato }
+
+  if (nuovoStato === 'accettato') {
+    update.accettato_at = new Date().toISOString()
+
+    // prima_accettazione_at: valorizzata una sola volta e mai più toccata dopo,
+    // a differenza di accettato_at che viene sovrascritta a ogni ri-accettazione
+    // — serve al KPI "accettazione -> produzione" per non calcolare durate
+    // negative/errate dopo un ciclo accettato->opportunita->accettato (vedi
+    // CLAUDE.md, diagnosi KPI del 26/7). Letta prima di scrivere: il client
+    // Supabase non supporta espressioni riferite alla colonna stessa nel
+    // payload di update (niente coalesce(colonna, now()) diretto).
+    const { data: attuale } = await supabase.from('lavoro').select('prima_accettazione_at').eq('id', lavoroId).maybeSingle()
+    if (attuale && !attuale.prima_accettazione_at) {
+      update.prima_accettazione_at = update.accettato_at
+    }
+  }
+
+  if (nuovoStato === 'completato') update.completato_at = new Date().toISOString()
 
   const { error } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
 
@@ -177,7 +199,16 @@ export async function riapriLavoro(
   const supabase = await createClient()
   const nuovoStato = statoAttuale === 'completato' ? 'accettato' : 'opportunita'
 
-  const { error } = await supabase.from('lavoro').update({ stato: nuovoStato }).eq('id', lavoroId)
+  // Uscendo da 'completato' si azzera esplicitamente completato_at: altrimenti
+  // resterebbe un timestamp fantasma di un completamento poi annullato,
+  // falsando il KPI "durata montaggio" se il lavoro viene poi ricompletato
+  // (segnaLavoroStato lo rivalorizzerà da zero al prossimo completamento).
+  // prima_accettazione_at non viene mai toccato qui: resta immutabile per
+  // design, indipendentemente da quante volte il lavoro viene riaperto.
+  const update: { stato: 'accettato' | 'opportunita'; completato_at?: null } = { stato: nuovoStato }
+  if (statoAttuale === 'completato') update.completato_at = null
+
+  const { error } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
 
   if (error) {
     console.error('riapriLavoro: update fallito', error)

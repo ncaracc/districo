@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { ProfiloSmtpForm } from '@/components/profilo-smtp-form'
+import { ProfiloObiettiviForm } from '@/components/profilo-obiettivi-form'
 
 export default async function ProfiloImpostazioniPage() {
   const supabase = await createClient()
@@ -10,7 +11,9 @@ export default async function ProfiloImpostazioniPage() {
   const { data: artigiano } = user
     ? await supabase
         .from('artigiano')
-        .select('smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza')
+        .select(
+          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi',
+        )
         .eq('id', user.id)
         .maybeSingle()
     : { data: null }
@@ -34,6 +37,19 @@ export default async function ProfiloImpostazioniPage() {
         }}
         configurata={!!artigiano?.smtp_password_cifrata}
       />
+
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">Obiettivi</h2>
+        <ProfiloObiettiviForm
+          initialValues={{
+            targetPreventivoGiorni: String(artigiano?.target_preventivo_giorni ?? 10),
+            targetProgettoGiorni: String(artigiano?.target_progetto_giorni ?? 7),
+            targetProduzioneGiorni: String(artigiano?.target_produzione_giorni ?? 60),
+            targetMontaggioGiorni: String(artigiano?.target_montaggio_giorni ?? 7),
+            kpiFinestraMesi: String(artigiano?.kpi_finestra_mesi ?? 12),
+          }}
+        />
+      </div>
     </div>
   )
 }

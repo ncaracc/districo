@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
+import { KpiDurateDashboard } from '@/components/kpi-durate-dashboard'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const STATO_LABEL: Record<string, string> = {
@@ -73,7 +74,16 @@ export default async function LavoriPage() {
     }),
   )
 
-  const { data: lavori } = await supabase.rpc('lavori_dashboard')
+  const [{ data: lavori }, { data: kpiGrezzo }, { data: artigiano }] = await Promise.all([
+    supabase.rpc('lavori_dashboard'),
+    supabase.rpc('kpi_durate'),
+    supabase
+      .from('artigiano')
+      .select('target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni')
+      .eq('id', user.id)
+      .maybeSingle(),
+  ])
+  const kpi = kpiGrezzo?.[0] ?? null
 
   const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
 
@@ -114,6 +124,16 @@ export default async function LavoriPage() {
           </Link>
         </div>
 
+        <KpiDurateDashboard
+          kpi={kpi}
+          target={{
+            target_preventivo_giorni: artigiano?.target_preventivo_giorni ?? 10,
+            target_progetto_giorni: artigiano?.target_progetto_giorni ?? 7,
+            target_produzione_giorni: artigiano?.target_produzione_giorni ?? 60,
+            target_montaggio_giorni: artigiano?.target_montaggio_giorni ?? 7,
+          }}
+        />
+
         {!lavori || lavori.length === 0 ? (
           <p className="text-sm text-gray-500">Non hai ancora nessun lavoro aperto.</p>
         ) : (
@@ -124,7 +144,8 @@ export default async function LavoriPage() {
                   <th className="px-4 py-3">Cliente</th>
                   <th className="px-4 py-3">Descrizione</th>
                   <th className="px-4 py-3">Stato</th>
-                  <th className="px-4 py-3">Semafori</th>
+                  <th className="px-4 py-3">Avanzamento</th>
+                  <th className="px-4 py-3 text-right">Valore</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -154,6 +175,11 @@ export default async function LavoriPage() {
                           gialli={l.satelliti_gialli}
                           verdi={l.satelliti_verdi}
                         />
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-right text-gray-700 transition-colors group-hover:bg-gray-50">
+                        {l.valore_preventivo_accettato != null ? `€ ${l.valore_preventivo_accettato.toFixed(2)}` : '—'}
                       </Link>
                     </td>
                   </tr>

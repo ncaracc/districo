@@ -115,7 +115,29 @@ export async function impostaStatoRevisionabile(
       return { ok: false, error: 'Errore nel salvataggio, riprova' }
     }
   } else {
-    const { error } = await supabase.from('lavoro_satellite').update({ stato: nuovoStato }).eq('id', satelliteId)
+    const updatePayload: { stato: StatoRevisionabile; data_presentazione?: string } = { stato: nuovoStato }
+
+    // data_presentazione: valorizzata una sola volta, alla prima transizione a
+    // "presentato" per Preventivo/Progetto — mai più sovrascritta da
+    // transizioni successive sulla stessa riga (es. necessaria_revisione,
+    // "Annulla accettazione" che riporta da accettato a presentato), per non
+    // perdere il dato storico usato dal KPI "tempo di preventivazione/
+    // progetto" (vedi CLAUDE.md, diagnosi del 26/7). Letta prima di scrivere:
+    // il client Supabase non supporta coalesce(colonna, now()) diretto nel
+    // payload di update.
+    if ((tipo === 'preventivo' || tipo === 'progetto') && nuovoStato === 'presentato') {
+      const { data: corrente } = await supabase
+        .from('lavoro_satellite')
+        .select('data_presentazione')
+        .eq('id', satelliteId)
+        .maybeSingle()
+
+      if (corrente && !corrente.data_presentazione) {
+        updatePayload.data_presentazione = new Date().toISOString()
+      }
+    }
+
+    const { error } = await supabase.from('lavoro_satellite').update(updatePayload).eq('id', satelliteId)
 
     if (error) {
       console.error('impostaStatoRevisionabile: aggiornamento stato fallito', error)

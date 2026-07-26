@@ -8,6 +8,43 @@ import { sendEmailPersonale, traduciErroreSmtp } from '@/lib/email/send-email-pe
 type AzioneResult = { ok: true } | { ok: false; error: string }
 type TestSmtpResult = { ok: true; email: string } | { ok: false; error: string }
 
+type ObiettiviKpiFields = {
+  targetPreventivoGiorni: number
+  targetProgettoGiorni: number
+  targetProduzioneGiorni: number
+  targetMontaggioGiorni: number
+  kpiFinestraMesi: number
+}
+
+export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const { error } = await supabase
+    .from('artigiano')
+    .update({
+      target_preventivo_giorni: fields.targetPreventivoGiorni,
+      target_progetto_giorni: fields.targetProgettoGiorni,
+      target_produzione_giorni: fields.targetProduzioneGiorni,
+      target_montaggio_giorni: fields.targetMontaggioGiorni,
+      kpi_finestra_mesi: fields.kpiFinestraMesi,
+    })
+    .eq('id', user.id)
+
+  if (error) {
+    console.error('aggiornaObiettiviKpi: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/lavori')
+  revalidatePath('/statistiche')
+  return { ok: true }
+}
+
 type CredenzialiSmtpFields = {
   host: string
   porta: number
