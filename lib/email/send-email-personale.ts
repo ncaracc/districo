@@ -24,6 +24,13 @@ export async function sendEmailPersonale({
     secure: smtp.sicurezza === 'ssl',
     requireTLS: smtp.sicurezza === 'starttls',
     auth: { user: smtp.username, pass: smtp.password },
+    // Timeout espliciti (fix emerso da un blocco di rete in uscita sulla porta
+    // 465 su apphub, vedi CLAUDE.md): senza questi, un blocco di rete o un
+    // server irraggiungibile fa attendere l'utente per minuti prima di un
+    // errore, invece di un feedback rapido e chiaro.
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 12000,
   })
 
   await transporter.sendMail({

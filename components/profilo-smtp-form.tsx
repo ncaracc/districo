@@ -93,7 +93,7 @@ export function ProfiloSmtpForm({
           type="number"
           value={porta}
           onChange={(e) => setPorta(e.target.value)}
-          placeholder="465"
+          placeholder="587"
           className={inputClass()}
         />
       </div>
@@ -108,8 +108,8 @@ export function ProfiloSmtpForm({
           onChange={(e) => setSicurezza(e.target.value as Sicurezza)}
           className={inputClass()}
         >
-          <option value="ssl">SSL/TLS (porta tipica 465)</option>
-          <option value="starttls">STARTTLS (porta tipica 587)</option>
+          <option value="starttls">STARTTLS (porta tipica 587, consigliata)</option>
+          <option value="ssl">SSL/TLS (porta tipica 465 — spesso bloccata in uscita da provider cloud)</option>
           <option value="nessuna">Nessuna (non consigliato)</option>
         </select>
       </div>

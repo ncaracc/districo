@@ -120,6 +120,7 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-26 | **Fix post-test end-to-end (4 fix) sul dettaglio Lavoro** — vedi sezione "Sprint D" più sotto per il dettaglio: (1) aggiunta la modifica del Lavoro dopo la creazione (descrizione, data di apertura `data_lavoro` — nuova colonna, migration `0015` —, indirizzo completo); (2) **"Segna lavoro completato" ora bloccato (client E server) se `lavoro_pronto_per_montaggio()` è falso** — supera esplicitamente la decisione dello Sprint C che lo lasciava sempre libero; (3) verificato (nessun fix necessario) che il flag `non_necessario` per gli appuntamenti `verifica_misure`/`montaggio` fosse già correttamente implementato dallo Sprint C; (4) convenzione UI uniformata in **tutti** i form dell'app: asterisco rosso sui campi obbligatori, nessuna etichetta testuale "(opz.)" sui facoltativi (impliciti per assenza di asterisco). |
 | 2026-07-26 | **Fix 5 e 6 (stesso giro dei 4 fix sopra)** — vedi sezione "Sprint D" per il dettaglio: (5) azione **"Riapri lavoro"** su un Lavoro `completato`/`rifiutato`, con conferma nativa (`window.confirm`), che riporta lo stato al valore precedente logico (completato→accettato, rifiutato→opportunità) senza toccare satelliti/dati collegati; (6) voce di menu **"Statistica" attivata** (era placeholder "in arrivo"), nuova pagina `/statistiche` con lista minima dei Lavori chiusi (completato/rifiutato: titolo, cliente, data, stato, link al dettaglio), ordinata per `data_lavoro` decrescente, nessun KPI/grafico in questo giro. **Pulizia dati di prova eseguita in produzione prima del commit**: eliminati i 2 Lavori di test presenti sul progetto Supabase Cloud reale (incluso uno con `stato='completato'` nonostante satelliti bloccanti ancora rossi — sintomo di un test manuale precedente all'introduzione del gate del fix 2), via DELETE diretto con la service role key già presente in `.env.local`, cascata su tutte le tabelle figlie (già tutte `on delete cascade` dalla 0001/0009/0012, nessuna migration necessaria), verificato con una query di conteggio che `lavoro` risultasse a 0 righe; Clienti e Fornitori non toccati (nessuna FK nella direzione opposta). |
 | 2026-07-26 | **Fix 7 (stesso giro dei fix 1-6 sopra)** — vedi sezione "Sprint D" per il dettaglio: bottone **"Testa credenziali"** in Profilo/Impostazioni (visibile solo se credenziali SMTP personali già salvate), che invia una vera email di prova a se stessi (mittente = destinatario = email dell'artigiano) riusando `sendEmailPersonale()` già esistente (nessun meccanismo di invio separato). Nuova `testaCredenzialiSmtp()` in `lib/profilo/actions.ts` e `traduciErroreSmtp()` in `lib/email/send-email-personale.ts` per tradurre gli errori grezzi di nodemailer (auth/connessione) in messaggi comprensibili. Nessuna migration. |
+| 2026-07-26 | **Scoperti e corretti due bug di produzione tramite il bottone "Testa credenziali" del fix 7** — vedi sezione "Key learnings" per il dettaglio completo: (a) **porta 465 bloccata in uscita da apphub** (Hetzner o rete a monte, non l'OS/ufw del VPS — riproducibile identico verso Aruba e Google Workspace, porta 587 sempre aperta), che rendeva **anche** lo SMTP di sistema Aruba (inviti "a quattro mani") permanentemente non funzionante, non solo le credenziali personali; (b) **`SMTP_PASSWORD` troncata di un carattere a runtime** da Docker Compose, che interpreta `$$` in `env_file` come escape di un singolo `$` letterale (stesso comportamento della sezione `environment:`) — la password Aruba conteneva un `$` finale scritto come `$$`, arrivava all'app con un `$` in meno. **Fix applicato su apphub** (solo file `.env`, non tracciato nei sorgenti, backup lasciato accanto): `SMTP_PORT` 465→587, `SMTP_PASSWORD` con i `$` finali raddoppiati (4 invece di 2, per compensare l'escaping). Verificato byte-per-byte che il valore letto a runtime nel container corrisponda esattamente all'atteso, e con un invio reale (non solo `verify()`) di un'email in stile invito a un indirizzo di controllo, accettata da Aruba (`250 2.0.0 mail accepted for delivery`). **Codice applicativo** (`lib/email/send-email.ts`, `send-email-personale.ts`): timeout espliciti (`connectionTimeout`/`greetingTimeout`/`socketTimeout`, 12s) su entrambi i transport, e `secure`/`requireTLS` derivati automaticamente dalla porta in `send-email.ts` (non più da `SMTP_SECURE`, per evitare disallineamenti); UI di Profilo/Impostazioni aggiornata per raccomandare 587/STARTTLS come default. **Non ancora committato/pushato/deployato** — le correzioni `.env` su apphub sono già live (non richiedono deploy), il codice resta in attesa di conferma. |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -1453,4 +1454,97 @@ build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.
   **verificato**: già presente in `/srv/apps/districo/.env` su apphub
   (non tracciata nei sorgenti, come atteso). Il fix 7 può funzionare in
   produzione senza altre azioni manuali oltre al deploy.
+- **Deployare il codice del fix descritto in "Key learnings"** sotto
+  (timeout nodemailer, derivazione automatica secure/requireTLS dalla
+  porta, default UI 587/STARTTLS) — le correzioni `.env` su apphub
+  (porta + password) sono già live indipendentemente dal deploy del
+  codice, ma il codice resta da committare/pushare/deployare.
+- **L'artigiano deve aggiornare le proprie credenziali SMTP personali**
+  (quelle usate dal bottone "Testa credenziali"/invio ordini) da porta
+  465 a 587/STARTTLS in Profilo/Impostazioni — non è qualcosa che il
+  codice/l'infrastruttura possano correggere da soli, sono dati salvati
+  per singolo artigiano.
 - (voci precedenti non ancora affrontate restano valide sopra)
+
+## Key learnings — blocco porta 465 e escaping `$` in Docker Compose (2026-07-26)
+
+> Sezione dedicata a due bug di produzione scoperti lo stesso giorno
+> tramite il bottone "Testa credenziali" del fix 7 (Sprint D), entrambi
+> capaci di ripresentarsi in futuro con altre credenziali/provider —
+> vale la pena conoscerli **prima** di perdere tempo a debuggare da capo.
+
+### 1) apphub (Hetzner) blocca la porta 465 in uscita
+Riscontrato prima con un timeout indefinito sul bottone "Testa
+credenziali" (Google Workspace, porta 465), poi confermato in modo
+sistematico:
+
+- `nc -zv smtp.gmail.com 465` e `nc -zv smtps.aruba.it 465` → **timeout**
+  (non "connection refused": i pacchetti vengono scartati in silenzio,
+  sintomo tipico di un blocco di rete, non di un servizio assente).
+  Riproducibile identico sia dall'host apphub sia da dentro il
+  container `districo` — non è quindi un problema di rete Docker.
+- `nc -zv <stesso host> 587` → aperta e istantanea, per **entrambi** i
+  provider.
+- `ufw status`/`iptables -L OUTPUT` su apphub: `default: allow
+  (outgoing)`, nessuna regola che blocchi la 465 — **il blocco non è
+  configurato da noi sull'OS del VPS**, è quasi certamente Hetzner (o
+  la rete a monte) che filtra la 465 in uscita, pratica comune di molti
+  provider cloud per contenere lo spam via SMTPS diretto, lasciando
+  aperta la 587 ("submission", richiede sempre autenticazione).
+- **Non risolvibile lato applicazione**: l'unico fix reale è smettere
+  di usare la 465 e passare alla 587/STARTTLS (verificato funzionante
+  con `requireTLS: true` sia verso Aruba sia — a livello di rete, non
+  ancora testato con credenziali reali — verso Google). Se in futuro
+  serve davvero la 465 (es. un provider che non supporta STARTTLS),
+  va aperta una richiesta di supporto a Hetzner, non è un problema
+  risolvibile da qui.
+- **Impatto**: bloccava sia le credenziali SMTP personali configurate
+  dagli artigiani (fix 7) sia — scoperta più seria — lo SMTP di sistema
+  Aruba usato per gli inviti "a quattro mani" fin dal suo primo
+  deploy (17/7), mai verificato con un invio reale in precedenza (i
+  test end-to-end di quella funzionalità avevano sempre usato Mailpit
+  in locale, mai il vero account Aruba in produzione).
+
+### 2) Docker Compose tronca i caratteri `$` nelle password di `env_file`
+Scoperto testando dal vivo l'autenticazione SMTP di sistema (Aruba) su
+587: la connessione/TLS riuscivano, ma l'autenticazione falliva sempre
+con `535 5.7.0 authentication failed` — nonostante password e host
+fossero quelli giusti secondo `/srv/apps/districo/.env`.
+
+- Confronto lunghezza: il valore di `SMTP_PASSWORD` nel file `.env`
+  aveva **9 caratteri**, ma `docker exec districo printenv
+  SMTP_PASSWORD` ne mostrava **8** — un carattere sparito tra il file e
+  il runtime.
+- Causa: la password finiva con `$$` nel file (probabilmente scritta
+  così di proposito, per un'abitudine da riga di comando dove `$$`
+  scappa un `$` letterale). **Docker Compose applica la stessa
+  interpolazione `$$` → `$` sia alla sezione `environment:` sia — meno
+  atteso — ai valori letti tramite `env_file:`**. Un singolo `$`
+  letterale in una password, se scritto senza raddoppiarlo, sopravvive
+  intatto; ma se qualcuno lo scrive raddoppiato (pensando fosse
+  necessario, o perché quella era la password originale con due `$`
+  veri), Compose lo dimezza silenziosamente — nessun errore, nessun
+  avviso, l'app riceve semplicemente una password diversa da quella nel
+  file, e il server SMTP la rifiuta con un banale "authentication
+  failed" indistinguibile da una password sbagliata per errore umano.
+- **Verificato empiricamente quale fosse la password "vera"**: testando
+  dal vivo `transporter.verify()` con il valore grezzo del file (9
+  caratteri, 2 `$`) l'autenticazione riusciva; con il valore troncato
+  dal container (8 caratteri, 1 `$`) falliva. La password reale
+  dell'account Aruba termina quindi con due `$` letterali.
+- **Fix**: raddoppiare ulteriormente i `$` nel file (`$$` → `$$$$`), così
+  che dopo l'escaping di Compose arrivino a runtime i due `$` letterali
+  corretti — verificato byte-per-byte confrontando lunghezza attesa
+  (file meno 2 caratteri) col valore letto da `printenv` dentro il
+  container dopo il riavvio.
+- **Verificato che nessun'altra variabile in `.env` fosse affetta**:
+  `SMTP_PASSWORD` è l'unica con un `$` letterale tra tutte le chiavi
+  del file (comprese le chiavi Supabase e `SMTP_CREDENZIALI_KEY`, che
+  per costruzione — base64/JWT — non contengono quel carattere).
+- **Da ricordare per il futuro**: qualunque credenziale con caratteri
+  `$` scritta in un `.env` letto tramite `env_file:` in Docker Compose
+  va **raddoppiata rispetto al valore reale** (ogni `$` singolo →
+  `$$`), non scritta "a specchio" pensando che `env_file` sia trattato
+  alla lettera come spesso si assume. Vale anche per altri simboli con
+  significato speciale per Compose (`${...}` per riferimenti a
+  variabili) — non solo `$`.

@@ -30,7 +30,7 @@ export default async function ProfiloImpostazioniPage() {
           host: artigiano?.smtp_host ?? '',
           porta: artigiano?.smtp_porta ? String(artigiano.smtp_porta) : '',
           username: artigiano?.smtp_username ?? '',
-          sicurezza: artigiano?.smtp_sicurezza ?? 'ssl',
+          sicurezza: artigiano?.smtp_sicurezza ?? 'starttls',
         }}
         configurata={!!artigiano?.smtp_password_cifrata}
       />
