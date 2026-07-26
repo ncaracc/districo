@@ -156,15 +156,23 @@ export async function segnaLavoroStato(
   return { ok: true }
 }
 
-// Riapertura di un Lavoro chiuso per errore (fix emerso dal test end-to-end in
-// produzione): riporta lo stato al valore precedente logico — completato ->
-// accettato, rifiutato -> opportunita. Nessun'altra modifica: satelliti,
-// accettato_at e ogni altro dato collegato restano invariati. Nessun controllo
-// di gate qui (a differenza di segnaLavoroStato verso 'completato'): riaprire
-// non ha condizioni, è sempre concesso su un lavoro chiuso.
+// Riapertura/correzione di un Lavoro (fix emerso dal test end-to-end in
+// produzione, esteso il 26/7 per coprire anche accettato -> opportunita):
+// riporta lo stato al valore precedente logico — completato -> accettato,
+// rifiutato -> opportunita, accettato -> opportunita. Nessun'altra modifica:
+// i satelliti (inclusi quelli di esecuzione creati automaticamente
+// dall'accettazione) restano invariati nel database — la sezione "Esecuzione"
+// smette solo di essere mostrata in UI finché il lavoro non torna accettato
+// (vedi app/(app)/lavori/[id]/page.tsx). Il trigger crea_satelliti_post_
+// accettazione ha già una guardia di idempotenza (Sprint A: non ricrea i
+// segnaposto se esistono già satelliti acquisti/lavorazione_esterna/
+// costruzione/noleggio per il lavoro), quindi un ciclo accettato ->
+// opportunita -> accettato ripetuto più volte non duplica nulla. Nessun
+// controllo di gate qui (a differenza di segnaLavoroStato verso 'completato'):
+// riaprire/correggere non ha condizioni, è sempre concesso.
 export async function riapriLavoro(
   lavoroId: string,
-  statoAttuale: 'completato' | 'rifiutato',
+  statoAttuale: 'accettato' | 'completato' | 'rifiutato',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
   const nuovoStato = statoAttuale === 'completato' ? 'accettato' : 'opportunita'

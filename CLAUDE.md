@@ -1888,3 +1888,76 @@ nuova revisione"/"Segna come accettato"); checkbox "Non necessario"
 ancora presente e libero su un Appuntamento (verifica misure), confermando
 che quel tipo non è stato alterato. `npm run build`/`tsc --noEmit`/
 `eslint` puliti sull'intero progetto.
+
+## Estensione reversibilità stati — Lavoro e Progetto/Preventivo (2026-07-26)
+
+Obiettivo: correggere click accidentali sulle transizioni di stato senza
+perdita di dati, estendendo la reversibilità già esistente
+(`riapriLavoro`/`LavoroRiapri`, introdotta nel fix "Riapri lavoro" del
+25/7 solo per completato→accettato e rifiutato→opportunita).
+
+**1) Stato Lavoro — reversibilità accettato→opportunita**:
+`riapriLavoro()`/`LavoroRiapri` estesi (stessa funzione/componente,
+`statoAttuale` ora `'accettato' | 'completato' | 'rifiutato'`), non
+duplicati: per `accettato` il bottone si etichetta "Riporta a
+opportunità" (non "Riapri lavoro", che non calzava per uno stato non
+ancora chiuso) con un messaggio di conferma dedicato che avvisa
+esplicitamente che i satelliti di esecuzione restano salvati. **I
+satelliti non vengono mai eliminati**: `app/(app)/lavori/[id]/page.tsx`
+ora nasconde la sezione "Esecuzione" (`haEsecuzione`) a meno che
+`lavoro.stato` sia `accettato` o `completato` — un lavoro tornato a
+`opportunita` semplicemente non la mostra più, senza toccare i dati.
+**Verificato che il trigger `crea_satelliti_post_accettazione`
+(Sprint A) non duplichi nulla** in un ciclo ripetuto
+`accettato→opportunita→accettato`: la sua guardia di idempotenza
+esistente (`not exists (... tipo in (acquisti, lavorazione_esterna,
+costruzione, noleggio))`) fa esattamente questo, dato che quei
+satelliti non vengono mai cancellati — confermato con un test end-to-end
+che ripete il ciclo **3 volte** e verifica via query diretta al DB che
+restino sempre esattamente 1 satellite per tipo bloccante e 3
+`appuntamento` (briefing/verifica_misure/montaggio), mai di più.
+
+**2) Progetto/Preventivo — reversibilità da `accettato`**: nuova voce
+in `azioniPossibiliRevisionabile()` (`lib/lavori/satelliti-meta.ts`) per
+lo stato `accettato` — un solo bottone "Annulla accettazione" (torna a
+`presentato`), variante `muted` (stessa styling di "Segna come non
+necessario", coerente con `LavoroRiapri`). **Non estesa a Campione**
+(non richiesto esplicitamente, resta invariato: da `approvato` non c'è
+modo di tornare indietro). Aggiunto un nuovo campo opzionale
+`conferma?: string` al tipo `AzionePossibile` — solo questa transizione
+lo usa (le altre, in avanti, restano senza conferma): `RevisionabileChain`
+(`components/satellite-revisionabile.tsx`) ora mostra un `window.confirm()`
+prima di eseguire l'azione se `conferma` è presente, per prevenire che un
+click accidentale annulli un'accettazione già registrata.
+`impostaStatoRevisionabile()` non ha richiesto alcuna modifica: la
+transizione verso `presentato` non è tra gli stati che generano una
+nuova revisione (`generaNuovaRevisione()`), quindi è un semplice update
+in-place della riga corrente, esattamente il comportamento voluto (non
+crea una revisione fantasma).
+
+**Verifica esplicita della cascata sullo storico, richiesta prima di
+procedere**: `lavoro_satellite_stato_effettivo()` è `stable`/`language
+sql`, ricalcola la catena `revisione_di` **a ogni chiamata** leggendo lo
+`stato` corrente delle righe — nessuna cache, nessuna scrittura che
+"congeli" un risultato precedente. Quindi non è servito **alcun
+aggiustamento SQL**: appena il satellite corrente passa da `accettato` a
+`presentato` (stato non incluso nel set `accettato/non_necessario/
+approvato` che fa scattare la retro-proiezione), la funzione smette da
+sola di restituire `accettato` per le revisioni superate della stessa
+catena, che tornano a mostrare il proprio `stato` reale
+(`necessaria_revisione`, quello che avevano prima di essere superate).
+Confermato end-to-end: catena Progetto con una revisione superata
+(`necessaria_revisione`) e la corrente accettata → storico mostrava
+"Accettato" per retro-proiezione (comportamento Sprint B, invariato) →
+dopo "Annulla accettazione" sulla corrente (tornata `presentato`) → lo
+stesso storico mostra di nuovo "Necessaria revisione", **non** più
+"Accettato".
+
+Verificato l'intero ciclo end-to-end (Supabase locale + Playwright,
+ambiente smontato a fine test): 3 cicli completi
+opportunita→accettato→opportunita senza alcun satellite duplicato
+(query diretta al DB dopo ogni ciclo); sezione Esecuzione che compare/
+scompare correttamente seguendo lo stato; Progetto accettato→annullato→
+tornato a presentato con cascata sullo storico ricalcolata
+correttamente. `npm run build`/`tsc --noEmit`/`eslint` puliti
+sull'intero progetto.

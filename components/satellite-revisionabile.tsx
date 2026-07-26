@@ -15,9 +15,10 @@ import {
   labelStatoRevisionabile,
   type Satellite,
   type SatelliteAllegato,
-  type StatoRevisionabile,
   type TipoRevisionabile,
 } from '@/lib/lavori/satelliti-meta'
+
+type AzionePossibile = ReturnType<typeof azioniPossibiliRevisionabile>[number]
 
 function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
@@ -72,10 +73,12 @@ export function RevisionabileChain({
   const statoCorrenteEffettivo = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
   const azioni = azioniPossibiliRevisionabile(tipo, corrente.stato ?? '')
 
-  async function avanza(nuovoStato: StatoRevisionabile) {
+  async function avanza(azione: AzionePossibile) {
+    if (azione.conferma && !window.confirm(azione.conferma)) return
+
     setLoading(true)
     setErrore(null)
-    const result = await impostaStatoRevisionabile(corrente.id, lavoroId, tipo, nuovoStato, corrente.serie ?? null)
+    const result = await impostaStatoRevisionabile(corrente.id, lavoroId, tipo, azione.stato, corrente.serie ?? null)
     setLoading(false)
     if (!result.ok) {
       setErrore(result.error)
@@ -187,7 +190,7 @@ export function RevisionabileChain({
               <button
                 key={a.stato}
                 type="button"
-                onClick={() => avanza(a.stato)}
+                onClick={() => avanza(a)}
                 disabled={loading}
                 className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${VARIANTE_CLASS[a.variante]}`}
               >

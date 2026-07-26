@@ -139,7 +139,16 @@ export function generaNuovaRevisione(tipo: TipoRevisionabile, nuovoStato: string
   return tipo === 'campione' ? nuovoStato === 'necessario_nuovo_campione' : nuovoStato === 'necessaria_revisione'
 }
 
-type AzionePossibile = { stato: StatoRevisionabile; label: string; variante: 'primary' | 'warn' | 'muted' }
+type AzionePossibile = {
+  stato: StatoRevisionabile
+  label: string
+  variante: 'primary' | 'warn' | 'muted'
+  // Messaggio di conferma nativa da mostrare prima di eseguire l'azione — solo
+  // per le transizioni di correzione (es. annullare un'accettazione), non per
+  // il normale avanzamento in avanti, per prevenire un click accidentale che
+  // annullerebbe un'accettazione già registrata.
+  conferma?: string
+}
 
 // Prossime transizioni manuali disponibili dallo stato attuale (solo sulla revisione
 // corrente/leaf di una catena: le revisioni superate non hanno azioni).
@@ -171,6 +180,18 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
       return [
         { stato: 'necessaria_revisione', label: 'Richiedi nuova revisione', variante: 'warn' },
         { stato: 'accettato', label: 'Segna come accettato', variante: 'primary' },
+      ]
+    case 'accettato':
+      // Correzione di un'accettazione impostata per errore (click accidentale),
+      // non un avanzamento — richiede conferma esplicita, a differenza delle
+      // altre transizioni. Non disponibile per Campione (non richiesto).
+      return [
+        {
+          stato: 'presentato',
+          label: 'Annulla accettazione',
+          variante: 'muted',
+          conferma: 'Annullare l\'accettazione? Il satellite tornerà allo stato "Presentato".',
+        },
       ]
     default:
       return []

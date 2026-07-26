@@ -123,13 +123,18 @@ export default async function LavoroDettaglioPage({
     ]),
   )
 
+  // I satelliti di esecuzione (creati automaticamente all'accettazione) restano
+  // nel database anche se il Lavoro torna a 'opportunita' (reversibilità
+  // accettato -> opportunita, 26/7) — qui si nascondono semplicemente dalla UI
+  // finché il lavoro non è di nuovo accettato o completato, senza eliminare nulla.
   const haEsecuzione =
-    appuntamentiVerificaMisure.length > 0 ||
-    appuntamentiMontaggio.length > 0 ||
-    acquistiSatelliti.length > 0 ||
-    lavorazioneEsternaSatelliti.length > 0 ||
-    !!costruzioneSatellite ||
-    !!noleggioSatellite
+    (lavoro.stato === 'accettato' || lavoro.stato === 'completato') &&
+    (appuntamentiVerificaMisure.length > 0 ||
+      appuntamentiMontaggio.length > 0 ||
+      acquistiSatelliti.length > 0 ||
+      lavorazioneEsternaSatelliti.length > 0 ||
+      !!costruzioneSatellite ||
+      !!noleggioSatellite)
 
   return (
     <div>
@@ -189,6 +194,7 @@ export default async function LavoroDettaglioPage({
                 mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
               />
             )}
+            {isOwner && <LavoroRiapri lavoroId={lavoro.id} statoAttuale="accettato" />}
           </div>
         ) : (
           <div className="space-y-2">
