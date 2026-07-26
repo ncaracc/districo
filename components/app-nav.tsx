@@ -92,7 +92,14 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-4 py-5 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
+      {/* Contenitore indipendente dalla larghezza del contenuto della pagina
+          ospitante: stessa larghezza piena + stesso padding (px-4 / lg:px-12)
+          del "breakout" usato da Dashboard/Conclusi (app/(app)/lavori/page.tsx),
+          non il max-w-5xl mx-auto di prima — così i bordi di header/footer
+          coincidono sempre con quelli della tabella su schermi lg+,
+          indipendentemente da quanto sono strette le altre pagine (Clienti,
+          Fornitori, dettaglio Lavoro, Profilo), che restano centrate. */}
+      <div className="px-4 py-5 lg:px-12 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
         <Link href="/lavori" className="flex items-center py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-14 w-auto" />
@@ -172,7 +179,7 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
       {aperto && (
         <nav className="border-t border-gray-200 bg-white md:hidden">
-          <ul className="max-w-2xl mx-auto px-4 py-2">
+          <ul className="px-4 py-2">
             {VOCI_ATTIVE.map((voce) => {
               const attiva = voceAttiva(pathname, voce.href)
               return (

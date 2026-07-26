@@ -3,7 +3,10 @@ import Link from 'next/link'
 export function SiteFooter() {
   return (
     <footer className="border-t border-gray-200 bg-white">
-      <div className="max-w-5xl mx-auto grid grid-cols-1 gap-6 px-4 py-10 text-center md:grid-cols-3">
+      {/* Stesso contenitore a piena larghezza dell'header (vedi commento in
+          app-nav.tsx): niente più max-w-5xl mx-auto, stesso px-4/lg:px-12
+          del breakout Dashboard/Conclusi, per allineamento garantito. */}
+      <div className="grid grid-cols-1 gap-6 px-4 py-10 text-center md:grid-cols-3 lg:px-12">
         <div className="flex items-center justify-center md:justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-9 w-auto" />

@@ -2362,3 +2362,64 @@ font Inter effettivamente renderizzato (`getComputedStyle` sul body),
 logo più grande con margine proprio, header/footer più ariosi, nessun
 overflow orizzontale su mobile né su Dashboard né su Conclusi. `npm run
 build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+## Fix allineamento Header/Footer al breakout Dashboard/Conclusi (2026-07-26)
+
+Segnalato: su schermi desktop ampi, logo/menu/icone dell'header e
+logo/link/email del footer apparivano spostati verso il centro rispetto
+ai bordi reali della tabella di Dashboard/Conclusi — quei due punti
+avevano già ricevuto il trattamento "a piena larghezza" (breakout
+`lg:w-screen` + `lg:px-12`, introdotto il 26/7 nel redesign Dashboard),
+mentre header (`components/app-nav.tsx`) e footer
+(`components/site-footer.tsx`) restavano sul vecchio contenitore
+`max-w-5xl mx-auto px-4` (capato a 1024px, centrato) — su viewport più
+larghe i due schemi divergono, ed è lì che nasce lo scostamento visivo.
+
+**Fix**: header e footer resi strutturalmente **indipendenti dalla
+larghezza del contenuto della pagina ospitante** — niente più
+`max-w-5xl mx-auto`, sostituito con lo stesso schema di padding del
+breakout (`px-4` sotto `lg`, `lg:px-12` da `lg` in su), senza alcun
+`max-w`/`mx-auto` residuo. Header e footer sono già elementi di primo
+livello nel root layout (`app/layout.tsx`, fuori dal `<main>` vincolato
+di `app/(app)/layout.tsx`), quindi bastava correggere il loro
+contenitore interno — non serviva il trucco `relative/left-1/2/w-screen`
+usato invece dentro `<main>` per "sfondare" un antenato già vincolato.
+Anche il contenitore del dropdown mobile (`<ul>` del menu hamburger)
+perde lo stesso `max-w-2xl mx-auto` superfluo, per coerenza (nessun
+effetto visivo pratico sotto `md`, dove il dropdown è comunque l'unico
+contenuto).
+
+**Conseguenza attesa e voluta**: su pagine dal contenuto centrato più
+stretto (Clienti, Fornitori, dettaglio Lavoro, Profilo/Impostazioni —
+tutte vincolate da `max-w-2xl` in `app/(app)/layout.tsx`, non toccato),
+header e footer ora **non si allineano più** al contenuto di quella
+pagina specifica: restano fissi al margine di 48px (da `lg` in su) che
+coincide sempre con quello della tabella Dashboard/Conclusi,
+indipendentemente da quanto è stretta la pagina corrente. Era
+esplicitamente questo il comportamento richiesto — header/footer come
+"cornice" strutturalmente separata dal contenuto, non più vincolata a
+farlo.
+
+**Verifica end-to-end**: stesso metodo delle sessioni precedenti
+(Supabase locale via CLI 2.109.1 su porte spostate +1000 per non
+collidere con lo stack Docker di Falegname in Cloud già attivo sulla
+stessa macchina, poi fermato e ripulito a fine test — inclusi i volumi
+Docker residui — con `.env.local`/`supabase/config.toml` ripristinati ai
+valori originali) + Playwright, screenshot a 1920px/1440px/375px su
+Dashboard, Conclusi, Clienti, Fornitori, dettaglio Lavoro,
+Profilo/Impostazioni, login (header nascosto, invariato) e menu mobile
+aperto. **Grant mancanti scoperti sull'istanza locale fresca** (stesso
+artefatto della CLI 2.109.1 già noto per `service_role`, qui esteso ad
+`anon`/`authenticated`: nessun privilegio di default su tabelle
+`public` in un progetto locale appena creato) — corretti con `GRANT`
+manuali via `docker exec ... psql`, solo per la sessione di test, mai
+propagati al progetto Supabase Cloud reale. Confermato: bordo sinistro
+di logo/H1/card KPI/tabella sempre a 48px su Dashboard e Conclusi;
+header/footer allineati fra loro su ogni pagina (stesso margine fisso),
+anche quando il contenuto della pagina (es. Clienti) resta centrato più
+stretto; **nessun overflow orizzontale** (`scrollWidth === clientWidth`)
+su nessuna combinazione pagina/larghezza testata, incluso il menu
+mobile aperto; nessuna regressione sulle pagine non toccate. `npm run
+build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto. **Non
+ancora committato** — modifiche solo in working tree, in attesa di
+conferma.
