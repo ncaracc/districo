@@ -1763,3 +1763,63 @@ visibile in storico) → consegnato (giallo) → approvato (verde) — con
 verifica esplicita che il tentativo rifiutato **resti** rosso/"Necessario
 nuovo campione" anche dopo l'approvazione finale del tentativo
 successivo, invece di essere ridipinto verde/"Approvato".
+
+## Key learnings — Cloudflare WAF (CVE-2025-55183) blocca falsamente le Server Actions su /lavori/ (2026-07-26)
+
+Segnalato: upload di alcuni allegati falliva con un errore generico
+("Errore nel caricamento del file..."), in modo apparentemente casuale —
+non correlato a dimensione o formato del file (file identici, in alcuni
+tentativi passavano, in altri no). La diagnosi iniziale aveva escluso sia
+HEIC/HEIF (i file erano `.jpg` normali da PC) sia i limiti di body size
+(già corretti in precedenza) sia un bug nel codice applicativo: i log del
+container e di Nginx non mostravano **nessuna traccia** dei tentativi
+falliti — la richiesta non arrivava mai all'origine.
+
+**Causa reale**: il dominio `districo.it`/`www.districo.it` risulta
+proxato attivamente da **Cloudflare** (non solo DNS, come documentato il
+17/7 — evidentemente il proxy è stato attivato in un secondo momento,
+non tracciato in questo file). Il piano Cloudflare in uso applica di
+default una regola WAF gestita per **CVE-2025-55183** ("React - Leaking
+Server Functions", `ruleId 3114709a3c3b4e3685052c7b251e86aa`,
+`rulesetId 77454fe2d30c4220b5701f6fdfb893ba`) — un "virtual patch" per
+una vulnerabilità reale (CVSS 5.3, divulgata da React/Vercel a dicembre:
+una richiesta creata ad hoc verso una Server Action può far trapelare il
+codice sorgente compilato della funzione). **Districo non è vulnerabile**:
+gira su Next.js 16.2.10, ben oltre la versione patchata 16.0.10 per il
+ramo v16 — ma la regola Cloudflare, essendo euristica/basata su pattern
+del traffico, genera **falsi positivi contro le nostre stesse richieste
+legittime**: qualunque POST verso `/lavori/[id]` (Server Action, incluso
+l'upload allegati) aveva una probabilità casuale di essere bloccata,
+confermato dai Security Events di Cloudflare (blocchi ripetuti nell'arco
+di ore, su path diversi, prima ancora che l'utente segnalasse il problema
+di oggi).
+
+**Perché è stato difficile da diagnosticare**: il blocco avviene
+interamente al bordo di Cloudflare, **prima** che la richiesta raggiunga
+Nginx/il container — quindi non lascia alcuna traccia nei log
+applicativi né in quelli di Nginx. Lato client, l'unico sintomo era il
+fallimento (generico) della chiamata alla Server Action, indistinguibile
+a prima vista da un errore di rete o applicativo qualsiasi. Individuato
+solo consultando **Cloudflare → Security → Events**, non consultabile
+da qui (nessun accesso API/dashboard Cloudflare disponibile in questa
+sessione) — l'utente ha dovuto controllarlo manualmente.
+
+**Fix applicato (lato Cloudflare, non nel codice)**: creata una Custom
+Rule su Cloudflare — azione "Skip - All managed rules" per le richieste
+con path contenente `/lavori/` — che esenta questa sezione dell'app dalle
+regole del ruleset gestito, invece di disattivare la regola
+sull'intero account (che potrebbe coprire anche altre app sullo stesso
+account Cloudflare — Falegname in Cloud, Scattimiei — non
+necessariamente già patchate contro la stessa CVE). Verificato con un
+upload reale in produzione dopo l'applicazione della Custom Rule:
+riuscito.
+
+**Da ricordare per il futuro**: se un'azione lato server (Server Action)
+fallisce in produzione in modo intermittente/casuale, senza alcuna
+traccia nei log del container o di Nginx, il primo sospetto — prima di
+scavare nel codice applicativo — dovrebbe essere un blocco a livello di
+Cloudflare (o di qualunque proxy/CDN davanti all'origine): verificare
+anzitutto se il dominio è proxato (header `server: cloudflare`, IP
+risolti sul range Cloudflare invece che sull'IP diretto del VPS) e
+controllare i Security Events per blocchi corrispondenti a orario/path,
+prima di assumere che la causa sia nell'app.

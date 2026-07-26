@@ -64,15 +64,6 @@ export async function caricaAllegatiSatellite(
   await fs.mkdir(cartella, { recursive: true })
 
   for (const f of file) {
-    // LOG DIAGNOSTICO TEMPORANEO (da rimuovere dopo aver isolato il bug upload
-    // silenzioso su file HEIC/HEIF segnalato il 2026-07-26): finora nessuna
-    // eccezione era mai stata loggata con dettaglio nome/tipo/dimensione, e un
-    // errore qui non catturato da nessun try/catch risultava in un generico
-    // "Errore nel caricamento del file" lato client senza traccia server-side.
-    console.log(
-      `caricaAllegatiSatellite: file="${f.name}" type="${f.type}" size=${f.size}`,
-    )
-
     const nomeSicuro = f.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const nomeFile = `${randomUUID()}-${nomeSicuro}`
     const percorsoAssoluto = path.join(cartella, nomeFile)
