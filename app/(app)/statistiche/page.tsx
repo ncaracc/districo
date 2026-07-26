@@ -22,7 +22,7 @@ export default async function StatistichePage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-bold text-gray-900">Statistica</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori conclusi</h1>
 
       <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
 

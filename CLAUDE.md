@@ -1961,3 +1961,90 @@ scompare correttamente seguendo lo stato; Progetto accettato→annullato→
 tornato a presentato con cascata sullo storico ricalcolata
 correttamente. `npm run build`/`tsc --noEmit`/`eslint` puliti
 sull'intero progetto.
+
+## Redesign Dashboard (/lavori) — vista tabellare a piena larghezza (2026-07-26)
+
+Segnalato: la Dashboard risultava troppo compressa al centro su schermi
+desktop ampi. Due interventi.
+
+**1) Rinomina menu**: voce "Statistica" → **"Lavori conclusi"**
+(`components/app-nav.tsx`), URL invariato (`/statistiche`). Aggiornato
+anche l'`<h1>` della pagina stessa (`app/(app)/statistiche/page.tsx`),
+non solo la voce di menu — lasciarlo su "Statistica" sarebbe stato
+inconsistente con la nuova etichetta che vi punta. Una vera sezione
+Statistica con KPI aggregati resta un lavoro futuro (non affrontato qui).
+
+**2) Vista tabellare** (`app/(app)/lavori/page.tsx`): le card centrate
+sostituite da una `<table>` con colonne Cliente/Descrizione (il
+`titolo` del lavoro)/Stato (badge invariato)/Semafori (stessi contatori
+rosso/giallo/verde di prima, ora in colonna dedicata). Righe cliccabili
+implementate **senza client component**: ogni `<td>` avvolge il proprio
+contenuto in un `<Link>` con `className="block px-4 py-3"`, e la `<tr>`
+usa `group`/le celle `group-hover:bg-gray-50` per un evidenziamento
+coerente su tutta la riga pur avendo un link per cella — la pagina resta
+un Server Component puro, nessun `onClick` necessario. Ordinamento per
+punteggio di urgenza invariato (già gestito da `lavori_dashboard()`,
+non toccato).
+
+**Larghezza piena solo su questa pagina, non nel layout condiviso**:
+`app/(app)/layout.tsx` ha un `<main className="max-w-2xl mx-auto ...">`
+che comprime **tutte** le pagine di `(app)` (Clienti, Fornitori,
+dettaglio Lavoro, Profilo, Statistiche/Lavori conclusi) — cambiarlo
+avrebbe allargato anche loro, mai richiesto. Per restare nello scope
+("Redesign della Dashboard"), la Dashboard esce dal vincolo con un
+**breakout** CSS (`lg:relative lg:left-1/2 lg:w-screen
+lg:-translate-x-1/2`, attivo solo da `lg:` in su, non sotto — vedi
+punto successivo), poi ricentra il contenuto con solo padding
+(`lg:px-12`, **nessun** `max-w`/`mx-auto` residuo: la larghezza deve
+riempire la viewport, non solo allargarsi a un cap più largo ma sempre
+centrato — coerente con "non centrato/compresso" della richiesta
+originale).
+
+**Bug scoperto e corretto durante il test mobile, non nello scope
+originale della richiesta (che riguardava solo desktop) ma necessario
+per non introdurre una regressione**: con la tabella a piena larghezza,
+a viewport stretti (375px) la pagina mostrava **32px di overflow
+orizzontale reale** (`document.documentElement.scrollWidth >
+clientWidth`), nonostante il wrapper `overflow-x-auto` attorno alla
+`<table>` e nonostante il breakout fosse scoped solo a `lg:` (quindi
+sotto `lg` il markup del breakout è del tutto inerte). **Causa reale,
+isolata con `getComputedStyle`/`getBoundingClientRect` invece di
+tirare a indovinare**: `<main>` (in `app/(app)/layout.tsx`) è un flex
+item dentro il contenitore `flex flex-col` del root layout
+(`app/layout.tsx`, introdotto il 19/7 per il fix footer/centratura
+login) — sull'asse cross (larghezza, essendo il genitore `flex-col`)
+l'allineamento di default (`align-items: normal` → equivalente a
+`stretch`) dovrebbe riempire la larghezza disponibile, ma **senza una
+`width` esplicita sul flex item, il valore usato resta comunque
+soggetto al contenuto** quando quest'ultimo (qui: la tabella, il primo
+contenuto della pagina abbastanza largo da farlo emergere — mai
+successo prima con le liste/form esistenti) richiede più spazio di
+quanto disponibile: main risultava largo quanto il min-content della
+tabella (438px) invece che i 375px reali della viewport. **Un primo
+tentativo con solo `min-w-0` su `<main>` non ha risolto nulla**
+(verificato che la proprietà si applicasse correttamente via
+`getComputedStyle`, main restava comunque più largo del previsto):
+`min-width`/flex-shrink riguardano l'asse **main** del flex container
+(qui verticale, essendo `flex-col`), non l'asse cross (orizzontale) —
+non era la leva giusta. **Fix effettivo**: aggiunta anche una `width`
+esplicita (`w-full`, prima di `max-w-2xl`) su `<main>` — un `width`
+dichiarato rimuove qualunque ambiguità di stretch-vs-contenuto,
+forzando il 100% del contenitore; `max-w-2xl` continua poi a limitarlo
+quando c'è spazio in eccedenza, esattamente come prima. **Verificato
+che il fix non abbia alcun effetto visivo sulle altre pagine**
+(Clienti/Fornitori/dettaglio Lavoro/Statistiche misurati a 1920px:
+tutti ancora esattamente 672px centrati, invariati) — nessuna di esse
+aveva mai avuto contenuto abbastanza largo da attivare il bug, quindi
+il comportamento pre-esistente resta identico ovunque tranne che sulla
+Dashboard, dove ora la tabella scorre correttamente in orizzontale
+*dentro* il proprio wrapper invece di sfondare la pagina.
+
+Verificato end-to-end (Supabase locale + Playwright + screenshot,
+ambiente smontato a fine test, clienti/lavori di prova creati via psql
+diretto e ripuliti subito dopo): tabella con le 4 colonne corrette,
+larghezza ~1822px su viewport 1920px (contro i ~672px di prima),
+H1/bottone allineati allo stesso margine della tabella, riga cliccabile
+verso il dettaglio Lavoro, nessun overflow orizzontale a 1920px/1440px/
+375px, lavoro `rifiutato` correttamente escluso dalla dashboard (regola
+preesistente di `lavori_dashboard()`, non toccata). `npm run build`/
+`tsc --noEmit`/`eslint` puliti sull'intero progetto.

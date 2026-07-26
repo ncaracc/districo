@@ -10,7 +10,7 @@ const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
-  { href: '/statistiche', label: 'Statistica' },
+  { href: '/statistiche', label: 'Lavori conclusi' },
   { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' },
 ]
 
