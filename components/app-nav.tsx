@@ -10,9 +10,13 @@ const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
-  { href: '/statistiche', label: 'Lavori conclusi' },
-  { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' },
+  { href: '/statistiche', label: 'Conclusi' },
 ]
+
+// Profilo/Impostazioni ha un trattamento a parte (icona ingranaggio invece di
+// testo su desktop, stesso principio già applicato a "Esci"): non fa parte
+// della normale navigazione testuale, quindi resta fuori da VOCI_ATTIVE.
+const VOCE_PROFILO = { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' }
 
 const VOCI_IN_ARRIVO: string[] = []
 
@@ -36,6 +40,22 @@ function IconaPower({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
       <path d="M18.36 6.64a9 9 0 1 1-12.73 0" strokeLinecap="round" />
       <line x1="12" y1="2" x2="12" y2="12" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+// Icona "ingranaggio" (impostazioni): stessa forma standard/universale del
+// simbolo "settings", stesso trattamento stroke-based di IconaPower — nessuna
+// libreria di icone, solo SVG inline.
+function IconaImpostazioni({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <circle cx="12" cy="12" r="3" />
+      <path
+        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -72,10 +92,10 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
 
   return (
     <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
-        <Link href="/lavori" className="flex items-center">
+      <div className="max-w-5xl mx-auto px-4 py-5 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
+        <Link href="/lavori" className="flex items-center py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/districo_logo.svg" alt="Districo" className="h-12 w-auto" />
+          <img src="/districo_logo.svg" alt="Districo" className="h-14 w-auto" />
         </Link>
 
         {/* Navigazione desktop: sempre visibile, centrata orizzontalmente.
@@ -107,7 +127,17 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
           ))}
         </nav>
 
-        <div className="hidden md:flex md:justify-end">
+        <div className="hidden md:flex md:items-center md:justify-end md:gap-1">
+          <Link
+            href={VOCE_PROFILO.href}
+            aria-label={VOCE_PROFILO.label}
+            title={VOCE_PROFILO.label}
+            className={`rounded-lg p-2 transition-colors hover:bg-gray-50 ${
+              voceAttiva(pathname, VOCE_PROFILO.href) ? 'text-gray-900' : 'text-gray-700 hover:text-gray-900'
+            }`}
+          >
+            <IconaImpostazioni className="h-5 w-5" />
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
@@ -168,6 +198,16 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
               </li>
             ))}
             <li className="mt-1 border-t border-gray-100 pt-1">
+              <Link
+                href={VOCE_PROFILO.href}
+                onClick={() => setAperto(false)}
+                className={`flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-gray-50 ${
+                  voceAttiva(pathname, VOCE_PROFILO.href) ? 'font-medium text-gray-900' : 'text-gray-600'
+                }`}
+              >
+                <IconaImpostazioni className="h-4 w-4" />
+                {VOCE_PROFILO.label}
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}

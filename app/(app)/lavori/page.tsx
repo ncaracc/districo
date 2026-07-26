@@ -95,9 +95,9 @@ export default async function LavoriPage() {
 
   return (
     // "Breakout" dal max-w-2xl del layout condiviso (app/(app)/layout.tsx):
-    // solo questa pagina deve usare la larghezza piena su desktop, le altre
-    // (Clienti, Fornitori, dettaglio Lavoro, Profilo, Statistiche/Lavori
-    // conclusi) restano centrate come oggi — non si tocca il layout comune.
+    // questa pagina e /statistiche (Conclusi) usano la larghezza piena su
+    // desktop, le altre (Clienti, Fornitori, dettaglio Lavoro, Profilo)
+    // restano centrate come oggi — non si tocca il layout comune.
     // Attivo solo da lg: in su (non solo per lo scope della richiesta, che
     // riguarda esplicitamente "schermi desktop ampi": <main> vive dentro un
     // contenitore flex-col nel root layout, quindi con overflow:visible il

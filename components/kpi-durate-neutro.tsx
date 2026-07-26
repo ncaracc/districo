@@ -17,9 +17,9 @@ export function KpiDurateNeutro({ kpi }: { kpi: KpiDurate | null }) {
         const media = kpi ? (kpi[v.chiave] as number | null) : null
         const campione = kpi ? (kpi[v.campioneChiave] as number) : 0
         return (
-          <div key={v.chiave} className="rounded-lg border border-gray-200 p-4">
+          <div key={v.chiave} className="rounded-lg bg-gray-50 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{v.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-gray-900">
+            <p className="mt-1 text-2xl font-medium text-gray-900">
               {formattaGiorni(media, campione)}
               {campione > 0 && <span className="ml-1 text-sm font-normal text-gray-500">giorni</span>}
             </p>

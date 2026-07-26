@@ -2261,3 +2261,104 @@ progetto.
 0018_kpi_durate_e_target.sql`, stesso limite di tutte le migration
 precedenti (nessuna connection string diretta disponibile in locale) —
 va eseguita a mano sullo SQL Editor prima del deploy.
+
+## Sette rifiniture visive — leggerezza, pulizia, respiro (2026-07-26)
+
+Richieste con `scattimiei.it` come metro di paragone di livello di
+rifinitura (non da copiare). Nessuna migration coinvolta.
+
+1) **Icona ingranaggio per Profilo/Impostazioni**: stesso trattamento
+   già riservato a "Esci" (icon-only su desktop, icona+testo nel menu
+   mobile). Nuova `IconaImpostazioni` in `components/app-nav.tsx` —
+   stessa forma standard/universale dell'icona "settings" (cerchio +
+   dodici piccoli archi che formano i denti, nota anche come icona
+   "settings" di Feather Icons), stesso trattamento stroke-based
+   (`stroke="currentColor" strokeWidth="1.8" fill="none"`) di
+   `IconaPower` — nessuna libreria di icone aggiunta. `VOCI_ATTIVE` non
+   include più questa voce (era un caso a parte già prima per "Esci",
+   ora anche Profilo/Impostazioni ha lo stesso trattamento): estratta in
+   una costante `VOCE_PROFILO` dedicata, renderizzata manualmente accanto
+   a "Esci" su desktop e come voce a parte (con bordo a sinistra come le
+   altre) nel menu mobile.
+
+2) **"Lavori conclusi" → "Conclusi"** nel menu (`VOCI_ATTIVE`), URL
+   invariato (`/statistiche`). **H1 della pagina lasciato invariato**
+   ("Lavori conclusi"): nel menu l'etichetta breve ha senso perché
+   affiancata a "Dashboard/Clienti/Fornitori" (stesso contesto d'uso),
+   ma l'H1 è il primo testo che vede chi arriva direttamente sulla
+   pagina (es. da un link salvato) — lì "Conclusi" da solo risulterebbe
+   ambiguo, mentre "Lavori conclusi" resta inequivocabile senza costare
+   spazio prezioso in una riga di menu orizzontale.
+
+3) **Layout a piena larghezza anche su /statistiche**: stesso identico
+   "breakout" `lg:relative lg:left-1/2 lg:w-screen lg:-translate-x-1/2`
+   già introdotto per la Dashboard (`app/(app)/lavori/page.tsx`,
+   26/7) — commento in quel file aggiornato per non elencare più
+   "Statistiche/Lavori conclusi" tra le pagine che restano centrate.
+   Verificato esplicitamente (non solo per assunzione) che il fix già
+   applicato al `<main>` del layout condiviso (`w-full`, stesso giorno)
+   copra anche questa pagina: nessun overflow orizzontale su mobile
+   (375px), stesso meccanismo, stessa causa/fix già diagnosticati per
+   la Dashboard.
+
+4) **Restyle card KPI** (`components/kpi-durate-dashboard.tsx` e
+   `kpi-durate-neutro.tsx`): rimosso il bordo (`border border-gray-200`
+   → solo `bg-gray-50`, nessun bordo), rimosso il pallino decorativo
+   davanti all'etichetta. Il colore del semaforo (Dashboard) è ora
+   applicato **al numero stesso** (`text-green-600`/`text-yellow-700`/
+   `text-red-600`/`text-gray-900` per lo stato neutro), non più a un
+   elemento decorativo separato — l'unico elemento colorato della card,
+   applicato nel modo più minimale possibile. Il numero passa da
+   `font-semibold` a `font-medium` ("peso medio" richiesto esplicitamente).
+   Il giallo usa `text-yellow-700` (non `-500`/`-600`, insufficiente
+   come contrasto per un testo su sfondo chiaro, a differenza di un
+   pallino/badge dove `-500` è la scelta consueta in questo progetto).
+
+5) **Font Inter**: sostituisce Geist Sans (mai in realtà applicato
+   visivamente — vedi nota tecnica sotto). Caricato via `next/font/google`
+   in `app/layout.tsx` (stesso meccanismo già in uso per Geist, quindi
+   stessa "allowlist"/modalità già approvata nel progetto: self-hosted
+   da Next.js in fase di build, nessuna richiesta a runtime verso i
+   server Google — diverso e indipendente dal meccanismo di embedding
+   dei font nel logo SVG, che resta invariato). Variabile CSS rinominata
+   da `--font-geist-sans` a `--font-inter` (nome coerente col nuovo
+   font, non più fuorviante). **Rimosso anche Geist Mono**, mai
+   effettivamente usato da nessun componente (nessuna classe
+   `font-mono` in tutto il codebase) — pulizia di codice morto colta
+   durante l'intervento.
+   **Bug preesistente scoperto e corretto nello stesso intervento**: Geist
+   Sans, pur caricato e con la sua variabile CSS definita, **non veniva
+   mai realmente applicato** — `body` in `globals.css` aveva un
+   `font-family: Arial, Helvetica, sans-serif;` hardcoded (residuo del
+   boilerplate `create-next-app` mai ripulito) che vinceva su qualunque
+   `--font-sans`, e nessun elemento nell'albero applicava la classe
+   utility `font-sans` di Tailwind. L'app ha quindi sempre mostrato
+   Arial/Helvetica di sistema, mai Geist, dal 16/7 a oggi. Fix: rimossa
+   la riga hardcoded da `globals.css`, aggiunta la classe `font-sans`
+   al `<body>` in `app/layout.tsx` — ora Inter è realmente il font
+   renderizzato (verificato via `getComputedStyle` in un browser reale,
+   non solo lettura del codice).
+
+6) **Logo header**: `h-12` → `h-14` (dimensione), aggiunto `py-1` al
+   link che lo contiene per un margine verticale proprio oltre al
+   padding dell'header (di per sé già aumentato, punto 7) — il logo
+   "respira" invece di toccare i bordi della barra.
+
+7) **Padding verticale header/footer**: header `py-3` → `py-5`
+   (`components/app-nav.tsx`), footer `py-8` → `py-10`
+   (`components/site-footer.tsx`). Verificato su entrambi i breakpoint
+   (la struttura flex/grid esistente non richiede altre modifiche per
+   restare centrata correttamente a spaziatura maggiore).
+
+### Verifica end-to-end
+Supabase locale + Playwright, ambiente smontato a fine test. Screenshot
+ispezionati visivamente su desktop (1440px: Dashboard, Conclusi, Profilo/
+Impostazioni) e mobile (375px: Dashboard, menu aperto, Conclusi) —
+confermato: menu "Conclusi" (non più "Lavori conclusi"/"Statistica"),
+icona ingranaggio icon-only su desktop e icona+testo su mobile, card
+KPI senza bordo/pallino con numero colorato per stato (verificati tutti
+e 3 gli stati verde/giallo/rosso, oltre al neutro "Dati insufficienti"),
+font Inter effettivamente renderizzato (`getComputedStyle` sul body),
+logo più grande con margine proprio, header/footer più ariosi, nessun
+overflow orizzontale su mobile né su Dashboard né su Conclusi. `npm run
+build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.

@@ -1,10 +1,13 @@
 import { formattaGiorni, semaforoKpi, type KpiDurate, type SemaforoKpi } from '@/lib/lavori/kpi'
 
-const DOT_COLOR: Record<SemaforoKpi, string> = {
-  verde: 'bg-green-500',
-  giallo: 'bg-yellow-500',
-  rosso: 'bg-red-500',
-  neutro: 'bg-gray-300',
+// Il semaforo colora solo il numero (mai uno sfondo pieno o un pallino
+// decorativo) — coerente con la palette B&W dell'app, dove il colore resta
+// riservato al giudizio sullo stato, applicato nel modo più minimale possibile.
+const TEXT_COLOR: Record<SemaforoKpi, string> = {
+  verde: 'text-green-600',
+  giallo: 'text-yellow-700',
+  rosso: 'text-red-600',
+  neutro: 'text-gray-900',
 }
 
 const VOCI: {
@@ -26,10 +29,10 @@ type Target = {
   target_montaggio_giorni: number
 }
 
-// Card colorate confrontate con il target dell'artigiano — solo l'indicatore di
-// stato è colorato (un pallino, stesso linguaggio dei semafori satellite),
-// mai lo sfondo della card intera, per restare coerenti con la palette B&W
-// dell'app (colori "a LED" riservati agli stati, mai decorativi).
+// Card confrontate con il target dell'artigiano — l'unico elemento colorato è
+// il numero stesso (nessun pallino, nessuno sfondo pieno), coerente con la
+// palette B&W dell'app: il colore resta riservato al giudizio sullo stato,
+// applicato nel modo più minimale possibile.
 export function KpiDurateDashboard({ kpi, target }: { kpi: KpiDurate | null; target: Target }) {
   return (
     <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -39,12 +42,9 @@ export function KpiDurateDashboard({ kpi, target }: { kpi: KpiDurate | null; tar
         const targetGiorni = target[v.targetChiave]
         const stato = semaforoKpi(media, campione, targetGiorni)
         return (
-          <div key={v.chiave} className="rounded-lg border border-gray-200 p-4">
-            <div className="mb-1 flex items-center gap-2">
-              <span className={`h-2 w-2 shrink-0 rounded-full ${DOT_COLOR[stato]}`} />
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{v.label}</p>
-            </div>
-            <p className="text-2xl font-semibold text-gray-900">
+          <div key={v.chiave} className="rounded-lg bg-gray-50 p-4">
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{v.label}</p>
+            <p className={`mt-1 text-2xl font-medium ${TEXT_COLOR[stato]}`}>
               {formattaGiorni(media, campione)}
               {campione > 0 && <span className="ml-1 text-sm font-normal text-gray-500">giorni</span>}
             </p>

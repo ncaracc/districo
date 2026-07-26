@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
 import { AppNav } from "@/components/app-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Font sans-serif di default per tutta l'app (il serif resta esclusivamente
+// nel logo). Caricato via next/font/google: stesso meccanismo già in uso per
+// Geist in precedenza — self-hosted da Next.js in fase di build, nessuna
+// richiesta a runtime verso i server Google.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -31,9 +30,9 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col font-sans">
         <AppNav isLoggedIn={!!user} />
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
         <SiteFooter />
