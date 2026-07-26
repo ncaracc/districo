@@ -125,6 +125,8 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-26 | **Segnalazione "Indirizzo non specificato"** quando l'indirizzo di Lavoro o Fornitore_Sede è vuoto (`lavoro-info.tsx`, `fornitore-sede-card.tsx`), al posto di omettere la riga — Cliente non necessita dello stesso fix: il suo form è sempre visibile in chiaro (nessuna vista di sola lettura collassata), l'assenza di indirizzo è già evidente. **Bug scoperto nello stesso giro durante il test**: `formattaIndirizzo()` considerava "specificato" un indirizzo con la sola nazione valorizzata — capitava sempre per una nuova Sede fornitore, il cui form salva `nazione='Italia'` di default già alla creazione anche senza altri campi — vanificando la segnalazione. Corretto richiedendo che almeno via o città/CAP siano popolati prima di considerare l'indirizzo "specificato" (stessa correzione applicata a entrambi i componenti, anche se il Lavoro non lo manifestava nei test perché `creaLavoro()` non imposta mai `nazione` di default). |
 | 2026-07-26 | **Bug in produzione: upload allegati falliva silenziosamente per file oltre 1MB** (foto da smartphone) — vedi sezione "Key learnings" per il dettaglio completo. Causa a due livelli, entrambi interni a Next.js (Nginx già aveva `client_max_body_size 20M`, non c'entrava): (1) le Server Actions hanno un limite di default di 1MB (`experimental.serverActions.bodySizeLimit`, non configurato); (2) un secondo limite **indipendente** da 10MB (`experimental.proxyClientMaxBodySize`, ex `middlewareClientMaxBodySize`) tronca silenziosamente il body a causa di `middleware.ts` attivo su ogni richiesta — scoperto solo empiricamente dopo aver alzato il primo limite, un file da 12MB falliva ancora. Il client (`satellite-allegati.tsx`) non aveva alcun try/catch attorno alla chiamata alla Server Action: l'eccezione restava un unhandled rejection invisibile, bottone bloccato su "Caricamento…" per sempre. **Fix**: entrambi i limiti alzati a 20MB in `next.config.ts` (coerente con Nginx), try/catch/finally aggiunto lato client con messaggio d'errore comprensibile. **Aggiunta anche una funzionalità richiesta in corso di fix**: le immagini (non i PDF) vengono ridimensionate server-side con `sharp` (nuova dipendenza esplicita in `package.json`, prima solo transitiva) a un lato massimo di 1920px, qualità 82 — verificato che una foto sintetica 4000×3000/12.18MB diventi 1920×1440/1.17MB (-90%), mentre un PDF di controllo resta identico byte-per-byte. |
 | 2026-07-26 | **Due rifiniture alla visualizzazione dell'indirizzo** su Lavoro e Fornitore_Sede (stessa sessione del fix upload sopra): (1) "Indirizzo non specificato" mostrato in rosso (`text-red-600`, stesso colore già usato per errori/stati mancanti in tutta l'app, non introduce una nuova semantica); (2) quando l'indirizzo è compilato, il testo diventa un link a Google Maps (`https://www.google.com/maps/search/?api=1&query=<indirizzo urlencoded>`, nuovo `lib/indirizzo.ts` condiviso tra i due componenti), apribile in una nuova scheda (`target="_blank"`) — nessuna geocodifica/mappa integrata, solo un link diretto con l'indirizzo già pronto. **Cliente escluso** (non "dove applicabile" in questo caso): non ha campi indirizzo strutturati (solo un `indirizzo` testo libero) né una vista di sola lettura collassata — il suo form è sempre mostrato in chiaro, quindi non esiste un punto dell'interfaccia dove applicare né il rosso né il link. Verificato anche il comportamento reale del link in un browser senza cookie Google già accettati: mostra l'interstitial di consenso `consent.google.com` (normale, esterno all'app) con l'indirizzo corretto incapsulato nel parametro `continue=` — non un difetto del link. |
+| 2026-07-26 | **Indagine su una presunta discrepanza dashboard/dettaglio — conclusa "non è un bug" più un miglioramento difensivo** — vedi sezione "Key learnings" per il dettaglio completo. `lavori_dashboard()`/`lavoro_pronto_per_montaggio()` risultavano già corrette e aggiornate (verificato con un test reale in produzione, account diagnostico usa-e-getta collegato temporaneamente a un Lavoro reale poi rimosso): i numeri "diversi" erano dovuti alla regola — allora ancora valida — che escludeva sempre gli Appuntamenti dal conteggio. **Migliorìa applicata comunque**: `lib/lavori/satelliti.ts` non invalidava mai `/lavori` (solo `/lavori/[id]`) dopo un cambio di stato satellite — aggiunto `revalidatePath('/lavori')` a tutte le 11 azioni, coerente col pattern già in uso in `lib/lavori/actions.ts`. Un controfattuale ha poi mostrato che, su questa versione di Next.js, `/lavori` è già una rotta pienamente dinamica (usa `cookies()`) con `staleTime` di default 0 per la cache router lato client — quindi il fix è corretto/difensivo ma non era la causa di una discrepanza riproducibile con la sola navigazione in-app. |
+| 2026-07-26 | **Cambio di regola: gli Appuntamenti contano nel gate/dashboard** — sostituisce la decisione dello Sprint 3/A ("appuntamenti sempre esclusi da gate e conteggi"). Motivazione dell'utente: se un appuntamento necessario non viene fatto, il lavoro non può avanzare. Migration `0017`: `lavoro_pronto_per_montaggio()` e `lavori_dashboard()` non escludono più `tipo = 'appuntamento'`; un appuntamento è "verde" se `concluso=true` OPPURE `non_necessario=true` (stesso trattamento binario di `noleggio`, nessuno stato "giallo" possibile essendo le due condizioni complementari — verificato che non generi conteggi anomali). Aggiornato in parallelo il mirror JS `satellitiBloccantiMontaggio()` in `lib/lavori/satelliti-meta.ts` (stessa logica, per il messaggio "cosa manca"), e `satelliteTipoLabelBreve()` ora usa l'etichetta del sottotipo specifico (Briefing/Verifica misure/Montaggio) invece del generico "Appuntamento", utile perché più istanze dello stesso sottotipo possono essere bloccanti insieme. **Nessuna modifica a "Segna come accettato/rifiutato"**: quella transizione resta senza vincoli di gate, come deciso in precedenza — il cambio riguarda solo il conteggio dashboard e il gate di "Segna lavoro completato". Verificato end-to-end (Supabase locale + Playwright): un Lavoro con tutti i satelliti verdi tranne un Montaggio non concluso → gate falso, messaggio "cosa manca" cita "Montaggio" esplicitamente, bottone "Segna completato" disabilitato; concluso il Montaggio → gate vero, completamento riuscito. Verificato anche via chiamata diretta alla RPC `lavori_dashboard()` con un Lavoro reale (10 satelliti, 9 verdi incl. Briefing concluso e Verifica misure non_necessario, 1 rosso = Montaggio): conteggio esatto `{rossi:1, gialli:0, verdi:9}`, nessuna anomalia. |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -1468,15 +1470,19 @@ build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto.
   465 a 587/STARTTLS in Profilo/Impostazioni — non è qualcosa che il
   codice/l'infrastruttura possano correggere da soli, sono dati salvati
   per singolo artigiano.
-- **Eseguire `supabase/migrations/0016_unifica_sigla_provincia.sql` sul
-  progetto Supabase Cloud** (SQL Editor) — testata in locale
-  (unico ambiente dove risulta applicata finora), non ancora eseguita in
-  produzione. Rinomina `sigla` in `sigla_provincia` e droppa `provincia`
-  su `lavoro`/`fornitore_sede`: **il codice già deployato prima di
-  questa migration smetterebbe di funzionare per queste due tabelle**
-  se applicata senza deployare anche il codice aggiornato (o viceversa)
-  — vanno fatte insieme, stesso principio già seguito per le migration
-  precedenti legate a un deploy.
+- ~~Eseguire `supabase/migrations/0016_unifica_sigla_provincia.sql`~~ —
+  **fatto**: applicata su Supabase Cloud e deployata insieme al codice,
+  verificato via REST che `sigla_provincia` esista e `provincia` non
+  esista più su `lavoro`/`fornitore_sede`.
+- **Eseguire `supabase/migrations/0017_appuntamenti_nel_gate.sql` sul
+  progetto Supabase Cloud** (SQL Editor) — testata in locale, non
+  ancora applicata in produzione. Aggiorna `lavoro_pronto_per_
+  montaggio()` e `lavori_dashboard()` per includere gli appuntamenti nel
+  calcolo (vedi riga in tabella e "Key learnings" più sotto): va
+  applicata **insieme** al deploy del codice (mirror JS in
+  `satelliti-meta.ts` aggiornato nello stesso commit), altrimenti gate
+  SQL e messaggio "cosa manca" lato client andrebbero temporaneamente
+  fuori sincrono.
 - (voci precedenti non ancora affrontate restano valide sopra)
 
 ## Key learnings — blocco porta 465 e escaping `$` in Docker Compose (2026-07-26)
@@ -1649,3 +1655,66 @@ PDF di controllo da 3MB caricato e rimasto **identico byte-per-byte**
 (non tocca alcun file non-immagine); nessun errore residuo, bottone
 mai bloccato. Ambiente smontato al termine; `npm run build`/
 `tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+## Key learnings — dashboard "sbagliata" che in realtà non lo era, e appuntamenti nel gate (2026-07-26)
+
+Segnalato: il conteggio rosso/giallo/verde in dashboard non corrispondeva
+al conteggio manuale fatto aprendo il dettaglio di un Lavoro reale.
+
+### Prima ipotesi (sbagliata): `lavori_dashboard()` non aggiornata dopo Sprint A/B/C
+Confrontando la migration `0011` (originale) con la `0013` (fix
+successivo, "or replace" sulla stessa funzione), la `0013` copriva già
+tutto correttamente: `acquisti` unificato, nuovi stati progetto/
+preventivo/campione, `costruzione`, `noleggio`. **Verificato empiricamente
+che la `0013` fosse davvero live in produzione** (non dava per scontato
+bastasse leggere il codice): creato un account diagnostico usa-e-getta,
+collegato temporaneamente come ospite/accettato a un Lavoro reale
+("Sistemazione terrazzo coperto"), autenticato con quella sessione,
+chiamata la RPC reale — risultato identico al conteggio manuale sui dati
+grezzi (6 rossi, 0 gialli, 1 verde). Stesso esito sul secondo Lavoro
+reale. Account e collegamento rimossi subito dopo, nessuna traccia
+residua. **Ipotesi scartata**: la funzione era corretta.
+
+### Seconda ipotesi (parzialmente utile, ma non la causa): cache di Next.js
+`lib/lavori/satelliti.ts` invalidava solo `/lavori/[id]`, mai `/lavori`,
+dopo un cambio di stato satellite — a differenza di `lib/lavori/
+actions.ts`, che invalida correttamente entrambi. Aggiunto
+`revalidatePath('/lavori')` a tutte le 11 azioni per coerenza. **Un
+controfattuale rigoroso** (stessa azione con e senza la riga aggiunta,
+confrontata) ha però mostrato che il conteggio era già corretto anche
+SENZA il fix: `/lavori` usa `cookies()` quindi è una rotta interamente
+dinamica, e il client Router Cache di Next.js ha `staleTime` di default
+0 per le rotte dinamiche — nessuna cache da invalidare nella normale
+navigazione in-app. Il fix resta applicato (corretto, difensivo, coerente
+col resto del codice) ma **non spiegava** il sintomo originale.
+
+### La vera spiegazione: non era un bug, era la regola di design esistente
+L'utente ha fornito i numeri esatti che vedeva. Rifacendo i conti a
+mano: sottraendo gli Appuntamenti (Briefing, Verifica misure, Montaggio
+— esclusi dal conteggio per una decisione presa fin dallo Sprint 3) dal
+totale dei pallini contati manualmente sulla pagina, i numeri tornavano
+**esattamente** uguali a quelli mostrati in dashboard, in tutti e tre i
+confronti forniti (rossi, verdi, rossi della fase di esecuzione).
+Nessun bug: la dashboard faceva esattamente quello per cui era stata
+progettata — semplicemente l'utente non teneva conto dell'esclusione
+appuntamenti nel proprio conteggio manuale.
+
+**Lezione**: quando un utente riporta "i numeri non tornano", la cosa
+più efficace è chiedere i numeri esatti e rifare il conto a mano con le
+regole *attuali*, prima di assumere che la logica applicativa sia
+sbagliata — specialmente quando quella logica è già stata verificata
+empiricamente contro un caso reale.
+
+### Cambio di regola conseguente: gli appuntamenti ora contano
+Discussa la spiegazione, l'utente ha deciso di **cambiare la regola**
+invece di lasciarla com'era: un appuntamento necessario non fatto blocca
+comunque l'avanzamento del lavoro, quindi non ha senso escluderlo dal
+gate. Vedi migration `0017` e la riga in tabella sopra per il dettaglio
+dell'implementazione. Punto tecnico degno di nota: `lavoro_pronto_per_
+montaggio()` e `lavori_dashboard()` condividono lo stesso pattern
+`rilevante`/`rosso`/`verde` per ogni tipo di satellite — aggiungere un
+nuovo tipo (o, come qui, includerne uno prima escluso) richiede la
+stessa modifica speculare in entrambe le funzioni SQL **più** il mirror
+JS `satellitiBloccantiMontaggio()`, che deve restare sincronizzato a
+mano (non è generato dalla stessa fonte) — tenerlo a mente per il
+prossimo cambio di questo tipo.

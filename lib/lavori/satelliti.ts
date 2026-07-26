@@ -1,5 +1,10 @@
 'use server'
 
+// Ogni azione qui sotto invalida sia /lavori/[id] sia /lavori: la dashboard
+// mostra i conteggi rosso/giallo/verde calcolati da lavori_dashboard(), che
+// dipendono dagli stessi satelliti — senza invalidare anche /lavori la cache
+// router di Next.js può continuare a mostrare i conteggi precedenti al
+// cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -38,6 +43,7 @@ export async function aggiornaAppuntamento(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -61,6 +67,7 @@ export async function creaAppuntamento(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true, id: data.id }
 }
 
@@ -117,6 +124,7 @@ export async function impostaStatoRevisionabile(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -138,6 +146,7 @@ export async function aggiornaValorePreventivo(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -159,6 +168,7 @@ export async function aggiornaDescrizioneCampione(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -180,6 +190,7 @@ export async function creaNuovaSerieCampione(lavoroId: string, serie: string): P
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -235,6 +246,7 @@ export async function creaOrdine(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true, id: data.id }
 }
 
@@ -248,6 +260,7 @@ export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, n
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -269,6 +282,7 @@ export async function aggiornaDescrizioneCostruzione(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -293,6 +307,7 @@ export async function avanzaStatoCostruzione(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
 
@@ -327,5 +342,6 @@ export async function aggiornaNoleggio(
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
   return { ok: true }
 }
