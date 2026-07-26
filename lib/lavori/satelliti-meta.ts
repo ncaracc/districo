@@ -248,6 +248,69 @@ export function azioniPossibiliCostruzione(statoAttuale: string): { stato: strin
   return []
 }
 
+// --- Gate "pronto per il montaggio" — versione informativa lato client ---
+//
+// Mirror in JS della stessa logica SQL di lavoro_pronto_per_montaggio()
+// (migration 0012/0013): non ricalcola il booleano (quello resta l'unica fonte
+// di verità, riusato così com'è sia in UI sia — soprattutto — server-side in
+// segnaLavoroStato() prima di accettare la transizione a "completato"), serve
+// solo a derivare QUALI satelliti risultano bloccanti, per mostrare un
+// messaggio "cosa manca" nella UI. Stessi criteri: appuntamenti sempre
+// esclusi, revisioni superate (non l'ultima della catena) escluse, stato
+// effettivo per preventivo/progetto/campione già risolto dal chiamante
+// tramite lavoro_satellite_stato_effettivo().
+export function satellitiBloccantiMontaggio(
+  satelliti: Satellite[],
+  statoEffettivoById: Record<string, string>,
+): Satellite[] {
+  const superati = new Set(satelliti.filter((s) => s.revisione_di).map((s) => s.revisione_di as string))
+
+  return satelliti.filter((s) => {
+    if (s.tipo === 'appuntamento') return false
+    if (superati.has(s.id)) return false
+
+    const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
+    switch (s.tipo) {
+      case 'preventivo':
+      case 'progetto':
+        return stato !== 'accettato' && stato !== 'non_necessario'
+      case 'campione':
+        return stato !== 'approvato' && stato !== 'non_necessario'
+      case 'acquisti':
+        return stato !== 'ricevuto'
+      case 'lavorazione_esterna':
+        return stato !== 'completato'
+      case 'costruzione':
+        return stato !== 'completata'
+      case 'noleggio':
+        return !(s.non_necessario || s.prenotazione_effettuata)
+      default:
+        return false
+    }
+  })
+}
+
+const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
+  appuntamento: 'Appuntamento',
+  preventivo: 'Preventivo',
+  progetto: 'Progetto',
+  acquisti: 'Acquisti',
+  lavorazione_esterna: 'Lavorazione esterna',
+  campione: 'Campione',
+  costruzione: 'Costruzione',
+  noleggio: 'Noleggio',
+}
+
+// Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
+// serie per il Campione (più catene indipendenti possono essere bloccanti
+// contemporaneamente) e la categoria per gli Acquisti, quando presenti.
+export function satelliteTipoLabelBreve(s: Satellite): string {
+  const base = TIPO_SATELLITE_LABEL_BREVE[s.tipo] ?? s.tipo
+  if (s.tipo === 'campione' && s.serie) return `${base} (${s.serie})`
+  if (s.tipo === 'acquisti' && s.acquisto_categoria) return `${base} (${ACQUISTO_CATEGORIA_LABEL[s.acquisto_categoria]})`
+  return base
+}
+
 export function raggruppaPerSerie(satelliti: Satellite[]): { serie: string; satelliti: Satellite[] }[] {
   const gruppi = new Map<string, Satellite[]>()
   for (const s of satelliti) {

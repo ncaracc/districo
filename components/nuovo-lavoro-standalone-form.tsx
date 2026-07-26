@@ -161,7 +161,7 @@ export function NuovoLavoroStandaloneForm() {
             )}
             <div>
               <label htmlFor="nome-nuovo-cliente" className="block text-sm font-medium text-gray-700 mb-1">
-                Nome / Ragione sociale
+                Nome / Ragione sociale <span className="text-red-500">*</span>
               </label>
               <input
                 id="nome-nuovo-cliente"
@@ -215,7 +215,7 @@ export function NuovoLavoroStandaloneForm() {
 
       <div>
         <label htmlFor="titolo" className="block text-sm font-medium text-gray-700 mb-1">
-          Titolo
+          Titolo <span className="text-red-500">*</span>
         </label>
         <input
           id="titolo"
@@ -227,7 +227,7 @@ export function NuovoLavoroStandaloneForm() {
 
       <div>
         <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700 mb-1">
-          Descrizione <span className="text-gray-400">(opz.)</span>
+          Descrizione
         </label>
         <textarea
           id="descrizione"

@@ -102,7 +102,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
 
       <div>
         <label htmlFor={`ordine-fornitore-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
-          Fornitore <span className="text-gray-400">(opz.)</span>
+          Fornitore
         </label>
         {sede ? (
           <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
@@ -147,7 +147,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
       {tipo === 'acquisti' && (
         <div>
           <label htmlFor={`ordine-categoria-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
-            Categoria <span className="text-gray-400">(opz.)</span>
+            Categoria
           </label>
           <select
             id={`ordine-categoria-${tipo}`}
@@ -212,7 +212,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
 
       <div>
         <label htmlFor={`ordine-valore-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
-          Valore complessivo <span className="text-gray-400">(opz.)</span>
+          Valore complessivo
         </label>
         <input
           id={`ordine-valore-${tipo}`}

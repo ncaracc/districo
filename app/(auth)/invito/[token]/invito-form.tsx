@@ -226,7 +226,7 @@ export function InvitoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
-            Nome
+            Nome <span className="text-red-500">*</span>
           </label>
           <input
             id="nome"
@@ -238,7 +238,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="cognome" className="block text-sm font-medium text-gray-700 mb-1">
-            Cognome
+            Cognome <span className="text-red-500">*</span>
           </label>
           <input
             id="cognome"
@@ -253,7 +253,7 @@ export function InvitoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="ragioneSociale" className="block text-sm font-medium text-gray-700 mb-1">
-            Ragione sociale <span className="text-gray-400">(opz.)</span>
+            Ragione sociale
           </label>
           <input
             id="ragioneSociale"
@@ -264,7 +264,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="partitaIva" className="block text-sm font-medium text-gray-700 mb-1">
-            Partita IVA <span className="text-gray-400">(opz.)</span>
+            Partita IVA
           </label>
           <input
             id="partitaIva"
@@ -278,7 +278,7 @@ export function InvitoForm({
 
       <div>
         <label htmlFor="specializzazione" className="block text-sm font-medium text-gray-700 mb-1">
-          Specializzazione
+          Specializzazione <span className="text-red-500">*</span>
         </label>
         <select
           id="specializzazione"
@@ -302,7 +302,7 @@ export function InvitoForm({
       {fields.specializzazione === ALTRO && (
         <div>
           <label htmlFor="specializzazioneAltro" className="block text-sm font-medium text-gray-700 mb-1">
-            Specifica la tua specializzazione
+            Specifica la tua specializzazione <span className="text-red-500">*</span>
           </label>
           <input
             id="specializzazioneAltro"
@@ -319,7 +319,7 @@ export function InvitoForm({
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2">
           <label htmlFor="via" className="block text-sm font-medium text-gray-700 mb-1">
-            Via
+            Via <span className="text-red-500">*</span>
           </label>
           <input
             id="via"
@@ -331,7 +331,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="civico" className="block text-sm font-medium text-gray-700 mb-1">
-            Civico
+            Civico <span className="text-red-500">*</span>
           </label>
           <input
             id="civico"
@@ -346,7 +346,7 @@ export function InvitoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="cap" className="block text-sm font-medium text-gray-700 mb-1">
-            CAP / Postal code
+            CAP / Postal code <span className="text-red-500">*</span>
           </label>
           <input
             id="cap"
@@ -358,7 +358,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="localita" className="block text-sm font-medium text-gray-700 mb-1">
-            Città
+            Città <span className="text-red-500">*</span>
           </label>
           <input
             id="localita"
@@ -374,7 +374,7 @@ export function InvitoForm({
         {labelProvincia && (
           <div>
             <label htmlFor="provincia" className="block text-sm font-medium text-gray-700 mb-1">
-              {labelProvincia} <span className="text-gray-400">(opz.)</span>
+              {labelProvincia}
             </label>
             <input
               id="provincia"
@@ -423,7 +423,7 @@ export function InvitoForm({
         </div>
         <div className="col-span-2">
           <label htmlFor="numeroTelefono" className="block text-sm font-medium text-gray-700 mb-1">
-            Telefono
+            Telefono <span className="text-red-500">*</span>
           </label>
           <input
             id="numeroTelefono"
@@ -441,7 +441,7 @@ export function InvitoForm({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
+            Password <span className="text-red-500">*</span>
           </label>
           <PasswordInput
             id="password"
@@ -454,7 +454,7 @@ export function InvitoForm({
         </div>
         <div>
           <label htmlFor="confermaPassword" className="block text-sm font-medium text-gray-700 mb-1">
-            Conferma password
+            Conferma password <span className="text-red-500">*</span>
           </label>
           <PasswordInput
             id="confermaPassword"

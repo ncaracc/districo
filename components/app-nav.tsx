@@ -10,10 +10,11 @@ const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
+  { href: '/statistiche', label: 'Statistica' },
   { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' },
 ]
 
-const VOCI_IN_ARRIVO = ['Statistica']
+const VOCI_IN_ARRIVO: string[] = []
 
 // Pagine pubbliche raggiungibili anche da chi non è loggato.
 const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password', '/registrazione']

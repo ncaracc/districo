@@ -25,9 +25,13 @@ export async function creaLavoro(
   // WITH CHECK dell'INSERT. Senza RETURNING quel controllo aggiuntivo non scatta.
   const lavoroId = randomUUID()
 
-  const { error: lavoroErr } = await supabase
-    .from('lavoro')
-    .insert({ id: lavoroId, cliente_id: clienteId, titolo: fields.titolo, descrizione: fields.descrizione })
+  const { error: lavoroErr } = await supabase.from('lavoro').insert({
+    id: lavoroId,
+    cliente_id: clienteId,
+    titolo: fields.titolo,
+    descrizione: fields.descrizione,
+    data_lavoro: new Date().toISOString().slice(0, 10),
+  })
 
   if (lavoroErr) {
     console.error('creaLavoro: insert su lavoro fallito', lavoroErr)
@@ -63,20 +67,79 @@ export async function creaLavoro(
   return { ok: true, id: lavoroId }
 }
 
+// Modifica del Lavoro dopo la creazione (fix emerso dal test end-to-end in
+// produzione: prima non esisteva alcuna azione di modifica). Titolo escluso
+// deliberatamente: non richiesto, resta fisso dalla creazione. Nessun controllo
+// esplicito di ownership qui: la policy RLS "lavoro: modifica solo owner"
+// (0001) già lo garantisce a livello DB.
+export async function aggiornaLavoro(
+  lavoroId: string,
+  fields: {
+    descrizione: string | null
+    dataLavoro: string | null
+    indirizzo: string | null
+    civico: string | null
+    cap: string | null
+    citta: string | null
+    provincia: string | null
+    sigla: string | null
+    nazione: string | null
+  },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('lavoro')
+    .update({
+      descrizione: fields.descrizione,
+      data_lavoro: fields.dataLavoro,
+      indirizzo: fields.indirizzo,
+      civico: fields.civico,
+      cap: fields.cap,
+      citta: fields.citta,
+      provincia: fields.provincia,
+      sigla: fields.sigla,
+      nazione: fields.nazione,
+    })
+    .eq('id', lavoroId)
+
+  if (error) {
+    console.error('aggiornaLavoro: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  return { ok: true }
+}
+
 // Transizioni manuali del ciclo di vita del Lavoro (opportunità -> accettato/
-// rifiutato, accettato -> completato). Nessun vincolo automatico in nessuno dei due
-// casi: coerente con "transizioni sempre manuali" della revisione 2026-07-25 — anche
-// "Segna lavoro completato" resta disponibile a prescindere dal gate
-// lavoro_pronto_per_montaggio() o da quanti appuntamenti di montaggio esistono/sono
-// conclusi, che restano solo un'informazione a supporto della decisione
-// dell'artigiano, non un vincolo. `accettato_at` continua a essere popolato alla
-// transizione verso 'accettato' per continuità con la UI esistente, pur essendo
-// ridondante con stato='accettato'.
+// rifiutato, accettato -> completato). "Segna come accettato"/"rifiutato" restano
+// senza vincoli, coerente con "transizioni sempre manuali" della revisione
+// 2026-07-25. "Segna lavoro completato" invece NON è più sempre disponibile
+// (fix emerso dal test end-to-end in produzione, supera la decisione originale
+// dello Sprint C): è bloccata se lavoro_pronto_per_montaggio() risulta falso,
+// cioè se un qualsiasi satellite bloccante (acquisti, lavorazione esterna,
+// costruzione, noleggio, oltre a preventivo/progetto/campione) non è ancora
+// verde. Il controllo è qui lato server (non solo il bottone disabilitato in
+// UI) perché è un vincolo reale, non solo un suggerimento — riusa la stessa
+// funzione SQL già esistente, nessuna nuova logica di gate. `accettato_at`
+// continua a essere popolato alla transizione verso 'accettato' per continuità
+// con la UI esistente, pur essendo ridondante con stato='accettato'.
 export async function segnaLavoroStato(
   lavoroId: string,
   nuovoStato: 'accettato' | 'rifiutato' | 'completato',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  if (nuovoStato === 'completato') {
+    const { data: pronto } = await supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: lavoroId })
+    if (!pronto) {
+      return {
+        ok: false,
+        error: 'Non tutti i satelliti bloccanti sono completi: il lavoro non può ancora essere segnato come completato.',
+      }
+    }
+  }
 
   const update: { stato: 'accettato' | 'rifiutato' | 'completato'; accettato_at?: string } = { stato: nuovoStato }
   if (nuovoStato === 'accettato') update.accettato_at = new Date().toISOString()
@@ -85,6 +148,31 @@ export async function segnaLavoroStato(
 
   if (error) {
     console.error('segnaLavoroStato: update fallito', error)
+    return { ok: false, error: 'Errore, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Riapertura di un Lavoro chiuso per errore (fix emerso dal test end-to-end in
+// produzione): riporta lo stato al valore precedente logico — completato ->
+// accettato, rifiutato -> opportunita. Nessun'altra modifica: satelliti,
+// accettato_at e ogni altro dato collegato restano invariati. Nessun controllo
+// di gate qui (a differenza di segnaLavoroStato verso 'completato'): riaprire
+// non ha condizioni, è sempre concesso su un lavoro chiuso.
+export async function riapriLavoro(
+  lavoroId: string,
+  statoAttuale: 'completato' | 'rifiutato',
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const nuovoStato = statoAttuale === 'completato' ? 'accettato' : 'opportunita'
+
+  const { error } = await supabase.from('lavoro').update({ stato: nuovoStato }).eq('id', lavoroId)
+
+  if (error) {
+    console.error('riapriLavoro: update fallito', error)
     return { ok: false, error: 'Errore, riprova' }
   }
 

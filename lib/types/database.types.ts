@@ -114,6 +114,7 @@ export type Database = {
           indirizzo: string | null; civico: string | null; cap: string | null
           citta: string | null; provincia: string | null; sigla: string | null; nazione: string | null
           tracking: boolean
+          data_lavoro: string | null
           accettato_at: string | null; created_at: string
         }
         Insert: {
@@ -122,6 +123,7 @@ export type Database = {
           indirizzo?: string | null; civico?: string | null; cap?: string | null
           citta?: string | null; provincia?: string | null; sigla?: string | null; nazione?: string | null
           tracking?: boolean
+          data_lavoro?: string | null
           accettato_at?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro']['Insert']>

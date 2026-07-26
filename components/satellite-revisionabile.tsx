@@ -113,7 +113,7 @@ export function RevisionabileChain({
           <div className="mb-2 flex items-end gap-2">
             <div className="flex-1">
               <label htmlFor="valore-preventivo" className="mb-1 block text-xs font-medium text-gray-700">
-                Valore <span className="text-gray-400">(opz.)</span>
+                Valore
               </label>
               <input
                 id="valore-preventivo"
@@ -141,7 +141,7 @@ export function RevisionabileChain({
         {mostraDescrizione && isOwner && (
           <div className="mb-2">
             <label htmlFor="descrizione-campione" className="mb-1 block text-xs font-medium text-gray-700">
-              Descrizione <span className="text-gray-400">(opz.)</span>
+              Descrizione
             </label>
             <textarea
               id="descrizione-campione"

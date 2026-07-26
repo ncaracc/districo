@@ -98,7 +98,7 @@ export function FornitoreSedeForm({
 
       <div>
         <label htmlFor="sede-nome" className="mb-1 block text-xs font-medium text-gray-700">
-          Nome sede
+          Nome sede <span className="text-red-500">*</span>
         </label>
         <input id="sede-nome" value={fields.nome} onChange={set('nome')} className={inputClass()} placeholder="Es. Sede Bologna" />
       </div>
@@ -106,25 +106,25 @@ export function FornitoreSedeForm({
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
           <label htmlFor="sede-indirizzo" className="mb-1 block text-xs font-medium text-gray-700">
-            Indirizzo <span className="text-gray-400">(opz.)</span>
+            Indirizzo
           </label>
           <input id="sede-indirizzo" value={fields.indirizzo} onChange={set('indirizzo')} className={inputClass()} />
         </div>
         <div>
           <label htmlFor="sede-civico" className="mb-1 block text-xs font-medium text-gray-700">
-            Civico <span className="text-gray-400">(opz.)</span>
+            Civico
           </label>
           <input id="sede-civico" value={fields.civico} onChange={set('civico')} className={inputClass()} />
         </div>
         <div>
           <label htmlFor="sede-cap" className="mb-1 block text-xs font-medium text-gray-700">
-            CAP <span className="text-gray-400">(opz.)</span>
+            CAP
           </label>
           <input id="sede-cap" value={fields.cap} onChange={set('cap')} className={inputClass()} />
         </div>
         <div>
           <label htmlFor="sede-citta" className="mb-1 block text-xs font-medium text-gray-700">
-            Città <span className="text-gray-400">(opz.)</span>
+            Città
           </label>
           <input id="sede-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
         </div>
@@ -143,14 +143,14 @@ export function FornitoreSedeForm({
         {labelProvincia && (
           <div>
             <label htmlFor="sede-provincia" className="mb-1 block text-xs font-medium text-gray-700">
-              {labelProvincia} <span className="text-gray-400">(opz.)</span>
+              {labelProvincia}
             </label>
             <input id="sede-provincia" value={fields.provincia} onChange={set('provincia')} className={inputClass()} />
           </div>
         )}
         <div>
           <label htmlFor="sede-sigla" className="mb-1 block text-xs font-medium text-gray-700">
-            Sigla {labelProvincia ? `${labelProvincia.toLowerCase()}` : ''} <span className="text-gray-400">(opz.)</span>
+            Sigla {labelProvincia ? `${labelProvincia.toLowerCase()}` : ''}
           </label>
           <input id="sede-sigla" value={fields.sigla} onChange={set('sigla')} placeholder="Es. BO" className={inputClass()} />
         </div>

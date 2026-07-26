@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LavoroStatoAzioni } from '@/components/lavoro-stato-azioni'
 import { LavoroSegnaCompletato } from '@/components/lavoro-segna-completato'
+import { LavoroRiapri } from '@/components/lavoro-riapri'
+import { LavoroInfo } from '@/components/lavoro-info'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { SatelliteNuovoAppuntamento } from '@/components/satellite-nuovo-appuntamento'
 import { RevisionabileChain } from '@/components/satellite-revisionabile'
@@ -14,6 +16,8 @@ import { SatelliteNoleggio } from '@/components/satellite-noleggio'
 import {
   SOTTOTIPO_APPUNTAMENTO_LABEL,
   costruisciCatena,
+  satellitiBloccantiMontaggio,
+  satelliteTipoLabelBreve,
   type Satellite,
   type SatelliteAllegato,
   type SatelliteArticolo,
@@ -36,7 +40,9 @@ export default async function LavoroDettaglioPage({
 
   const { data: lavoro } = await supabase
     .from('lavoro')
-    .select('id, titolo, descrizione, stato, cliente_id, accettato_at')
+    .select(
+      'id, titolo, descrizione, stato, cliente_id, accettato_at, data_lavoro, indirizzo, civico, cap, citta, provincia, sigla, nazione',
+    )
     .eq('id', id)
     .maybeSingle()
 
@@ -142,9 +148,23 @@ export default async function LavoroDettaglioPage({
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{lavoro.titolo}</h1>
-          {lavoro.descrizione && (
-            <p className="mt-1 text-sm text-gray-600">{lavoro.descrizione}</p>
-          )}
+          <div className="mt-1">
+            <LavoroInfo
+              lavoroId={lavoro.id}
+              isOwner={!!isOwner}
+              fields={{
+                descrizione: lavoro.descrizione,
+                data_lavoro: lavoro.data_lavoro,
+                indirizzo: lavoro.indirizzo,
+                civico: lavoro.civico,
+                cap: lavoro.cap,
+                citta: lavoro.citta,
+                provincia: lavoro.provincia,
+                sigla: lavoro.sigla,
+                nazione: lavoro.nazione,
+              }}
+            />
+          </div>
         </div>
         <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
           {STATO_LAVORO_LABEL[lavoro.stato] ?? lavoro.stato}
@@ -165,14 +185,25 @@ export default async function LavoroDettaglioPage({
                 Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
               </p>
             )}
-            {isOwner && <LavoroSegnaCompletato lavoroId={lavoro.id} pronto={!!pronto} />}
+            {isOwner && (
+              <LavoroSegnaCompletato
+                lavoroId={lavoro.id}
+                pronto={!!pronto}
+                mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
+              />
+            )}
           </div>
         ) : (
-          lavoro.accettato_at && (
-            <p className="text-sm text-gray-500">
-              Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
-            </p>
-          )
+          <div className="space-y-2">
+            {lavoro.accettato_at && (
+              <p className="text-sm text-gray-500">
+                Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
+              </p>
+            )}
+            {isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
+              <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
+            )}
+          </div>
         )}
       </div>
 

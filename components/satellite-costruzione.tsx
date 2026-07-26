@@ -81,7 +81,7 @@ export function SatelliteCostruzione({
             rows={3}
             value={descrizione}
             onChange={(e) => setDescrizione(e.target.value)}
-            placeholder="Note (opz.)"
+            placeholder="Note"
             className={inputClass()}
           />
           <button

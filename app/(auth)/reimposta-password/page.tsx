@@ -123,7 +123,7 @@ export default function ReimpostaPasswordPage() {
 
         <div>
           <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Nuova password
+            Nuova password <span className="text-red-500">*</span>
           </label>
           <PasswordInput
             id="password"
@@ -141,7 +141,7 @@ export default function ReimpostaPasswordPage() {
 
         <div>
           <label htmlFor="confermaPassword" className="block text-sm font-medium text-gray-700 mb-1">
-            Conferma password
+            Conferma password <span className="text-red-500">*</span>
           </label>
           <PasswordInput
             id="confermaPassword"

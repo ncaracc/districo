@@ -78,7 +78,7 @@ export function FornitoreForm({
 
       <div>
         <label htmlFor="ragioneSociale" className="block text-sm font-medium text-gray-700 mb-1">
-          Ragione sociale
+          Ragione sociale <span className="text-red-500">*</span>
         </label>
         <input
           id="ragioneSociale"
@@ -91,7 +91,7 @@ export function FornitoreForm({
 
       <div>
         <label htmlFor="partitaIva" className="block text-sm font-medium text-gray-700 mb-1">
-          Partita IVA <span className="text-gray-400">(opz.)</span>
+          Partita IVA
         </label>
         <input id="partitaIva" value={fields.partitaIva} onChange={set('partitaIva')} className={inputClass(false)} />
       </div>

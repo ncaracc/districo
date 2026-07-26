@@ -60,7 +60,7 @@ export function NuovoLavoroForm({ clienteId }: { clienteId: string }) {
 
       <div>
         <label htmlFor="titolo" className="block text-sm font-medium text-gray-700 mb-1">
-          Titolo
+          Titolo <span className="text-red-500">*</span>
         </label>
         <input
           id="titolo"
@@ -72,7 +72,7 @@ export function NuovoLavoroForm({ clienteId }: { clienteId: string }) {
 
       <div>
         <label htmlFor="descrizione" className="block text-sm font-medium text-gray-700 mb-1">
-          Descrizione <span className="text-gray-400">(opz.)</span>
+          Descrizione
         </label>
         <textarea
           id="descrizione"

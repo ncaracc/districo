@@ -162,7 +162,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
-            Nome
+            Nome <span className="text-red-500">*</span>
           </label>
           <input
             id="nome"
@@ -174,7 +174,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
         </div>
         <div>
           <label htmlFor="cognome" className="block text-sm font-medium text-gray-700 mb-1">
-            Cognome
+            Cognome <span className="text-red-500">*</span>
           </label>
           <input
             id="cognome"
@@ -191,7 +191,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
           htmlFor="specializzazione"
           className="block text-sm font-medium text-gray-700 mb-1"
         >
-          Specializzazione
+          Specializzazione <span className="text-red-500">*</span>
         </label>
         <select
           id="specializzazione"
@@ -218,7 +218,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
             htmlFor="specializzazioneAltro"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Specifica la tua specializzazione
+            Specifica la tua specializzazione <span className="text-red-500">*</span>
           </label>
           <input
             id="specializzazioneAltro"
@@ -252,7 +252,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-          Email
+          Email <span className="text-red-500">*</span>
         </label>
         <input
           id="email"
@@ -285,7 +285,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
         </div>
         <div className="col-span-2">
           <label htmlFor="numeroTelefono" className="block text-sm font-medium text-gray-700 mb-1">
-            Telefono
+            Telefono <span className="text-red-500">*</span>
           </label>
           <input
             id="numeroTelefono"
@@ -302,7 +302,7 @@ export function RegistrazioneForm({ specializzazioni }: { specializzazioni: stri
 
       <div>
         <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-          Password
+          Password <span className="text-red-500">*</span>
         </label>
         <PasswordInput
           id="password"

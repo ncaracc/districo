@@ -117,6 +117,8 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-19 | **Modello Attività (trattativa) superato dal modello a satelliti**, stesso trattamento già riservato a `Fase_Template`/`Lavoro_Fasi` nello Sprint 1: la tabella `attivita` resta nello schema Postgres (non cancellata, possibili dati storici), ma **ogni riferimento/uso attivo è stato rimosso dalla UI** — sezione "Attività" nel dettaglio Lavoro (sostituita interamente dalla sezione satelliti), badge "N attività aperte" nella lista Lavori. Rimossi di conseguenza `components/attivita-card.tsx`, `components/nuova-attivita-form.tsx` e le server action `creaAttivita`/`aggiornaAttivita`/`nuovaRevisionePreventivo` in `lib/lavori/actions.ts` (nessun altro chiamante). Nessuna FK esterna referenzia `attivita` (solo un self-FK interno su `revisione_di`), quindi nessuna migration di schema necessaria per questa deprecazione — stesso motivo per cui non ne era servita una per `Fase_Template`/`Lavoro_Fasi`. **`lavoro.accettato_at` cambia natura**: da gate che condizionava l'accesso alla fase di esecuzione a **flag puramente informativo** (verificato che non fosse mai referenziato da nessuna RLS/check constraint — l'unico "gate" era lato UI React nel dettaglio Lavoro), pensato per la futura dashboard (Sprint 3) per distinguere lavori ancora in trattativa informale da lavori confermati dal cliente. Non blocca né sblocca più nulla nel dettaglio Lavoro: i satelliti (già così fin dalla loro introduzione nello Sprint 2) restano utilizzabili indipendentemente dal suo valore. Il bottone "Segna lavoro accettato" resta, così come l'accoppiamento esistente con `lavoro.stato: 'trattativa' → 'esecuzione'` (mera etichetta di stato generale, non referenziata da alcuna policy/vincolo — non toccato, fuori scope di questa decisione). |
 | 2026-07-20 | **Sprint 3 revisione strutturale — ambiguità trovata e risolta con l'utente prima di procedere**: la chiusura del Lavoro nella sezione "Dashboard" era descritta come "montaggio verde", ma il traguardo `montaggio` non esiste ancora come tipo di satellite nello schema (resta da definire, vedi "Prossimi passi aperti"). Confermato con l'utente: si usa il campo `lavoro.stato = 'chiuso'` già esistente dalla 0001 (oggi impostato da nessun codice) come criterio di esclusione dalla dashboard — quando il gate montaggio verrà implementato, sarà lui a far scattare quella transizione, stesso pattern di `accettato_at` → `stato='esecuzione'`. |
 | 2026-07-20 | **Sprint 3 revisione strutturale — dashboard implementata** (migration `0011_lavori_dashboard.sql`, funzione `lavori_dashboard()`): pagina `/lavori` rinominata **"Dashboard"** in UI (titolo H1 e voce di menu `components/app-nav.tsx`; URL invariato). Formula del punteggio di urgenza fissata (vedi sezione "Dashboard (nuova home page)" più sotto per il dettaglio ed esempio numerico): somma su satelliti non-appuntamento, non-verdi, non superati da revisione più recente, di `giorni da data_ultimo_cambio_stato × peso` (1.0 rosso, 0.5 giallo). Calcolo lato SQL in un'unica query (no N+1), `SECURITY INVOKER` (non definer) per restare soggetta alle RLS esistenti senza bisogno di passare `artigiano_id` dall'esterno. Riepilogo a contatori colorati per riga (pallino + numero). Verificato end-to-end con stack Supabase locale + Playwright (ambiente poi smontato completamente). **Non ancora eseguita sul progetto Supabase Cloud di produzione** (vedi "Prossimi passi aperti"). |
+| 2026-07-26 | **Fix post-test end-to-end (4 fix) sul dettaglio Lavoro** — vedi sezione "Sprint D" più sotto per il dettaglio: (1) aggiunta la modifica del Lavoro dopo la creazione (descrizione, data di apertura `data_lavoro` — nuova colonna, migration `0015` —, indirizzo completo); (2) **"Segna lavoro completato" ora bloccato (client E server) se `lavoro_pronto_per_montaggio()` è falso** — supera esplicitamente la decisione dello Sprint C che lo lasciava sempre libero; (3) verificato (nessun fix necessario) che il flag `non_necessario` per gli appuntamenti `verifica_misure`/`montaggio` fosse già correttamente implementato dallo Sprint C; (4) convenzione UI uniformata in **tutti** i form dell'app: asterisco rosso sui campi obbligatori, nessuna etichetta testuale "(opz.)" sui facoltativi (impliciti per assenza di asterisco). |
+| 2026-07-26 | **Fix 5 e 6 (stesso giro dei 4 fix sopra)** — vedi sezione "Sprint D" per il dettaglio: (5) azione **"Riapri lavoro"** su un Lavoro `completato`/`rifiutato`, con conferma nativa (`window.confirm`), che riporta lo stato al valore precedente logico (completato→accettato, rifiutato→opportunità) senza toccare satelliti/dati collegati; (6) voce di menu **"Statistica" attivata** (era placeholder "in arrivo"), nuova pagina `/statistiche` con lista minima dei Lavori chiusi (completato/rifiutato: titolo, cliente, data, stato, link al dettaglio), ordinata per `data_lavoro` decrescente, nessun KPI/grafico in questo giro. **Pulizia dati di prova eseguita in produzione prima del commit**: eliminati i 2 Lavori di test presenti sul progetto Supabase Cloud reale (incluso uno con `stato='completato'` nonostante satelliti bloccanti ancora rossi — sintomo di un test manuale precedente all'introduzione del gate del fix 2), via DELETE diretto con la service role key già presente in `.env.local`, cascata su tutte le tabelle figlie (già tutte `on delete cascade` dalla 0001/0009/0012, nessuna migration necessaria), verificato con una query di conteggio che `lavoro` risultasse a 0 righe; Clienti e Fornitori non toccati (nessuna FK nella direzione opposta). |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -1158,3 +1160,231 @@ appuntamenti multipli di montaggio, gate verificato falso poi vero
 smontato al termine (container, volumi, copia isolata, dev server di
 test); `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero
 progetto.
+
+## Sprint D (2026-07-26) — 6 fix sul dettaglio Lavoro/Statistica, emersi dal test end-to-end in produzione
+
+### 1) Modifica del Lavoro dopo la creazione
+Il Lavoro non era mai modificabile dopo la creazione (solo `titolo` e
+`descrizione` venivano impostati alla creazione, nessuna azione di
+update). Aggiunta un'azione di modifica per descrizione, data di
+apertura e indirizzo completo — **titolo escluso deliberatamente**, non
+richiesto e resta fisso dalla creazione.
+
+**Nuova colonna `lavoro.data_lavoro`** (migration
+`0015_lavoro_data_apertura.sql`, `date` nullable, backfillata sui lavori
+esistenti da `created_at::date`, poi `default current_date` per i nuovi
+insert): rappresenta la data di apertura del lavoro/inizio trattativa,
+distinta dal timestamp tecnico `created_at` (che resta invariato,
+riferimento di sistema non esposto in UI) — pensata per il caso in cui
+il lavoro venga registrato in app qualche giorno dopo l'apertura reale.
+Nullable a DB per sicurezza sul backfill, ma **obbligatoria in UI**
+(client-side, il form di modifica non permette di salvarla vuota):
+l'obbligatorietà percepita non richiede necessariamente un vincolo
+`NOT NULL` a livello di schema, coerente con lo stile già "tutti
+nullable" dei campi indirizzo del Lavoro introdotti dalla 0012.
+
+`lib/lavori/actions.ts`: nuova `aggiornaLavoro()` — nessun controllo di
+ownership esplicito nel codice, la policy RLS `"lavoro: modifica solo
+owner"` (già presente dalla 0001) lo garantisce a livello DB, nessuna
+nuova RLS necessaria. `creaLavoro()` estesa per impostare `data_lavoro`
+alla creazione (oggi), esplicitamente invece di affidarsi solo al
+default di colonna.
+
+UI: **stesso pattern di modifica già in uso per i satelliti** (form
+sempre pronto, non un modale) invece del pattern "form dedicato sempre
+visibile" di `ClienteForm` — scelto un **toggle** (`components/
+lavoro-info.tsx`, stato locale `modifica`) perché il dettaglio Lavoro è
+già denso di sezioni (satelliti); mostra descrizione/data/indirizzo in
+sola lettura con un link "Modifica" (solo per l'owner), che rivela
+`components/lavoro-form.tsx` — stessa struttura indirizzo (nazione/
+provincia/sigla con label provincia dinamica da `lib/paesi.ts`) già
+usata in `fornitore-sede-form.tsx`, per coerenza.
+
+### 2) Gate su "Segna lavoro completato" — supera la decisione dello Sprint C
+La decisione originale dello Sprint C ("transizioni sempre manuali",
+nessun vincolo nemmeno sul completamento) è **superata esplicitamente**:
+"Segna lavoro completato" è ora bloccato se `lavoro_pronto_per_montaggio()`
+risulta falso (un satellite bloccante — acquisti, lavorazione esterna,
+costruzione, noleggio, oltre a preventivo/progetto/campione — non
+ancora verde/accettato/non_necessario). Gli appuntamenti restano sempre
+esclusi dal calcolo, invariato. "Segna come accettato"/"rifiutato"
+restano **senza vincoli**, non toccati da questa decisione.
+
+**Enforcement su due livelli, non solo il bottone disabilitato**:
+`segnaLavoroStato()` (`lib/lavori/actions.ts`) verifica lato server la
+stessa RPC `lavoro_pronto_per_montaggio()` già esistente (riusata così
+com'è, nessuna nuova logica SQL) prima di accettare la transizione a
+`'completato'`, e rifiuta con un messaggio dedicato se falsa. Motivo:
+un vincolo reale — non solo un suggerimento in UI — deve valere anche
+se il client viene manomesso (bottone riabilitato via devtools).
+**Verificato esplicitamente**: bottone forzato "enabled" via JS e
+cliccato — il server ha rifiutato la richiesta, confermato leggendo
+direttamente lo stato del Lavoro a DB (rimasto `accettato`, non
+`completato`).
+
+**Messaggio "cosa manca"**: nessuna funzione SQL/UI esistente elencava
+già i satelliti bloccanti (il gate esistente esponeva solo il booleano
+`pronto`) — costruito `satellitiBloccantiMontaggio()` in
+`lib/lavori/satelliti-meta.ts`, un **mirror in JS della stessa identica
+logica SQL** di `lavoro_pronto_per_montaggio()` (0012/0013): stessa
+esclusione appuntamenti, stessa esclusione revisioni superate (leaf via
+`revisione_di`), stessi criteri di stato per verde per tipo. Non
+ricalcola il booleano (quello resta l'unica fonte di verità, riusata
+via RPC sia in UI sia nel gate server-side sopra), serve solo a
+derivare quali satelliti sono bloccanti dai dati già presenti sulla
+pagina (nessuna nuova query). `satelliteTipoLabelBreve()` genera
+l'etichetta (con serie per Campione, categoria per Acquisti se
+presenti). `LavoroSegnaCompletato` mostra `disabled={loading || !pronto}`
+e, se non pronto, l'elenco "Satelliti ancora da completare: ...".
+
+### 3) Flag "non necessario" su Montaggio — verificato, nessun fix necessario
+Verifica esplicita richiesta prima di intervenire: il flag
+`non_necessario` per gli appuntamenti di sottotipo `verifica_misure` e
+`montaggio` era **già** liberamente impostabile in UI fin dallo Sprint C
+(`SatelliteAppuntamento` con `mostraNonNecessario` a `true` per
+entrambi, `false` solo per `briefing`), il vincolo DB (`0012`) blocca
+`non_necessario = true` solo per `briefing`, e `aggiornaAppuntamento()`
+scrive il valore senza alcuna condizione aggiuntiva. Nessuna modifica
+di codice necessaria — segnalato qui per chiudere esplicitamente il
+punto, coerente con "verifica lo stato attuale" della richiesta.
+
+### 4) Convenzione asterisco sui campi obbligatori
+Rimosse tutte le etichette testuali "(opz.)" (21 occorrenze in 11 file)
+in favore di un **asterisco rosso** (`<span className="text-red-500">*</span>`)
+accanto all'etichetta dei soli campi **obbligatori**; i facoltativi
+restano impliciti per assenza di marcatura. Applicata in modo coerente
+a tutti i form dell'app: registrazione, invito "a quattro mani", login,
+password dimenticata/reset, Cliente, Fornitore/Sede/Contatto, Lavoro
+(nuovo/standalone/modifica), e tutti i satelliti (Appuntamento,
+Progetto/Preventivo/Campione, Ordine, Costruzione, Noleggio).
+
+**Colore scelto (rosso, non un grigio neutro)**: coerente con l'uso
+già esistente del rosso per i messaggi di errore nei form
+(`text-red-600`), non introduce quindi una terza semantica di colore —
+resta comunque distinto dal rosso "a LED" riservato agli stati dei
+satelliti (un asterisco è un simbolo tipografico accanto a un'etichetta,
+non un pallino di stato, il rischio di confusione è marginale e diverso
+da quello già accettato per il logo/brand nella decisione del 19/7).
+
+**Criterio usato per stabilire obbligatorio/facoltativo**: campi con
+validazione client esplicita che blocca il submit se vuoti (o vincoli
+`NOT NULL` a DB senza fallback) → asterisco; campi liberi/nullable →
+nessun marcatore. **Select con un valore di default sempre presente**
+(es. Nazione, Prefisso telefono, Sicurezza SMTP) non hanno ricevuto
+asterisco: non possono essere lasciati vuoti dall'utente, quindi non
+c'è ambiguità da segnalare. **Eccezione**: il campo Specializzazione
+(registrazione e invito) **ha** l'asterisco pur essendo una `<select>`,
+perché la sua opzione di default è "Seleziona..." (valore vuoto), non
+un valore valido — può essere lasciato vuoto e la validazione lo
+richiede esplicitamente.
+
+### 5) Azione "Riapri lavoro"
+Nel dettaglio di un Lavoro con stato `completato` o `rifiutato`, nuova
+azione **"Riapri lavoro"** (`components/lavoro-riapri.tsx`) che riporta
+lo stato al valore precedente logico — `completato → accettato`,
+`rifiutato → opportunita` — con conferma nativa (`window.confirm`,
+stesso pattern già in uso per l'eliminazione di sede/contatto fornitore,
+nessun modale custom introdotto). Nuova server action `riapriLavoro()`
+in `lib/lavori/actions.ts`: **nessun controllo di gate** (a differenza
+di `segnaLavoroStato()` verso `'completato'`) — riaprire è sempre
+concesso, coerente con l'essere un'azione correttiva/di emergenza, non
+un avanzamento del ciclo di vita. Nessun'altra colonna toccata:
+`accettato_at`, i satelliti e ogni altro dato collegato restano
+invariati (per un lavoro che torna `accettato`, `accettato_at` resta
+quello della prima accettazione, non viene ripristinato/azzerato — non
+richiesto, e comunque già ridondante con `stato` per decisione
+pregressa). Integrata nel branch "else" già esistente in
+`app/(app)/lavori/[id]/page.tsx` (quello che prima mostrava solo la
+data di accettazione per lavori non più in opportunità/accettato), solo
+per l'owner.
+
+### 6) Lista minima "Lavori chiusi" in Statistica
+Voce di menu **"Statistica" attivata** (era placeholder "in arrivo" fin
+dallo Sprint 3): spostata da `VOCI_IN_ARRIVO` a `VOCI_ATTIVE` in
+`components/app-nav.tsx`. Nuova pagina `app/(app)/statistiche/page.tsx`
+(route **plurale** `/statistiche`, coerente con la convenzione già in
+uso per `/clienti`/`/fornitori`/`/lavori` — la label di menu resta
+singolare "Statistica", è solo un'etichetta; **riusata la cartella
+`app/(app)/statistiche/` già esistente ma vuota** dal 17/7, probabile
+scaffold iniziale mai completato). Lista semplice dei Lavori con
+`stato in ('completato', 'rifiutato')`, ordinata per `data_lavoro`
+decrescente (la colonna introdotta dal fix 1, non `created_at`): stesso
+pattern visivo della Dashboard (`ul`/`li` con `divide-y`, join manuale
+verso `cliente` per il nome, nessun embed PostgREST). **Nessun KPI/
+grafico**, come richiesto esplicitamente per questo giro — la voce di
+menu "Statistica" resta quindi minima ma non più un placeholder.
+
+### Pulizia dati di prova in produzione (prima del commit)
+Su richiesta esplicita, eliminati direttamente sul progetto Supabase
+Cloud reale (non locale) i **2 Lavori di test** trovati nella tabella
+`lavoro` prima di procedere: "Arredi in nicchia" (`stato='completato'`
+nonostante satelliti Acquisti/Lavorazione esterna/Costruzione ancora
+rossi — quasi certamente creato durante un test manuale in produzione
+precedente all'introduzione del gate del fix 2, quando "completato" era
+ancora sempre libero) e "Lavoro 2" (`stato='opportunita'`), entrambi
+collegati alla stessa scheda Cliente "Debora". Eseguito con una `DELETE`
+diretta via REST usando la `SUPABASE_SERVICE_ROLE_KEY` già presente in
+`.env.local` (bypassa la RLS, non serve altro accesso): tutte le
+tabelle figlie (`lavoro_artigiani`, `attivita`, `lavoro_fasi`,
+`pagamento`, `allegato`, `ordine_acquisto`→`ordine_acquisto_riga`,
+`lavoro_satellite`→`lavoro_satellite_allegato`/`lavoro_satellite_articolo`)
+erano già tutte `on delete cascade` fin dalle migration 0001/0009/0012
+— nessuna nuova migration necessaria per la pulizia stessa. Verificato
+con query di conteggio (`Content-Range` su `lavoro` e su
+`lavoro_satellite`) che entrambe le tabelle risultassero a 0 righe dopo
+l'operazione, e che il Cliente "Debora" e l'unico Fornitore censito
+restassero intatti (non referenziati dalla direzione opposta, quindi
+mai a rischio comunque).
+
+### Verifica end-to-end
+Stesso metodo degli sprint precedenti: Supabase locale via CLI 2.109.1
+(porte spostate temporaneamente +1000 in `config.toml` per evitare
+collisioni con lo stack Docker di Falegname in Cloud già attivo sulla
+stessa macchina, ripristinato via `git checkout` a fine test), copia
+isolata del progetto in scratchpad per il lock di `next dev`
+(node_modules copiato con hardlink `cp -al`, non symlink — Turbopack
+rifiuta un symlink che punta fuori dalla working directory del
+progetto), dev server reale dell'utente su `:3456` mai toccato. Utente
+di test e cliente creati via chiamate REST dirette a Supabase (non SDK:
+`@supabase/supabase-js` più recente richiede Node 22+ per il client
+Realtime, ambiente ha Node 20). **Scoperto un artefatto della CLI
+locale 2.109.1** (stessa famiglia di problema già nota dallo Sprint 3
+con `auto_expose_new_tables`): a differenza del progetto Supabase Cloud
+di produzione, l'istanza locale non concede di default a `service_role`
+i privilegi su tabelle già esistenti — grant allargati manualmente
+(`GRANT`/`ALTER DEFAULT PRIVILEGES`) solo per la sessione di test, mai
+propagati al progetto reale.
+
+Copertura fix 1-4: modifica Lavoro (descrizione/data/indirizzo) salvata
+e persistita dopo reload; gate verificato bloccato con messaggio "cosa
+manca" a satelliti tutti rossi, poi sbloccato avanzando manualmente
+ogni satellite bloccante (Progetto/Preventivo/Campione "non
+necessario", Acquisti/Lavorazione esterna/Costruzione fino a verde,
+Noleggio "non necessario") fino a "Pronto per il montaggio" e
+completamento riuscito; tentativo di bypass del bottone disabilitato
+(riabilitato via `page.evaluate`) rifiutato dal server, verificato
+anche a DB che lo stato restasse `accettato`; asterischi/assenza di
+"(opz.)" verificati su registrazione e sul form "nuovo lavoro".
+
+Copertura fix 5-6 (sessione di test separata, stesso metodo): 3 Lavori
+creati, 2 portati a `completato`/`rifiutato` direttamente a DB (per non
+dover ririfare la sequenza di sblocco del gate, non oggetto di questo
+giro) — verificato che `/statistiche` li elenchi entrambi insieme a un
+terzo lasciato chiuso, con etichette stato corrette e link funzionante
+al dettaglio; riapertura di entrambi tramite il nuovo bottone (dialogo
+di conferma auto-accettato in Playwright) con verifica che tornino
+rispettivamente ad `Accettato` (azioni di completamento di nuovo
+disponibili) e `Opportunità` (azioni accetta/rifiuta di nuovo
+disponibili); dopo la riapertura, `/statistiche` non li elenca più
+mentre il terzo Lavoro resta, e la Dashboard li rimostra correttamente
+mentre il terzo resta escluso. Ambiente smontato al termine (container,
+volumi, copia isolata, config.toml ripristinato); `npm run build`/
+`tsc --noEmit`/`eslint` puliti sull'intero progetto.
+
+### Prossimi passi aperti (aggiornato)
+- **Eseguire `supabase/migrations/0015_lavoro_data_apertura.sql` sul
+  progetto Supabase Cloud** (SQL Editor) — testata in locale, non
+  ancora applicata in produzione, stesso limite di tutte le migration
+  precedenti. **Unica migration introdotta in questo giro complessivo**:
+  i fix 5 e 6 non hanno richiesto alcuna modifica di schema.
+- (voci precedenti non ancora affrontate restano valide sopra)

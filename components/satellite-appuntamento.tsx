@@ -90,7 +90,7 @@ export function SatelliteAppuntamento({
 
           <div>
             <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
-              Descrizione <span className="text-gray-400">(opz.)</span>
+              Descrizione
             </label>
             <textarea
               id={`app-descrizione-${satellite.id}`}

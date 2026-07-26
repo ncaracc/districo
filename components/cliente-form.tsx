@@ -103,7 +103,7 @@ export function ClienteForm({
 
       <div>
         <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
-          Nome / Ragione sociale
+          Nome / Ragione sociale <span className="text-red-500">*</span>
         </label>
         <input
           id="nome"
@@ -116,7 +116,7 @@ export function ClienteForm({
 
       <div>
         <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-1">
-          Telefono <span className="text-gray-400">(opz.)</span>
+          Telefono
         </label>
         <input
           id="telefono"
@@ -129,7 +129,7 @@ export function ClienteForm({
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-          Email <span className="text-gray-400">(opz.)</span>
+          Email
         </label>
         <input
           id="email"
@@ -143,7 +143,7 @@ export function ClienteForm({
 
       <div>
         <label htmlFor="indirizzo" className="block text-sm font-medium text-gray-700 mb-1">
-          Indirizzo <span className="text-gray-400">(opz.)</span>
+          Indirizzo
         </label>
         <input
           id="indirizzo"
@@ -155,7 +155,7 @@ export function ClienteForm({
 
       <div>
         <label htmlFor="note" className="block text-sm font-medium text-gray-700 mb-1">
-          Note <span className="text-gray-400">(opz.)</span>
+          Note
         </label>
         <textarea
           id="note"
