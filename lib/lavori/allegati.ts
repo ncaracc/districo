@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { revalidatePath } from 'next/cache'
+import sharp from 'sharp'
 import { createClient } from '@/lib/supabase/server'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -11,6 +12,41 @@ type AzioneResult = { ok: true } | { ok: false; error: string }
 // Cartella base: /app/uploads in produzione (volume montato su
 // /srv/apps/districo/uploads, vedi Dockerfile/CLAUDE.md), ./uploads in locale.
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+
+// Lato più lungo a cui ridimensionare le foto (le altre tipologie di file, es.
+// PDF, non vengono toccate). 1920px è già oltre la risoluzione a cui verrebbe
+// mai visualizzata in UI, ma lascia margine per zoomare su un dettaglio (es.
+// una misura, una crepa) — riduce comunque drasticamente una foto da
+// smartphone tipica (spesso 3000-4000px, diversi MB) senza perdita percepibile.
+const LATO_MASSIMO_IMMAGINE = 1920
+const QUALITA_COMPRESSIONE = 82
+
+// Ridimensiona solo le immagini (mai i PDF o altri tipi): fallisce in modo
+// silenzioso verso il file originale se sharp non riesce a decodificarlo (es.
+// formato inatteso), per non bloccare mai l'upload a causa di un problema di
+// ottimizzazione secondaria.
+async function ridimensionaSeImmagine(buffer: Buffer, mimeType: string): Promise<Buffer> {
+  if (!mimeType.startsWith('image/')) return buffer
+
+  try {
+    // { animated: true } preserva i frame di GIF/WEBP animati invece di
+    // ridurli al solo primo fotogramma. .rotate() applica l'orientamento EXIF
+    // (comune nelle foto da smartphone) e lo rimuove dai metadati risultanti.
+    const immagine = sharp(buffer, { animated: true }).rotate().resize({
+      width: LATO_MASSIMO_IMMAGINE,
+      height: LATO_MASSIMO_IMMAGINE,
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+
+    if (mimeType === 'image/jpeg') return await immagine.jpeg({ quality: QUALITA_COMPRESSIONE }).toBuffer()
+    if (mimeType === 'image/webp') return await immagine.webp({ quality: QUALITA_COMPRESSIONE }).toBuffer()
+    return await immagine.toBuffer()
+  } catch (err) {
+    console.error('ridimensionaSeImmagine: fallito, salvo il file originale', err)
+    return buffer
+  }
+}
 
 export async function caricaAllegatiSatellite(
   satelliteId: string,
@@ -32,7 +68,8 @@ export async function caricaAllegatiSatellite(
     const nomeFile = `${randomUUID()}-${nomeSicuro}`
     const percorsoAssoluto = path.join(cartella, nomeFile)
 
-    const buffer = Buffer.from(await f.arrayBuffer())
+    const bufferOriginale = Buffer.from(await f.arrayBuffer())
+    const buffer = await ridimensionaSeImmagine(bufferOriginale, f.type)
     await fs.writeFile(percorsoAssoluto, buffer)
 
     const storagePath = path.posix.join('lavori', lavoroId, satelliteId, nomeFile)

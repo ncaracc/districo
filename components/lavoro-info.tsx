@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { LavoroForm } from '@/components/lavoro-form'
 import { PAESE_DEFAULT } from '@/lib/paesi'
+import { urlGoogleMaps } from '@/lib/indirizzo'
 
 type LavoroInfoFields = {
   descrizione: string | null
@@ -67,7 +68,20 @@ export function LavoroInfo({
     <div className="space-y-1 text-sm text-gray-600">
       {fields.descrizione && <p className="whitespace-pre-wrap">{fields.descrizione}</p>}
       {dataFormattata && <p className="text-gray-500">Aperto il {dataFormattata}</p>}
-      <p className="text-gray-500">{indirizzoFormattato ?? 'Indirizzo non specificato'}</p>
+      {indirizzoFormattato ? (
+        <p>
+          <a
+            href={urlGoogleMaps(fields)}
+            target="_blank"
+            rel="noreferrer"
+            className="text-gray-500 underline underline-offset-2 hover:text-gray-700"
+          >
+            {indirizzoFormattato}
+          </a>
+        </p>
+      ) : (
+        <p className="text-red-600">Indirizzo non specificato</p>
+      )}
       {isOwner && (
         <button
           type="button"

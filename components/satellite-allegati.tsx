@@ -31,14 +31,25 @@ export function SatelliteAllegati({
     const formData = new FormData()
     for (const f of Array.from(files)) formData.append('file', f)
 
-    const result = await caricaAllegatiSatellite(satelliteId, lavoroId, formData)
-    setLoading(false)
-    if (!result.ok) {
-      setErrore(result.error)
-      return
+    try {
+      const result = await caricaAllegatiSatellite(satelliteId, lavoroId, formData)
+      if (!result.ok) {
+        setErrore(result.error)
+        return
+      }
+      if (inputRef.current) inputRef.current.value = ''
+      router.refresh()
+    } catch (err) {
+      // La Server Action può lanciare (non solo restituire ok:false) se supera
+      // il limite di dimensione del body o per un errore imprevisto del
+      // server — senza questo catch l'errore restava invisibile in UI e il
+      // bottone bloccato su "Caricamento…" per sempre (bug scoperto in
+      // produzione, vedi CLAUDE.md).
+      console.error('Upload allegato fallito', err)
+      setErrore('Errore nel caricamento del file. Riprova con un file più piccolo o un formato diverso.')
+    } finally {
+      setLoading(false)
     }
-    if (inputRef.current) inputRef.current.value = ''
-    router.refresh()
   }
 
   return (

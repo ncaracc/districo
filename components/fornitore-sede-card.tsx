@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { eliminaSede, eliminaContatto } from '@/lib/fornitori/actions'
 import { FornitoreSedeForm } from '@/components/fornitore-sede-form'
 import { FornitoreSedeContattoForm } from '@/components/fornitore-sede-contatto-form'
+import { urlGoogleMaps } from '@/lib/indirizzo'
 
 type Sede = {
   id: string
@@ -99,7 +100,18 @@ export function FornitoreSedeCard({
       <div className="mb-2 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-gray-900">{sede.nome}</p>
-          <p className="mt-0.5 text-xs text-gray-500">{indirizzo ?? 'Indirizzo non specificato'}</p>
+          {indirizzo ? (
+            <a
+              href={urlGoogleMaps(sede)}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-0.5 block text-xs text-gray-500 underline underline-offset-2 hover:text-gray-700"
+            >
+              {indirizzo}
+            </a>
+          ) : (
+            <p className="mt-0.5 text-xs text-red-600">Indirizzo non specificato</p>
+          )}
         </div>
         <div className="flex shrink-0 gap-3">
           <button

@@ -123,6 +123,8 @@ Districo è un'app gestionale pensata per gli artigiani, per seguire un singolo 
 | 2026-07-26 | **Scoperti e corretti due bug di produzione tramite il bottone "Testa credenziali" del fix 7** — vedi sezione "Key learnings" per il dettaglio completo: (a) **porta 465 bloccata in uscita da apphub** (Hetzner o rete a monte, non l'OS/ufw del VPS — riproducibile identico verso Aruba e Google Workspace, porta 587 sempre aperta), che rendeva **anche** lo SMTP di sistema Aruba (inviti "a quattro mani") permanentemente non funzionante, non solo le credenziali personali; (b) **`SMTP_PASSWORD` troncata di un carattere a runtime** da Docker Compose, che interpreta `$$` in `env_file` come escape di un singolo `$` letterale (stesso comportamento della sezione `environment:`) — la password Aruba conteneva un `$` finale scritto come `$$`, arrivava all'app con un `$` in meno. **Fix applicato su apphub** (solo file `.env`, non tracciato nei sorgenti, backup lasciato accanto): `SMTP_PORT` 465→587, `SMTP_PASSWORD` con i `$` finali raddoppiati (4 invece di 2, per compensare l'escaping). Verificato byte-per-byte che il valore letto a runtime nel container corrisponda esattamente all'atteso, e con un invio reale (non solo `verify()`) di un'email in stile invito a un indirizzo di controllo, accettata da Aruba (`250 2.0.0 mail accepted for delivery`). **Codice applicativo** (`lib/email/send-email.ts`, `send-email-personale.ts`): timeout espliciti (`connectionTimeout`/`greetingTimeout`/`socketTimeout`, 12s) su entrambi i transport, e `secure`/`requireTLS` derivati automaticamente dalla porta in `send-email.ts` (non più da `SMTP_SECURE`, per evitare disallineamenti); UI di Profilo/Impostazioni aggiornata per raccomandare 587/STARTTLS come default. **Non ancora committato/pushato/deployato** — le correzioni `.env` su apphub sono già live (non richiedono deploy), il codice resta in attesa di conferma. |
 | 2026-07-26 | **Unificazione provincia + sigla in un unico campo `sigla_provincia`** su `lavoro` e `fornitore_sede` (migration `0016`, uniche due tabelle con entrambi i campi separati — `cliente` non ha né provincia né sigla, `artigiano` ha solo `provincia` senza sigla separata: nessuna delle due coinvolta). Verificato prima di droppare `provincia`: 0 righe non nulle su `lavoro`, 1 sola su `fornitore_sede` ("Bologna"/"BO", già coerente con la sigla esistente) — nessuna perdita di dati, nessuna mappatura nome→sigla necessaria. Form (`lavoro-form.tsx`, `fornitore-sede-form.tsx`) ridotti a un solo campo, etichetta dinamica dal paese (`labelProvincia` da `lib/paesi.ts`, fallback "Sigla provincia" se il paese non ha quel concetto), sempre visibile (non condizionato al paese, a differenza del vecchio campo "Provincia" esteso). |
 | 2026-07-26 | **Segnalazione "Indirizzo non specificato"** quando l'indirizzo di Lavoro o Fornitore_Sede è vuoto (`lavoro-info.tsx`, `fornitore-sede-card.tsx`), al posto di omettere la riga — Cliente non necessita dello stesso fix: il suo form è sempre visibile in chiaro (nessuna vista di sola lettura collassata), l'assenza di indirizzo è già evidente. **Bug scoperto nello stesso giro durante il test**: `formattaIndirizzo()` considerava "specificato" un indirizzo con la sola nazione valorizzata — capitava sempre per una nuova Sede fornitore, il cui form salva `nazione='Italia'` di default già alla creazione anche senza altri campi — vanificando la segnalazione. Corretto richiedendo che almeno via o città/CAP siano popolati prima di considerare l'indirizzo "specificato" (stessa correzione applicata a entrambi i componenti, anche se il Lavoro non lo manifestava nei test perché `creaLavoro()` non imposta mai `nazione` di default). |
+| 2026-07-26 | **Bug in produzione: upload allegati falliva silenziosamente per file oltre 1MB** (foto da smartphone) — vedi sezione "Key learnings" per il dettaglio completo. Causa a due livelli, entrambi interni a Next.js (Nginx già aveva `client_max_body_size 20M`, non c'entrava): (1) le Server Actions hanno un limite di default di 1MB (`experimental.serverActions.bodySizeLimit`, non configurato); (2) un secondo limite **indipendente** da 10MB (`experimental.proxyClientMaxBodySize`, ex `middlewareClientMaxBodySize`) tronca silenziosamente il body a causa di `middleware.ts` attivo su ogni richiesta — scoperto solo empiricamente dopo aver alzato il primo limite, un file da 12MB falliva ancora. Il client (`satellite-allegati.tsx`) non aveva alcun try/catch attorno alla chiamata alla Server Action: l'eccezione restava un unhandled rejection invisibile, bottone bloccato su "Caricamento…" per sempre. **Fix**: entrambi i limiti alzati a 20MB in `next.config.ts` (coerente con Nginx), try/catch/finally aggiunto lato client con messaggio d'errore comprensibile. **Aggiunta anche una funzionalità richiesta in corso di fix**: le immagini (non i PDF) vengono ridimensionate server-side con `sharp` (nuova dipendenza esplicita in `package.json`, prima solo transitiva) a un lato massimo di 1920px, qualità 82 — verificato che una foto sintetica 4000×3000/12.18MB diventi 1920×1440/1.17MB (-90%), mentre un PDF di controllo resta identico byte-per-byte. |
+| 2026-07-26 | **Due rifiniture alla visualizzazione dell'indirizzo** su Lavoro e Fornitore_Sede (stessa sessione del fix upload sopra): (1) "Indirizzo non specificato" mostrato in rosso (`text-red-600`, stesso colore già usato per errori/stati mancanti in tutta l'app, non introduce una nuova semantica); (2) quando l'indirizzo è compilato, il testo diventa un link a Google Maps (`https://www.google.com/maps/search/?api=1&query=<indirizzo urlencoded>`, nuovo `lib/indirizzo.ts` condiviso tra i due componenti), apribile in una nuova scheda (`target="_blank"`) — nessuna geocodifica/mappa integrata, solo un link diretto con l'indirizzo già pronto. **Cliente escluso** (non "dove applicabile" in questo caso): non ha campi indirizzo strutturati (solo un `indirizzo` testo libero) né una vista di sola lettura collassata — il suo form è sempre mostrato in chiaro, quindi non esiste un punto dell'interfaccia dove applicare né il rosso né il link. Verificato anche il comportamento reale del link in un browser senza cookie Google già accettati: mostra l'interstitial di consenso `consent.google.com` (normale, esterno all'app) con l'indirizzo corretto incapsulato nel parametro `continue=` — non un difetto del link. |
 
 ## Modello dati — schizzo v1 (aggiornato)
 
@@ -1559,3 +1561,91 @@ fossero quelli giusti secondo `/srv/apps/districo/.env`.
   alla lettera come spesso si assume. Vale anche per altri simboli con
   significato speciale per Compose (`${...}` per riferimenti a
   variabili) — non solo `$`.
+
+## Key learnings — upload allegati oltre 1MB falliva silenziosamente (2026-07-26)
+
+Segnalato come bug in produzione: caricare una foto (da smartphone,
+quindi tipicamente 2-10MB) su un satellite/Lavoro non dava alcun errore
+visibile, il file semplicemente non veniva salvato.
+
+### Diagnosi (tre livelli, solo gli ultimi due erano il problema)
+1. **Nginx**: `client_max_body_size 20M` già impostato su
+  `districo.conf` (fix dell'8/7, per un problema diverso legato ai
+  cookie di sessione) — non era il collo di bottiglia, verificato per
+  primo ed escluso.
+2. **Next.js Server Actions**: `caricaAllegatiSatellite()` è una
+  Server Action (`'use server'`), non una API route con un limite
+  configurabile a parte. Next.js applica un limite di default di
+  **esattamente 1MB** alle Server Actions
+  (`experimental.serverActions.bodySizeLimit`, non impostato in
+  `next.config.ts`) — oltre quella soglia lancia un `ApiError(413,
+  "Body exceeded 1 MB limit...")`, confermato leggendo il sorgente
+  Next.js (`node_modules/next/dist/server/app-render/action-handler.js`).
+3. **Un secondo limite indipendente, scoperto solo testando dal vivo
+  dopo aver alzato il primo**: alzato `serverActions.bodySizeLimit` a
+  20MB, un file da 12MB falliva ancora, con un errore diverso
+  (`Error: Unexpected end of form`) e questa riga nei log del server:
+  `Request body exceeded 10MB ... Only the first 10MB will be
+  available unless configured`. Causa: `middleware.ts` (attivo su
+  **ogni** richiesta, per l'autenticazione) fa clonare a Next.js il
+  body della richiesta, e quella clonazione ha un limite proprio,
+  **separato** da quello delle Server Actions — default 10MB, tronca
+  silenziosamente invece di rifiutare, corrompendo il multipart a metà
+  e producendo l'errore di parsing a valle. Il nome della config è
+  cambiato tra versioni Next.js: `middlewareClientMaxBodySize` (vecchio,
+  deprecato) → `proxyClientMaxBodySize` (attuale, in questa versione
+  16.2.10) — impostarli entrambi contemporaneamente è un errore di
+  configurazione esplicito (Next.js lo rifiuta all'avvio).
+4. **Il client inghiottiva comunque l'errore**: `satellite-allegati.tsx`
+  chiamava `await caricaAllegatiSatellite(...)` senza try/catch. Quando
+  l'azione lanciava (invece di restituire `{ok:false}`), la promise
+  veniva rifiutata senza essere gestita: `setLoading(false)` non veniva
+  mai raggiunto (bottone bloccato su "Caricamento…" per sempre) e
+  nessun messaggio d'errore appariva in UI — l'unica traccia era un
+  errore in console, invisibile a un utente reale.
+
+**Riprodotto empiricamente prima di applicare qualunque fix**: build di
+produzione locale (non dev mode, per fedeltà a ciò che gira su
+apphub) + Playwright, file da 500KB (funziona) vs 8MB (fallisce con
+500, bottone bloccato, nessun errore in UI) — così da confermare la
+diagnosi con dati reali invece che per sola lettura del codice.
+
+### Fix applicato
+- `next.config.ts`: entrambi i limiti alzati a **20MB**
+  (`serverActions.bodySizeLimit` e `proxyClientMaxBodySize`), coerenti
+  con il `client_max_body_size` di Nginx.
+- `satellite-allegati.tsx`: `try/catch/finally` attorno alla chiamata
+  alla Server Action — `finally` garantisce che `setLoading(false)`
+  scatti sempre, il `catch` mostra un messaggio comprensibile invece di
+  fallire in silenzio.
+- **Richiesta aggiuntiva emersa durante il fix**: ridimensionare le
+  immagini (non gli altri tipi di file, es. PDF) in fase di upload, per
+  ridurre lo spazio occupato sul volume `uploads` del VPS e il peso
+  delle foto da smartphone (spesso 3000-4000px, diversi MB, ben oltre
+  quanto utile per la visualizzazione in un'app web). Implementato
+  **server-side** (non nel browser): più semplice, nessun aumento del
+  bundle client, nessun problema di compatibilità browser/HEIC/EXIF da
+  gestire lato client, e comunque necessario ricevere il file per
+  intero prima di poterlo processare. Nuova dipendenza esplicita
+  `sharp` in `package.json` (prima solo transitiva, usata da uno script
+  una tantum per le favicon — ora è un requisito runtime dell'app,
+  quindi dichiarata esplicitamente); verificato che i binari nativi
+  `sharp-linuxmusl-x64` necessari per l'immagine Docker `node:20-alpine`
+  siano risolti correttamente da `npm ci` nello stage di build.
+  `ridimensionaSeImmagine()` in `lib/lavori/allegati.ts`: solo se
+  `file.type` inizia con `image/`, resize al lato massimo **1920px**
+  (`fit: 'inside'`, `withoutEnlargement` per non ingrandire immagini già
+  più piccole), qualità **82** per JPEG/WEBP, `{ animated: true }` per
+  preservare i frame di GIF/WEBP animati, `.rotate()` per applicare
+  l'orientamento EXIF (comune nelle foto da smartphone) prima di
+  rimuoverlo dai metadati. Fallback silenzioso al file originale se
+  `sharp` non riesce a decodificare l'immagine, per non bloccare mai un
+  upload a causa di un problema di ottimizzazione secondaria.
+
+**Verificato end-to-end** (stesso ambiente Supabase locale + build di
+produzione + Playwright): foto sintetica 4000×3000/12.18MB caricata con
+successo (prima falliva), salvata su disco a 1920×1440/1.17MB (-90%);
+PDF di controllo da 3MB caricato e rimasto **identico byte-per-byte**
+(non tocca alcun file non-immagine); nessun errore residuo, bottone
+mai bloccato. Ambiente smontato al termine; `npm run build`/
+`tsc --noEmit`/`eslint` puliti sull'intero progetto.
