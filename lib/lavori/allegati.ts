@@ -64,25 +64,43 @@ export async function caricaAllegatiSatellite(
   await fs.mkdir(cartella, { recursive: true })
 
   for (const f of file) {
+    // LOG DIAGNOSTICO TEMPORANEO (da rimuovere dopo aver isolato il bug upload
+    // silenzioso su file HEIC/HEIF segnalato il 2026-07-26): finora nessuna
+    // eccezione era mai stata loggata con dettaglio nome/tipo/dimensione, e un
+    // errore qui non catturato da nessun try/catch risultava in un generico
+    // "Errore nel caricamento del file" lato client senza traccia server-side.
+    console.log(
+      `caricaAllegatiSatellite: file="${f.name}" type="${f.type}" size=${f.size}`,
+    )
+
     const nomeSicuro = f.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const nomeFile = `${randomUUID()}-${nomeSicuro}`
     const percorsoAssoluto = path.join(cartella, nomeFile)
 
-    const bufferOriginale = Buffer.from(await f.arrayBuffer())
-    const buffer = await ridimensionaSeImmagine(bufferOriginale, f.type)
-    await fs.writeFile(percorsoAssoluto, buffer)
+    try {
+      const bufferOriginale = Buffer.from(await f.arrayBuffer())
+      const buffer = await ridimensionaSeImmagine(bufferOriginale, f.type)
+      await fs.writeFile(percorsoAssoluto, buffer)
 
-    const storagePath = path.posix.join('lavori', lavoroId, satelliteId, nomeFile)
-    const { error } = await supabase.from('lavoro_satellite_allegato').insert({
-      satellite_id: satelliteId,
-      nome_file: f.name,
-      storage_path: storagePath,
-    })
+      const storagePath = path.posix.join('lavori', lavoroId, satelliteId, nomeFile)
+      const { error } = await supabase.from('lavoro_satellite_allegato').insert({
+        satellite_id: satelliteId,
+        nome_file: f.name,
+        storage_path: storagePath,
+      })
 
-    if (error) {
-      console.error('caricaAllegatiSatellite: insert fallito', error)
+      if (error) {
+        console.error('caricaAllegatiSatellite: insert fallito', error)
+        await fs.unlink(percorsoAssoluto).catch(() => {})
+        return { ok: false, error: "Errore nel salvataggio dell'allegato, riprova" }
+      }
+    } catch (err) {
+      console.error(
+        `caricaAllegatiSatellite: ECCEZIONE su file="${f.name}" type="${f.type}" size=${f.size}:`,
+        err,
+      )
       await fs.unlink(percorsoAssoluto).catch(() => {})
-      return { ok: false, error: "Errore nel salvataggio dell'allegato, riprova" }
+      return { ok: false, error: `Errore imprevisto sul file "${f.name}": ${err instanceof Error ? err.message : String(err)}` }
     }
   }
 
