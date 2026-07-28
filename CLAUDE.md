@@ -82,7 +82,8 @@ richiede esplicitamente.
 ## Revisione strutturale 2026-07-25 — Ciclo di vita Lavoro, Fornitori, ristrutturazione satelliti (Sprint A: schema)
 
 > Questa sezione **supera/estende** la "Revisione strutturale 2026-07-19"
-> precedente (mantenuta sopra per cronologia): cambia la macchina a stati
+> precedente (vedi CLAUDE-ARCHIVIO.md, sezione "Revisione strutturale
+> 2026-07-19"): cambia la macchina a stati
 > del Lavoro, aggiunge indirizzo e flag tracking al Lavoro, completa le
 > anagrafiche Fornitore (già esistenti dalla 0001 ma mai allineate al
 > nuovo modello indirizzo), e ristruttura profondamente l'entità
