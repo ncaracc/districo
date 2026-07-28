@@ -1487,3 +1487,95 @@ una migration come "non ancora live" in un modo che condiziona *come*
 si scrive un fix (editare il file vs. aggiungerne uno nuovo), verificare
 lo stato reale del database di produzione (via REST con la service role
 key, come fatto qui) invece di fidarsi ciecamente della nota scritta.
+
+## Key learnings — "Nessuna cifratura" SMTP non funzionava davvero, preset provider (2026-07-29)
+
+**Segnalazione dal beta tester Alessandro**: casella email su un
+vhosting con SMTP autenticato solo su porta 25, nessuna delle opzioni
+di sicurezza esistenti (SSL/TLS, STARTTLS) funzionava. Il form aveva
+**già** una terza opzione "Nessuna" nel menu Sicurezza (introdotta
+insieme allo schema fin dalla `0014`) — il problema non era l'opzione
+mancante in UI, ma il **transport nodemailer** in
+`lib/email/send-email-personale.ts`.
+
+**Causa reale**: `secure: false` + `requireTLS: false` (la combinazione
+usata per "nessuna cifratura") **non disabilitano affatto STARTTLS** —
+nodemailer tenta comunque un upgrade TLS "opportunistico" se il server
+lo annuncia nella risposta EHLO, indipendentemente da queste due
+opzioni. Se quel tentativo fallisce (es. un server con STARTTLS
+annunciato ma con un certificato non valido/self-signed, scenario
+plausibile su un piccolo vhosting), l'intero invio fallisce — anche se
+l'utente ha esplicitamente scelto "Nessuna cifratura" per evitare
+proprio questo. **Riprodotto empiricamente** (non solo per lettura del
+codice): server SMTP di test locale (Python `aiosmtpd`, porta 2526) che
+annuncia STARTTLS con un certificato self-signed generato al volo;
+stesso identico transport nodemailer usato dall'app, senza `ignoreTLS`
+→ fallisce con `ESOCKET` (handshake TLS respinto); con
+`ignoreTLS: sicurezza === 'nessuna'` aggiunto → invio riuscito
+(`250 Message accepted for delivery`), STARTTLS bypassato del tutto.
+**Fix**: aggiunta l'opzione `ignoreTLS` al transport in
+`sendEmailPersonale()` — nessuna modifica a schema/RLS, nessuna nuova
+opzione UI (esisteva già), solo la config nodemailer mancante perché
+l'opzione fosse realmente "nessuna cifratura" e non "nessuna cifratura,
+a meno che il server ne proponga una". Migliorata anche l'etichetta
+dell'opzione nel menu (`"Nessuna cifratura (porta tipica 25 — solo se
+le altre due non funzionano)"`, prima solo `"Nessuna (non consigliato)"`).
+
+**Preset SMTP per i provider più comuni** aggiunti in
+`components/profilo-smtp-form.tsx` (menu a tendina "Provider" sopra i
+campi Host/Porta/Sicurezza, precompila i tre campi lasciando
+email/password da inserire manualmente; opzione "Altro / personalizza"
+che azzera la precompilazione, comportamento manuale identico a prima):
+
+| Provider | Host | Porta | Sicurezza | Note |
+|---|---|---|---|---|
+| Aruba | `smtps.aruba.it` | 465 | SSL/TLS | — |
+| Google Workspace/Gmail | `smtp.gmail.com` | 587 | STARTTLS | Serve una password per le app, non quella normale dell'account Google |
+| Register.it | `authsmtp.tuodominio.it` | 587 | STARTTLS | Host **da personalizzare** col proprio dominio (server per-dominio, non fisso) — vedi discrepanza sotto |
+| Microsoft 365/Outlook | `smtp.office365.com` | 587 | STARTTLS | — |
+| Libero Mail | `smtp.libero.it` | 465 | SSL/TLS | Confermato da documentazione ufficiale Libero, nessuna impostazione account aggiuntiva richiesta |
+| vhosting | `mail.tuodominio.it` | 587 | STARTTLS | Host da personalizzare; nota nel form suggerisce porta 25/nessuna cifratura come fallback se la 587 non funziona |
+| Hosting generico (cPanel/Plesk) | `mail.tuodominio.it` | 587 | STARTTLS | Convenzione comune a molti hosting italiani (OVH, SiteGround, TopHost, Keliweb, Serverplan...), da verificare comunque nel pannello |
+| Altro / personalizza | — | — | — | Azzera i campi, configurazione manuale come oggi |
+
+**Discrepanza trovata tra la richiesta iniziale e la documentazione
+ufficiale di Register.it** (verificata via ricerca web + fetch diretto
+delle pagine di supporto ufficiali, non assunta): Register.it **non**
+ha un host fisso `smtp.register.it` né una combinazione
+465/SSL-587/STARTTLS a seconda del piano come ipotizzato — il loro
+supporto ufficiale (`register.it/assistenza/soluzione-invii-email/`,
+`register.it/support/smtp_outlook_express.html`,
+`register.it/support/vista_smtp.html`) descrive un host **per-dominio**
+(`authsmtp.<tuodominio>`, non un server condiviso) sulla **porta 25
+come primaria** (587 solo "in alternativa se la 25 risulta bloccata"),
+**senza specificare affatto** il tipo di cifratura in nessuna delle tre
+pagine consultate. Scelta per il preset: porta 587/STARTTLS (non 25),
+motivata dal fatto che la porta 25 in uscita è tipicamente bloccata
+dagli stessi provider cloud che già bloccano la 465 (vedi il blocco
+Hetzner/apphub sulla 465 documentato altrove in questo file — 25 è
+bloccata ancora più comunemente di 465 per policy anti-spam), quindi
+meno affidabile da un server come apphub; segnalato esplicitamente nel
+testo di aiuto del preset stesso, per non presentare come certezza un
+dato che il fornitore non conferma. **Confermato invece senza ambiguità
+da fonte ufficiale**: Libero Mail (`smtp.libero.it:465`, SSL/TLS,
+nessun'impostazione account speciale per app esterne).
+
+**Testo di aiuto aggiunto sotto il form** (`ProfiloSmtpForm`) che
+spiega in linguaggio non tecnico la differenza tra le tre opzioni di
+sicurezza e raccomanda esplicitamente STARTTLS/587 quando disponibile,
+riservando "Nessuna cifratura" al solo caso in cui le altre due non
+funzionino.
+
+**Verifica**: `tsc --noEmit`, `eslint`, `npm run build` puliti.
+Riproduzione end-to-end del fix `ignoreTLS` con server SMTP locale
+reale (Python `aiosmtpd`, certificato self-signed generato al volo,
+ambiente poi smontato) — non solo lettura del codice, vedi sopra. Preset
+verificati a livello di dati/logica (tutti e 7 producono esattamente i
+valori host/porta/sicurezza attesi, opzione "Altro/personalizza"
+presente e funzionante) — **non eseguito un test end-to-end completo in
+browser con login reale** per la sola UI del selettore preset (nessuna
+logica asincrona/di rete coinvolta nella precompilazione, solo
+assegnazione di stato React da una tabella statica: rischio ritenuto
+proporzionato a una verifica di livello logico invece di un giro
+Supabase locale + Playwright completo). Nessuna migration necessaria
+(`smtp_sicurezza` accettava già `'nessuna'` dalla `0014`).

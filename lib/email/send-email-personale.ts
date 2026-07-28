@@ -23,6 +23,14 @@ export async function sendEmailPersonale({
     port: smtp.porta,
     secure: smtp.sicurezza === 'ssl',
     requireTLS: smtp.sicurezza === 'starttls',
+    // Senza questo, nodemailer tenta comunque STARTTLS in modo "opportunistico"
+    // se il server lo annuncia, anche con sicurezza='nessuna' (secure/requireTLS
+    // a false non bastano a disabilitarlo) — se quel tentativo fallisce (es. un
+    // server con STARTTLS annunciato ma mal configurato, come nel caso di un
+    // hosting su porta 25 senza cifratura funzionante), l'invio fallisce anche
+    // se l'utente ha esplicitamente scelto "nessuna cifratura". ignoreTLS lo
+    // esclude del tutto solo in quel caso.
+    ignoreTLS: smtp.sicurezza === 'nessuna',
     auth: { user: smtp.username, pass: smtp.password },
     // Timeout espliciti (fix emerso da un blocco di rete in uscita sulla porta
     // 465 su apphub, vedi CLAUDE.md): senza questi, un blocco di rete o un
