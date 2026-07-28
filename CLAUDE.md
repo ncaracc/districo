@@ -2257,10 +2257,12 @@ del reale) a giallo (target scelto per una via di mezzo, ~8% sopra il
 reale). `npm run build`/`tsc --noEmit`/`eslint` puliti sull'intero
 progetto.
 
-**Non ancora applicata a Supabase Cloud**: `supabase/migrations/
-0018_kpi_durate_e_target.sql`, stesso limite di tutte le migration
-precedenti (nessuna connection string diretta disponibile in locale) —
-va eseguita a mano sullo SQL Editor prima del deploy.
+**Nota aggiornata il 28/7**: `0018_kpi_durate_e_target.sql` risultava
+ancora segnata qui come "non applicata", ma è **già stata eseguita** su
+Supabase Cloud (verificato via REST il 28/7, vedi sezione "Fix colonna
+Valore Dashboard" più sotto) — la nota era diventata stale. Vedi quella
+sezione per il fix successivo (`0019`) reso necessario proprio da questo
+disallineamento.
 
 ## Sette rifiniture visive — leggerezza, pulizia, respiro (2026-07-26)
 
@@ -2423,3 +2425,82 @@ mobile aperto; nessuna regressione sulle pagine non toccate. `npm run
 build`/`tsc --noEmit`/`eslint` puliti sull'intero progetto. **Non
 ancora committato** — modifiche solo in working tree, in attesa di
 conferma.
+
+## Fix colonna "Valore" Dashboard + reversibilità "non necessario" (2026-07-28)
+
+**Bug confermato**: la colonna "Valore" della Dashboard
+(`valore_preventivo_accettato`, aggiunta dalla `0018`) mostrava "—" per
+un Preventivo con `stato='non_necessario'` anche se aveva un
+`valore_complessivo` impostato (es. una stima informale inserita pur
+segnando il preventivo formale come non necessario) — il join laterale
+dedicato in `lavori_dashboard()` filtrava solo `ls2.stato = 'accettato'`,
+escludendo l'altro stato "verde" della stessa famiglia. **Verificato con
+una riproduzione minima** (Postgres in Docker, schema ridotto alle sole
+tabelle/colonne toccate dalla funzione + `auth.uid()` shim, corpo esatto
+di `lavori_dashboard()` copiato dalla migration): un Preventivo
+`stato='non_necessario'`/`valore_complessivo=1234.56` restituiva
+`valore_preventivo_accettato = null` prima del fix, `1234.56` dopo.
+
+**Correzione di rotta durante lo sprint**: il primo tentativo ha
+modificato la `0018` sul posto, assumendo (sulla base della nota "Non
+ancora applicata a Supabase Cloud" scritta il 26/7 in questo stesso
+file) che non fosse mai stata eseguita in produzione — **l'utente ha
+segnalato che la migration risultava invece già fatta**. Verificato
+direttamente contro il progetto Supabase Cloud reale (query REST con la
+service role key già in `.env.local`, non fidandosi della nota scritta):
+`artigiano.target_preventivo_giorni`/`kpi_finestra_mesi`,
+`lavoro.prima_accettazione_at`/`completato_at` e
+`lavoro_satellite.data_presentazione` esistono e hanno dati reali (es.
+`prima_accettazione_at` valorizzato su un Lavoro vero) — la `0018` è
+quindi live, la nota nel file era diventata stale nel giro di due giorni.
+**Modifica alla `0018` annullata** (`git checkout`) e sostituita da una
+**nuova migration** `0019_valore_preventivo_non_necessario.sql`
+(`create or replace function`, stesso principio già seguito per la
+0013/0011 e per la 0017: non si riapre una migration già applicata,
+se ne aggiunge una che corregge la funzione). **Ri-verificato
+end-to-end con lo scenario reale**: funzione `lavori_dashboard()`
+originale della 0018 (quella già live) applicata per prima, poi il file
+`0019` reale eseguito sopra di essa — risultato prima del fix `null`,
+dopo il fix `1234.56`, esattamente come atteso.
+
+Il filtro nel join laterale diventa
+`ls2.stato in ('accettato', 'non_necessario')`. Nessuna esclusione
+esplicita delle revisioni superate necessaria: una riga superata ha
+sempre `stato='necessaria_revisione'` (l'unica transizione che genera
+una nuova revisione via `revisione_di`), quindi non può mai comparire
+con stato `accettato`/`non_necessario` — non c'è ambiguità reale su
+"quale riga della catena" nel caso normale, resta comunque
+`order by data_creazione desc limit 1` come tie-break.
+
+**Reversibilità estesa a "non necessario"** (`lib/lavori/satelliti-meta.ts`,
+`azioniPossibiliRevisionabile()`): stesso principio già esistente per
+"Annulla accettazione" (`accettato → presentato`, con conferma nativa
+per prevenire un click accidentale) — aggiunta l'azione simmetrica
+"Annulla non necessario" (`non_necessario → in_preparazione`, l'unico
+stato di provenienza possibile per quella transizione), applicata sia al
+ramo Preventivo/Progetto sia al ramo Campione (entrambi già gestivano
+`non_necessario` come stato terminale verde). Nessuna modifica a
+`impostaStatoRevisionabile()`/`RevisionabileChain` necessaria: la
+transizione è un update in-place (non genera una nuova revisione, stessa
+logica di `generaNuovaRevisione()` che scatta solo per
+`necessaria_revisione`/`necessario_nuovo_campione`) e il componente è già
+completamente data-driven dalle azioni restituite, incluso il rendering
+del `confirm()` nativo.
+
+Verificato `tsc --noEmit`/`eslint` puliti. **Non testata end-to-end in
+browser** (solo verifica diretta della query SQL riprodotta in locale e
+typecheck) — nessun giro con Supabase locale + Playwright fatto per
+questo fix specifico, a differenza della prassi abituale di questo
+progetto. **`0019_valore_preventivo_non_necessario.sql` eseguita
+dall'utente sul progetto Supabase Cloud reale (28/7)** — funzione già
+live in produzione con il fix; codice committato/pushato/deployato lo
+stesso giorno.
+
+**Lezione**: le note "non ancora applicata"/"da fare" in questo file
+sono scritte in un momento preciso e possono diventare stale se
+l'utente esegue una migration manualmente sullo SQL Editor senza che
+questo venga registrato in una sessione successiva — prima di trattare
+una migration come "non ancora live" in un modo che condiziona *come*
+si scrive un fix (editare il file vs. aggiungerne uno nuovo), verificare
+lo stato reale del database di produzione (via REST con la service role
+key, come fatto qui) invece di fidarsi ciecamente della nota scritta.

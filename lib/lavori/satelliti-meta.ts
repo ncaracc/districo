@@ -165,6 +165,17 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
           { stato: 'necessario_nuovo_campione', label: 'Richiedi nuovo campione', variante: 'warn' },
           { stato: 'approvato', label: 'Segna come approvato', variante: 'primary' },
         ]
+      case 'non_necessario':
+        // Correzione di un "non necessario" impostato per errore, stesso
+        // principio di "Annulla accettazione": richiede conferma esplicita.
+        return [
+          {
+            stato: 'in_preparazione',
+            label: 'Annulla non necessario',
+            variante: 'muted',
+            conferma: 'Annullare "non necessario"? Il satellite tornerà allo stato "In preparazione".',
+          },
+        ]
       default:
         return []
     }
@@ -191,6 +202,17 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
           label: 'Annulla accettazione',
           variante: 'muted',
           conferma: 'Annullare l\'accettazione? Il satellite tornerà allo stato "Presentato".',
+        },
+      ]
+    case 'non_necessario':
+      // Stessa correzione di "Annulla accettazione", per il ramo alternativo
+      // di stato verde (non_necessario invece di accettato).
+      return [
+        {
+          stato: 'in_preparazione',
+          label: 'Annulla non necessario',
+          variante: 'muted',
+          conferma: 'Annullare "non necessario"? Il satellite tornerà allo stato "In preparazione".',
         },
       ]
     default:
