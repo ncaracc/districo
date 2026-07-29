@@ -106,6 +106,26 @@ export async function aggiornaSede(sedeId: string, fornitoreId: string, fields: 
   return { ok: true }
 }
 
+// Smarca l'eventuale sede preferita precedente e marca la nuova in un'unica
+// chiamata RPC (funzione `imposta_sede_preferita`, 0020) — non due update
+// separati dal client, per non passare mai da uno stato intermedio con due
+// sedi preferite o nessuna (il vincolo DB comunque lo impedirebbe).
+export async function impostaSedePreferita(fornitoreId: string, sedeId: string): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('imposta_sede_preferita', {
+    p_fornitore_id: fornitoreId,
+    p_sede_id: sedeId,
+  })
+
+  if (error) {
+    console.error('impostaSedePreferita: rpc fallita', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/fornitori/${fornitoreId}`)
+  return { ok: true }
+}
+
 export async function eliminaSede(sedeId: string, fornitoreId: string): Promise<AzioneResult> {
   const supabase = await createClient()
   const { error } = await supabase.from('fornitore_sede').delete().eq('id', sedeId)

@@ -1633,3 +1633,95 @@ cliente, "Cambia" presente) e flusso da pagina Cliente (cliente
 precompilato/bloccato, nessun "Cambia") entrambi arrivano allo stesso
 componente finale e creano correttamente il lavoro. `tsc --noEmit`/
 `eslint` puliti.
+
+## Redesign dettaglio Fornitore — sede preferita, caso singola/multi-sede (2026-07-29)
+
+Motivazione dell'utente: la stragrande maggioranza dei fornitori ha una
+sola sede, solo pochi (es. Ferexpert) ne hanno diverse (6-7) — il
+dettaglio Fornitore deve trattare i due casi in modo diverso, non
+forzare sempre lo stesso layout a selettore.
+
+**Migration `0020_fornitore_sede_preferita.sql`**: nuova colonna
+`fornitore_sede.sede_preferita boolean not null default false` +
+`unique index ... on fornitore_sede (fornitore_id) where sede_preferita
+= true` (vincolo "al massimo una preferita per fornitore" garantito a
+livello DB, non solo in application logic, stesso principio già seguito
+per le RLS in questo progetto). Nuova RPC `imposta_sede_preferita(p_fornitore_id,
+p_sede_id)` (`plpgsql`, `security invoker` — `fornitore_sede` ha già una
+RLS "for all" per qualunque artigiano autenticato, dato condiviso):
+smarca l'eventuale sede preferita precedente e marca la nuova con due
+`UPDATE` sequenziali nella stessa funzione, non due chiamate separate
+dal client — necessario perché un singolo `UPDATE` multi-riga non
+garantirebbe l'ordine di valutazione del vincolo riga per riga (rischio
+di violare il partial unique index a metà se le righe venissero
+processate nell'ordine sbagliato), mentre due `UPDATE` sequenziali
+(prima smarca, poi marca) non lo violano mai. `EXECUTE` revocato da
+`public`/`anon`, concesso solo ad `authenticated`, stesso trattamento
+delle altre RPC di scrittura in questo progetto.
+
+**UI** (`components/fornitore-sedi.tsx`, nuovo componente che sostituisce
+il rendering diretto di `FornitoreSedeCard`/`FornitoreNuovaSede` in
+`app/(app)/fornitori/[id]/page.tsx`): **Caso A (una sola sede)** — nessun
+selettore, dettaglio diretto (indirizzo + contatti), invariato rispetto
+a prima. **Caso B (più sedi)** — desktop: due colonne (`lg:grid-cols-[280px_1fr]`,
+stesso breakpoint `lg:` già in uso nel resto dell'app per i pattern
+lista+dettaglio, es. `clienti/[id]`) con elenco sedi a sinistra (nome,
+città, badge n. contatti, stellina) e dettaglio della selezionata a
+destra; mobile — riga di chip orizzontalmente scorrevole (stessa
+informazione, layout compatto), dettaglio sotto. Selezione di **vista**
+(quale dettaglio mostrare, stato locale via click/tap) tenuta
+volutamente separata dalla **preferita** (flag persistito in DB via
+stellina): cliccare una sede la mostra, cliccare la stella la marca
+preferita, le due azioni non si accoppiano automaticamente. Selezione di
+default = sede preferita, o la prima in mancanza (stesso fallback su
+desktop e mobile). Stellina con optimistic update (subito colorata al
+click, richiesta RPC in background, rollback automatico col messaggio
+d'errore se fallisce).
+
+**Bug del genere "Rules of Hooks" evitato in fase di sviluppo**: la
+prima stesura calcolava `preferitaId`/`attivaId` e il relativo
+`useEffect` di scroll **dopo** i due `return` anticipati dei casi 0/1
+sede — avrebbe rotto React ("Rendered more hooks...") nel momento in
+cui un fornitore passa da una a più sedi (aggiungendone una nuova) nella
+stessa sessione, senza reload. Spostati tutti gli hook prima di
+qualunque `return` condizionale, con fallback null-safe per i casi in
+cui restano semplicemente inutilizzati.
+
+**Rifinitura UX aggiunta durante il test end-to-end, non nella richiesta
+iniziale ma necessaria per non lasciare un difetto visibile**: la chip
+attiva su mobile può non essere la prima in ordine alfabetico (dipende
+da quale sede è preferita) — senza uno scroll esplicito restava fuori
+dalla porzione visibile della riga scorrevole al caricamento della
+pagina, lasciando l'utente senza modo di capire a colpo d'occhio quale
+sede fosse quella di default. Aggiunto un `ref` sulla chip attiva +
+`useEffect(() => ref.current?.scrollIntoView(...), [attivaId])`.
+
+**Verificato end-to-end** (Postgres in Docker via `supabase start`,
+porte offset +1000 per non collidere con lo stack Docker già attivo di
+falegnameincloud sulla stessa macchina, poi smontato completamente con
+`supabase stop --no-backup` — nessun volume residuo; artigiano/fornitori/
+sedi/contatti di test creati via SQL diretto e admin API, poi eliminati;
+`.env.local`/`supabase/config.toml` ripristinati ai valori originali):
+17/17 controlli Playwright passati, tra cui — vincolo DB verificato
+direttamente in SQL (due `UPDATE` a `sede_preferita=true` nella stessa
+transazione falliscono con violazione del partial unique index); RPC
+verificata idempotente su chiamate ripetute; cambio preferita persistito
+e riflesso nella selezione di default dopo reload; caso singola sede
+senza stellina né selettore; caso multi-sede con badge contatti
+corretto, click/tap che cambia il dettaglio mostrato, sede senza
+indirizzo che mostra "Indirizzo non specificato"; nessun overflow
+orizzontale su 1440px/375px. **Grant mancanti scoperti di nuovo
+sull'istanza locale fresca** (stesso artefatto già noto, qui esteso
+anche a `service_role` oltre ad `anon`/`authenticated` — il primo
+tentativo di reset dei dati di test via REST con la service role key
+falliva con "permission denied", non notato nelle sessioni precedenti
+perché non avevano usato `service_role` per scritture dirette via REST):
+corretti con `GRANT`/`ALTER DEFAULT PRIVILEGES` manuali via
+`docker exec ... psql`, solo per la sessione di test, mai propagati al
+progetto Supabase Cloud reale. `tsc --noEmit`/`eslint`/`npm run build`
+puliti sull'intero progetto.
+
+**Migration `0020` eseguita dall'utente sul progetto Supabase Cloud
+reale (29/7). Codice committato, pushato e deployato su apphub lo
+stesso giorno** (`git pull` + `docker compose build` + `up -d`,
+procedura standard già documentata sopra).

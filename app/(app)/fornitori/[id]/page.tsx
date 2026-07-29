@@ -1,8 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { FornitoreForm } from '@/components/fornitore-form'
-import { FornitoreSedeCard } from '@/components/fornitore-sede-card'
-import { FornitoreNuovaSede } from '@/components/fornitore-nuova-sede'
+import { FornitoreSedi } from '@/components/fornitore-sedi'
 
 export default async function FornitoreDettaglioPage({
   params,
@@ -22,7 +21,7 @@ export default async function FornitoreDettaglioPage({
 
   const { data: sedi } = await supabase
     .from('fornitore_sede')
-    .select('id, nome, indirizzo, civico, cap, citta, sigla_provincia, nazione')
+    .select('id, nome, indirizzo, civico, cap, citta, sigla_provincia, nazione, sede_preferita')
     .eq('fornitore_id', id)
     .order('nome')
 
@@ -42,6 +41,11 @@ export default async function FornitoreDettaglioPage({
     contattiPerSede.set(c.fornitore_sede_id, lista)
   }
 
+  const sediConContatti = (sedi ?? []).map((s) => ({
+    ...s,
+    contatti: contattiPerSede.get(s.id) ?? [],
+  }))
+
   return (
     <div>
       <div className="mb-8">
@@ -60,20 +64,7 @@ export default async function FornitoreDettaglioPage({
       <div className="mt-10">
         <h2 className="mb-3 text-sm font-semibold text-gray-700">Sedi</h2>
 
-        <div className="space-y-3">
-          {(sedi ?? []).map((s) => (
-            <FornitoreSedeCard
-              key={s.id}
-              fornitoreId={fornitore.id}
-              sede={s}
-              contatti={contattiPerSede.get(s.id) ?? []}
-            />
-          ))}
-        </div>
-
-        <div className="mt-3">
-          <FornitoreNuovaSede fornitoreId={fornitore.id} />
-        </div>
+        <FornitoreSedi fornitoreId={fornitore.id} sedi={sediConContatti} />
       </div>
     </div>
   )

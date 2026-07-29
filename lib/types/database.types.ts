@@ -71,6 +71,7 @@ export type Database = {
           citta: string | null; indirizzo: string | null
           civico: string | null; cap: string | null
           sigla_provincia: string | null; nazione: string | null
+          sede_preferita: boolean
           created_at: string
         }
         Insert: {
@@ -78,6 +79,7 @@ export type Database = {
           citta?: string | null; indirizzo?: string | null
           civico?: string | null; cap?: string | null
           sigla_provincia?: string | null; nazione?: string | null
+          sede_preferita?: boolean
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['fornitore_sede']['Insert']>
@@ -333,6 +335,7 @@ export type Database = {
           tempo_montaggio_giorni: number | null; tempo_montaggio_campione: number
         }[]
       }
+      imposta_sede_preferita: { Args: { p_fornitore_id: string; p_sede_id: string }; Returns: undefined }
     }
   }
 }
