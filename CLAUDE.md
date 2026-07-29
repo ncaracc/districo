@@ -1579,3 +1579,57 @@ assegnazione di stato React da una tabella statica: rischio ritenuto
 proporzionato a una verifica di livello logico invece di un giro
 Supabase locale + Playwright completo). Nessuna migration necessaria
 (`smtp_sicurezza` accettava già `'nessuna'` dalla `0014`).
+
+**Committato (`68cd06e`), pushato e deployato su apphub il 29/7**
+(`git pull` + `docker compose build` + `up -d`) — build e riavvio
+container riusciti senza errori. Alessandro può ora riprovare con
+"Nessuna cifratura" sulla sua casella vhosting (porta 25).
+
+## Larghezza piena su Clienti + unificazione flusso "Nuovo lavoro" (2026-07-29)
+
+Stesso principio di breakout già usato per Dashboard/Conclusi
+(`lg:relative lg:left-1/2 lg:w-screen lg:-translate-x-1/2` +
+`lg:px-12`, copiato identico, nessun componente di layout condiviso
+introdotto — coerente con come il pattern era già duplicato tra
+`lavori/page.tsx` e `statistiche/page.tsx`) esteso a `/clienti` e
+`/clienti/[id]`.
+
+**`/clienti`**: la lista a `<ul>` di card diventa una `<table>`
+(Nome/Indirizzo/Email/Telefono), stesso pattern riga-cliccabile a
+piena larghezza già usato in Dashboard (`<Link>` per cella, `group`/
+`group-hover:bg-gray-50`, Server Component puro). Barra di ricerca
+invariata. Su mobile (`md:`) Indirizzo ed Email nascosti
+(`hidden md:table-cell`), restano solo Nome e Telefono.
+
+**`/clienti/[id]`**: header con nome cliente + bottone "Nuovo lavoro";
+corpo in due card affiancate (`lg:grid-cols-2`, impilate sotto `lg`):
+form di modifica a sinistra (`ClienteForm`, invariato), lista lavori
+associati (sola lettura) a destra.
+
+**Unificazione del flusso "Nuovo lavoro"**: prima esistevano due
+componenti quasi identici — `NuovoLavoroStandaloneForm` (usato da
+`/lavori/nuovo`, con lo step di ricerca/creazione cliente) e
+`NuovoLavoroForm` (usato nella pagina Cliente, form inline sempre con
+cliente già noto). Eliminato `NuovoLavoroForm` (`components/
+nuovo-lavoro-form.tsx`, ora dead code). Il bottone "Nuovo lavoro" della
+pagina Cliente ora è un `<Link href="/lavori/nuovo?clienteId=...">`:
+`app/(app)/lavori/nuovo/page.tsx` legge il query param `clienteId`, lo
+risolve lato server, e lo passa come prop `clienteIniziale` a
+`NuovoLavoroStandaloneForm`, che salta lo step di ricerca e parte già
+sullo step titolo/descrizione. **Cliente bloccato in questo caso**
+(nessun bottone "Cambia", `clienteBloccato = !!clienteIniziale`): il
+flusso da Dashboard resta invece invariato, "Cambia" ancora presente,
+perché lì il cliente non è mai "il contesto della pagina da cui si
+parte". Un solo componente finale in entrambi i casi, nessuna
+duplicazione del form titolo/descrizione.
+
+Verificato end-to-end (Supabase locale + Playwright, ambiente smontato
+a fine test — stack Docker isolato su porte +1000, artigiano/clienti/
+lavori di test creati via SQL diretto): tabella Clienti corretta a
+1920px e 375px (colonne visibili corrette su entrambi), nessun overflow
+orizzontale su nessuna pagina/viewport testata; pagina Cliente a due
+colonne su desktop, impilata su mobile; flusso da Dashboard (ricerca
+cliente, "Cambia" presente) e flusso da pagina Cliente (cliente
+precompilato/bloccato, nessun "Cambia") entrambi arrivano allo stesso
+componente finale e creano correttamente il lavoro. `tsc --noEmit`/
+`eslint` puliti.

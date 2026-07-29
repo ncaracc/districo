@@ -15,10 +15,19 @@ function inputClass(hasError = false) {
 
 type ClienteSelezionato = { id: string; nome: string }
 
-export function NuovoLavoroStandaloneForm() {
+export function NuovoLavoroStandaloneForm({
+  clienteIniziale,
+}: {
+  clienteIniziale?: ClienteSelezionato
+}) {
   const router = useRouter()
 
-  const [cliente, setCliente] = useState<ClienteSelezionato | null>(null)
+  // Se il cliente arriva già valorizzato (link "Nuovo lavoro" dalla pagina
+  // Cliente), lo step di ricerca/scelta viene saltato del tutto e il
+  // cliente resta bloccato (nessun bottone "Cambia"): coerente col fatto che
+  // l'utente è già sulla pagina di quel cliente specifico.
+  const [cliente, setCliente] = useState<ClienteSelezionato | null>(clienteIniziale ?? null)
+  const clienteBloccato = !!clienteIniziale
   const [creaClienteAperto, setCreaClienteAperto] = useState(false)
 
   const [query, setQuery] = useState('')
@@ -204,13 +213,15 @@ export function NuovoLavoroStandaloneForm() {
         <p className="text-sm text-gray-700">
           Cliente: <span className="font-medium text-gray-900">{cliente.nome}</span>
         </p>
-        <button
-          type="button"
-          onClick={() => setCliente(null)}
-          className="shrink-0 text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
-        >
-          Cambia
-        </button>
+        {!clienteBloccato && (
+          <button
+            type="button"
+            onClick={() => setCliente(null)}
+            className="shrink-0 text-xs font-medium text-gray-600 underline underline-offset-2 hover:text-gray-900"
+          >
+            Cambia
+          </button>
+        )}
       </div>
 
       <div>
