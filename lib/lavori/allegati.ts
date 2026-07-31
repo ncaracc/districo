@@ -6,6 +6,7 @@ import path from 'node:path'
 import { revalidatePath } from 'next/cache'
 import sharp from 'sharp'
 import { createClient } from '@/lib/supabase/server'
+import { assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
 
@@ -54,6 +55,10 @@ export async function caricaAllegatiSatellite(
   formData: FormData,
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
   const file = formData.getAll('file').filter((f): f is File => f instanceof File && f.size > 0)
 
   if (file.length === 0) {
@@ -104,13 +109,16 @@ export async function eliminaAllegatoSatellite(allegatoId: string, lavoroId: str
 
   const { data: allegato } = await supabase
     .from('lavoro_satellite_allegato')
-    .select('storage_path')
+    .select('storage_path, satellite_id')
     .eq('id', allegatoId)
     .maybeSingle()
 
   if (!allegato) {
     return { ok: false, error: 'Allegato non trovato' }
   }
+
+  const bloccato = await assertSatelliteModificabile(supabase, allegato.satellite_id)
+  if (bloccato) return bloccato
 
   // RLS ("allegato satellite: eliminazione solo owner") garantisce che solo
   // l'owner del lavoro possa eliminare — nessun controllo aggiuntivo qui.

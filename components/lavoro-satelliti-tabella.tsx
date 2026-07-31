@@ -29,11 +29,18 @@ export function LavoroSatelliteTabella({
   righe,
   lavoroId,
   isOwner,
+  completato,
   aggiungi,
 }: {
   righe: RigaSatellite[]
   lavoroId: string
   isOwner: boolean
+  // Lavoro con stato 'completato': sola lettura su tutti i satelliti (modifica
+  // ed eliminazione disabilitate, "+ Aggiungi satellite" nascosto) — sblocco
+  // solo tramite "Riapri lavoro" (vedi CLAUDE.md). Il nome resta cliccabile:
+  // apre comunque la modale, ma in sola lettura (vedi isOwner effettivo passato
+  // al contenuto da app/(app)/lavori/[id]/page.tsx).
+  completato: boolean
   aggiungi?: React.ReactNode
 }) {
   const router = useRouter()
@@ -91,19 +98,26 @@ export function LavoroSatelliteTabella({
                         <button
                           type="button"
                           onClick={() => setApertoKey(riga.key)}
+                          disabled={completato}
                           aria-label="Modifica"
-                          title="Modifica"
-                          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                          title={completato ? 'Riapri il lavoro per modificare' : 'Modifica'}
+                          className={`rounded-lg p-1.5 transition-colors ${
+                            completato
+                              ? 'cursor-not-allowed text-gray-300 opacity-50'
+                              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                          }`}
                         >
                           <IconaMatita className="h-4 w-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleElimina(riga)}
-                          disabled={eliminandoKey === riga.key}
+                          disabled={completato || eliminandoKey === riga.key}
                           aria-label="Elimina"
-                          title="Elimina"
-                          className="rounded-lg p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50"
+                          title={completato ? 'Riapri il lavoro per modificare' : 'Elimina'}
+                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
+                            completato ? 'cursor-not-allowed text-gray-300' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
+                          }`}
                         >
                           <IconaCestino className="h-4 w-4" />
                         </button>
@@ -117,7 +131,7 @@ export function LavoroSatelliteTabella({
         </div>
       )}
 
-      {isOwner && aggiungi && (
+      {isOwner && !completato && aggiungi && (
         <div className="mt-3">
           {mostraAggiungi ? (
             <div className="space-y-3 rounded-lg border border-gray-200 p-4">{aggiungi}</div>

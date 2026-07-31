@@ -16,6 +16,7 @@ import {
   type TipoOrdine,
   type TipoRevisionabile,
 } from '@/lib/lavori/satelliti-meta'
+import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
 type CreazioneResult = { ok: true; id: string } | { ok: false; error: string }
@@ -26,6 +27,9 @@ export async function aggiornaAppuntamento(
   fields: { data: string | null; descrizione: string | null; concluso: boolean; nonNecessario: boolean },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   const { error } = await supabase
     .from('lavoro_satellite')
@@ -54,6 +58,9 @@ export async function creaAppuntamento(
   sottotipo: SottotipoAppuntamento,
 ): Promise<CreazioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
@@ -85,6 +92,9 @@ export async function impostaStatoRevisionabile(
   serie: string | null,
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   if (generaNuovaRevisione(tipo, nuovoStato)) {
     const { data: nuova, error: insErr } = await supabase
@@ -157,6 +167,9 @@ export async function aggiornaValorePreventivo(
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
   const { error } = await supabase
     .from('lavoro_satellite')
     .update({ valore_complessivo: valore })
@@ -178,6 +191,9 @@ export async function aggiornaDescrizioneCampione(
   descrizione: string | null,
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   const { error } = await supabase
     .from('lavoro_satellite')
@@ -201,6 +217,9 @@ export async function creaNuovaSerieCampione(lavoroId: string, serie: string): P
   if (!nomeSerie) {
     return { ok: false, error: 'Il nome della serie è obbligatorio' }
   }
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
 
   const { error } = await supabase
     .from('lavoro_satellite')
@@ -230,6 +249,9 @@ export async function creaOrdine(
   },
 ): Promise<CreazioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
@@ -274,6 +296,10 @@ export async function creaOrdine(
 
 export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, nuovoStato: StatoOrdine): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
   const { error } = await supabase.from('lavoro_satellite').update({ stato: nuovoStato }).eq('id', satelliteId)
 
   if (error) {
@@ -293,6 +319,10 @@ export async function aggiornaDescrizioneCostruzione(
   descrizioneLibera: string | null,
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
   const { error } = await supabase
     .from('lavoro_satellite')
     .update({ descrizione_libera: descrizioneLibera })
@@ -316,6 +346,9 @@ export async function avanzaStatoCostruzione(
   nuovoStato: 'in_corso' | 'completata',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   const update: { stato: 'in_corso' | 'completata'; data_inizio?: string; data_fine?: string } = { stato: nuovoStato }
   if (nuovoStato === 'in_corso') update.data_inizio = new Date().toISOString()
@@ -348,6 +381,9 @@ export async function avanzaStatoCostruzione(
 // necessaria.
 export async function eliminaSatellite(satelliteId: string, lavoroId: string): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   const catena: string[] = []
   let idCorrente: string | null = satelliteId
@@ -387,6 +423,9 @@ export async function aggiornaNoleggio(
   },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
 
   const { error } = await supabase
     .from('lavoro_satellite')

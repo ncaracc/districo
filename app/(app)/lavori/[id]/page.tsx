@@ -147,6 +147,15 @@ export default async function LavoroDettaglioPage({
   // Lavoro accettato.
   const faseEsecuzione = lavoro.stato === 'accettato' || lavoro.stato === 'completato'
 
+  // Lavoro completato = sola lettura su tutti i satelliti (vedi CLAUDE.md):
+  // isOwnerEffettivo riusa lo stesso meccanismo di sola lettura già previsto
+  // per il ruolo "ospite" (isOwner=false) in ogni componente satellite, invece
+  // di introdurne uno nuovo — nessuna modifica ai componenti satellite stessi.
+  // isOwner "vero" resta usato per la tabella (mostra comunque la colonna
+  // Azioni, con matita/cestino disabilitati, non nascosti).
+  const completato = lavoro.stato === 'completato'
+  const isOwnerEffettivo = !!isOwner && !completato
+
   // --- Righe della tabella riepilogativa satelliti ---
   const righeTabella: RigaSatellite[] = []
 
@@ -163,7 +172,7 @@ export default async function LavoroDettaglioPage({
           lavoroId={lavoro.id}
           titolo="Briefing"
           allegati={allegatiById[briefing.id] ?? []}
-          isOwner={!!isOwner}
+          isOwner={isOwnerEffettivo}
           mostraNonNecessario={false}
         />
       ),
@@ -187,7 +196,7 @@ export default async function LavoroDettaglioPage({
           catena={catena}
           statoEffettivoById={statoEffettivoById}
           allegatiById={allegatiById}
-          isOwner={!!isOwner}
+          isOwner={isOwnerEffettivo}
           lavoroId={lavoro.id}
         />
       ),
@@ -211,7 +220,7 @@ export default async function LavoroDettaglioPage({
           catena={catena}
           statoEffettivoById={statoEffettivoById}
           allegatiById={allegatiById}
-          isOwner={!!isOwner}
+          isOwner={isOwnerEffettivo}
           lavoroId={lavoro.id}
           mostraValore
         />
@@ -236,7 +245,7 @@ export default async function LavoroDettaglioPage({
           catena={catena}
           statoEffettivoById={statoEffettivoById}
           allegatiById={allegatiById}
-          isOwner={!!isOwner}
+          isOwner={isOwnerEffettivo}
           lavoroId={lavoro.id}
           mostraDescrizione
           storicoConStatoReale
@@ -260,7 +269,7 @@ export default async function LavoroDettaglioPage({
             lavoroId={lavoro.id}
             titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
             allegati={allegatiById[a.id] ?? []}
-            isOwner={!!isOwner}
+            isOwner={isOwnerEffettivo}
             mostraNonNecessario
           />
         ),
@@ -282,7 +291,7 @@ export default async function LavoroDettaglioPage({
             righe={righePerSatellite[s.id] ?? []}
             fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
             lavoroId={lavoro.id}
-            isOwner={!!isOwner}
+            isOwner={isOwnerEffettivo}
           />
         ),
       })
@@ -303,7 +312,7 @@ export default async function LavoroDettaglioPage({
             righe={righePerSatellite[s.id] ?? []}
             fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
             lavoroId={lavoro.id}
-            isOwner={!!isOwner}
+            isOwner={isOwnerEffettivo}
           />
         ),
       })
@@ -317,7 +326,7 @@ export default async function LavoroDettaglioPage({
         nome: 'Costruzione',
         colore: coloreCostruzione(stato),
         statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
-        contenuto: <SatelliteCostruzione satellite={costruzioneSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />,
+        contenuto: <SatelliteCostruzione satellite={costruzioneSatellite} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
       })
     }
 
@@ -328,7 +337,7 @@ export default async function LavoroDettaglioPage({
         nome: 'Noleggio',
         colore: noleggioSatellite.prenotazione_effettuata || noleggioSatellite.non_necessario ? 'green' : 'red',
         statoLabel: labelStatoNoleggio(noleggioSatellite.prenotazione_effettuata, noleggioSatellite.non_necessario),
-        contenuto: <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />,
+        contenuto: <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
       })
     }
 
@@ -346,7 +355,7 @@ export default async function LavoroDettaglioPage({
             lavoroId={lavoro.id}
             titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
             allegati={allegatiById[a.id] ?? []}
-            isOwner={!!isOwner}
+            isOwner={isOwnerEffettivo}
             mostraNonNecessario
           />
         ),
@@ -406,6 +415,7 @@ export default async function LavoroDettaglioPage({
         righe={righeTabella}
         lavoroId={lavoro.id}
         isOwner={!!isOwner}
+        completato={completato}
         aggiungi={
           <>
             <SatelliteNuovaSerieCampione lavoroId={lavoro.id} />
