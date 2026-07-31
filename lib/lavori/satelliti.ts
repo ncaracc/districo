@@ -333,6 +333,47 @@ export async function avanzaStatoCostruzione(
   return { ok: true }
 }
 
+// Elimina definitivamente un satellite. Per i tipi "revisionabili"
+// (preventivo/progetto/campione) il satellite passato è sempre la revisione
+// corrente (leaf) di una catena collegata da revisione_di — quella colonna
+// non ha "on delete cascade", quindi il DB rifiuterebbe di eliminare una riga
+// ancora referenziata da una revisione successiva. Per far sparire l'intera
+// voce dalla tabella (non solo l'ultima revisione, che lascerebbe
+// "riemergere" quella precedente come nuova corrente) si risale la catena
+// all'indietro fino alla radice e si elimina nello stesso ordine
+// leaf -> radice, così ogni riga eliminata non è più referenziata da nessuna
+// revisione rimasta. Per i tipi non revisionabili la catena è sempre di una
+// sola riga, comportamento identico a un semplice delete. Allegati e righe
+// articolo sono già "on delete cascade" (0009/0012), nessuna pulizia manuale
+// necessaria.
+export async function eliminaSatellite(satelliteId: string, lavoroId: string): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const catena: string[] = []
+  let idCorrente: string | null = satelliteId
+  while (idCorrente) {
+    catena.push(idCorrente)
+    const { data }: { data: { revisione_di: string | null } | null } = await supabase
+      .from('lavoro_satellite')
+      .select('revisione_di')
+      .eq('id', idCorrente)
+      .maybeSingle()
+    idCorrente = data?.revisione_di ?? null
+  }
+
+  for (const id of catena) {
+    const { error } = await supabase.from('lavoro_satellite').delete().eq('id', id)
+    if (error) {
+      console.error('eliminaSatellite: delete fallito', error)
+      return { ok: false, error: "Errore nell'eliminazione, riprova" }
+    }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
 // --- Noleggio ---
 export async function aggiornaNoleggio(
   satelliteId: string,

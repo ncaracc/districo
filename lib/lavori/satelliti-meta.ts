@@ -367,6 +367,22 @@ export function satelliteTipoLabelBreve(s: Satellite): string {
   return base
 }
 
+// --- Etichette di stato per i tipi a semaforo binario (nessuna colonna
+// `stato` testuale: appuntamento usa concluso/non_necessario, noleggio usa
+// prenotazione_effettuata/non_necessario) — servono per la colonna STATO
+// della tabella riepilogativa satelliti nel dettaglio Lavoro.
+export function labelStatoAppuntamento(concluso: boolean, nonNecessario: boolean): string {
+  if (concluso) return 'Concluso'
+  if (nonNecessario) return 'Non necessario'
+  return 'Da fare'
+}
+
+export function labelStatoNoleggio(prenotazioneEffettuata: boolean, nonNecessario: boolean): string {
+  if (prenotazioneEffettuata) return 'Prenotato'
+  if (nonNecessario) return 'Non necessario'
+  return 'Da prenotare'
+}
+
 export function raggruppaPerSerie(satelliti: Satellite[]): { serie: string; satelliti: Satellite[] }[] {
   const gruppi = new Map<string, Satellite[]>()
   for (const s of satelliti) {

@@ -5,30 +5,33 @@ import { LavoroStatoAzioni } from '@/components/lavoro-stato-azioni'
 import { LavoroSegnaCompletato } from '@/components/lavoro-segna-completato'
 import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroInfo } from '@/components/lavoro-info'
+import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { SatelliteNuovoAppuntamento } from '@/components/satellite-nuovo-appuntamento'
 import { RevisionabileChain } from '@/components/satellite-revisionabile'
-import { SatelliteCampione } from '@/components/satellite-campione'
+import { SatelliteNuovaSerieCampione } from '@/components/satellite-nuova-serie-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
 import {
   SOTTOTIPO_APPUNTAMENTO_LABEL,
+  STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
-  satellitiBloccantiMontaggio,
+  coloreCostruzione,
+  coloreOrdine,
+  coloreRevisionabile,
+  labelStatoAppuntamento,
+  labelStatoNoleggio,
+  labelStatoOrdine,
+  labelStatoRevisionabile,
+  raggruppaPerSerie,
   satelliteTipoLabelBreve,
+  satellitiBloccantiMontaggio,
   type Satellite,
   type SatelliteAllegato,
   type SatelliteArticolo,
 } from '@/lib/lavori/satelliti-meta'
-
-const STATO_LAVORO_LABEL: Record<string, string> = {
-  opportunita: 'Opportunità',
-  accettato: 'Accettato',
-  rifiutato: 'Rifiutato',
-  completato: 'Completato',
-}
 
 export default async function LavoroDettaglioPage({
   params,
@@ -41,7 +44,7 @@ export default async function LavoroDettaglioPage({
   const { data: lavoro } = await supabase
     .from('lavoro')
     .select(
-      'id, titolo, descrizione, stato, cliente_id, accettato_at, data_lavoro, indirizzo, civico, cap, citta, sigla_provincia, nazione',
+      'id, titolo, descrizione, stato, cliente_id, accettato_at, completato_at, data_lavoro, indirizzo, civico, cap, citta, sigla_provincia, nazione',
     )
     .eq('id', id)
     .maybeSingle()
@@ -136,6 +139,221 @@ export default async function LavoroDettaglioPage({
       !!costruzioneSatellite ||
       !!noleggioSatellite)
 
+  // Distinta da haEsecuzione (che dipende dai satelliti già esistenti): governa
+  // la disponibilità dei flussi "+ Aggiungi satellite" per i tipi di esecuzione
+  // in base allo stato del Lavoro, non a cosa esiste già oggi — altrimenti, se
+  // l'ultimo satellite di un tipo di esecuzione viene eliminato dalla tabella,
+  // non ci sarebbe più alcun modo per aggiungerne uno nuovo pur restando il
+  // Lavoro accettato.
+  const faseEsecuzione = lavoro.stato === 'accettato' || lavoro.stato === 'completato'
+
+  // --- Righe della tabella riepilogativa satelliti ---
+  const righeTabella: RigaSatellite[] = []
+
+  if (briefing) {
+    righeTabella.push({
+      key: 'briefing',
+      satelliteId: briefing.id,
+      nome: 'Briefing',
+      colore: briefing.concluso ? 'green' : 'red',
+      statoLabel: labelStatoAppuntamento(briefing.concluso, false),
+      contenuto: (
+        <SatelliteAppuntamento
+          satellite={briefing}
+          lavoroId={lavoro.id}
+          titolo="Briefing"
+          allegati={allegatiById[briefing.id] ?? []}
+          isOwner={!!isOwner}
+          mostraNonNecessario={false}
+        />
+      ),
+    })
+  }
+
+  if (progettoSatelliti.length > 0) {
+    const catena = [...costruisciCatena(progettoSatelliti)].reverse()
+    const corrente = catena[0]
+    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
+    righeTabella.push({
+      key: 'progetto',
+      satelliteId: corrente.id,
+      nome: 'Progetto',
+      colore: coloreRevisionabile('progetto', statoEff),
+      statoLabel: labelStatoRevisionabile('progetto', statoEff),
+      contenuto: (
+        <RevisionabileChain
+          tipo="progetto"
+          titolo="Progetto"
+          catena={catena}
+          statoEffettivoById={statoEffettivoById}
+          allegatiById={allegatiById}
+          isOwner={!!isOwner}
+          lavoroId={lavoro.id}
+        />
+      ),
+    })
+  }
+
+  if (preventivoSatelliti.length > 0) {
+    const catena = [...costruisciCatena(preventivoSatelliti)].reverse()
+    const corrente = catena[0]
+    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
+    righeTabella.push({
+      key: 'preventivo',
+      satelliteId: corrente.id,
+      nome: 'Preventivo',
+      colore: coloreRevisionabile('preventivo', statoEff),
+      statoLabel: labelStatoRevisionabile('preventivo', statoEff),
+      contenuto: (
+        <RevisionabileChain
+          tipo="preventivo"
+          titolo="Preventivo"
+          catena={catena}
+          statoEffettivoById={statoEffettivoById}
+          allegatiById={allegatiById}
+          isOwner={!!isOwner}
+          lavoroId={lavoro.id}
+          mostraValore
+        />
+      ),
+    })
+  }
+
+  for (const g of raggruppaPerSerie(campioneSatelliti)) {
+    const catena = [...costruisciCatena(g.satelliti)].reverse()
+    const corrente = catena[0]
+    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
+    righeTabella.push({
+      key: `campione-${g.serie}`,
+      satelliteId: corrente.id,
+      nome: `Campione (${g.serie})`,
+      colore: coloreRevisionabile('campione', statoEff),
+      statoLabel: labelStatoRevisionabile('campione', statoEff),
+      contenuto: (
+        <RevisionabileChain
+          tipo="campione"
+          titolo={g.serie}
+          catena={catena}
+          statoEffettivoById={statoEffettivoById}
+          allegatiById={allegatiById}
+          isOwner={!!isOwner}
+          lavoroId={lavoro.id}
+          mostraDescrizione
+          storicoConStatoReale
+        />
+      ),
+    })
+  }
+
+  if (haEsecuzione) {
+    appuntamentiVerificaMisure.forEach((a, i) => {
+      const nome = appuntamentiVerificaMisure.length > 1 ? `Verifica misure ${i + 1}` : 'Verifica misure'
+      righeTabella.push({
+        key: `app-vm-${a.id}`,
+        satelliteId: a.id,
+        nome,
+        colore: a.concluso || a.non_necessario ? 'green' : 'red',
+        statoLabel: labelStatoAppuntamento(a.concluso, a.non_necessario),
+        contenuto: (
+          <SatelliteAppuntamento
+            satellite={a}
+            lavoroId={lavoro.id}
+            titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
+            allegati={allegatiById[a.id] ?? []}
+            isOwner={!!isOwner}
+            mostraNonNecessario
+          />
+        ),
+      })
+    })
+
+    acquistiSatelliti.forEach((s, i) => {
+      const base = satelliteTipoLabelBreve(s)
+      const nome = acquistiSatelliti.length > 1 ? `${base} ${i + 1}` : base
+      righeTabella.push({
+        key: `acquisti-${s.id}`,
+        satelliteId: s.id,
+        nome,
+        colore: coloreOrdine('acquisti', s.stato ?? ''),
+        statoLabel: labelStatoOrdine('acquisti', s.stato ?? ''),
+        contenuto: (
+          <SatelliteOrdine
+            satellite={s}
+            righe={righePerSatellite[s.id] ?? []}
+            fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+            lavoroId={lavoro.id}
+            isOwner={!!isOwner}
+          />
+        ),
+      })
+    })
+
+    lavorazioneEsternaSatelliti.forEach((s, i) => {
+      const base = satelliteTipoLabelBreve(s)
+      const nome = lavorazioneEsternaSatelliti.length > 1 ? `${base} ${i + 1}` : base
+      righeTabella.push({
+        key: `lavorazione-esterna-${s.id}`,
+        satelliteId: s.id,
+        nome,
+        colore: coloreOrdine('lavorazione_esterna', s.stato ?? ''),
+        statoLabel: labelStatoOrdine('lavorazione_esterna', s.stato ?? ''),
+        contenuto: (
+          <SatelliteOrdine
+            satellite={s}
+            righe={righePerSatellite[s.id] ?? []}
+            fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+            lavoroId={lavoro.id}
+            isOwner={!!isOwner}
+          />
+        ),
+      })
+    })
+
+    if (costruzioneSatellite) {
+      const stato = costruzioneSatellite.stato ?? 'da_iniziare'
+      righeTabella.push({
+        key: 'costruzione',
+        satelliteId: costruzioneSatellite.id,
+        nome: 'Costruzione',
+        colore: coloreCostruzione(stato),
+        statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
+        contenuto: <SatelliteCostruzione satellite={costruzioneSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />,
+      })
+    }
+
+    if (noleggioSatellite) {
+      righeTabella.push({
+        key: 'noleggio',
+        satelliteId: noleggioSatellite.id,
+        nome: 'Noleggio',
+        colore: noleggioSatellite.prenotazione_effettuata || noleggioSatellite.non_necessario ? 'green' : 'red',
+        statoLabel: labelStatoNoleggio(noleggioSatellite.prenotazione_effettuata, noleggioSatellite.non_necessario),
+        contenuto: <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />,
+      })
+    }
+
+    appuntamentiMontaggio.forEach((a, i) => {
+      const nome = appuntamentiMontaggio.length > 1 ? `Montaggio ${i + 1}` : 'Montaggio'
+      righeTabella.push({
+        key: `app-montaggio-${a.id}`,
+        satelliteId: a.id,
+        nome,
+        colore: a.concluso || a.non_necessario ? 'green' : 'red',
+        statoLabel: labelStatoAppuntamento(a.concluso, a.non_necessario),
+        contenuto: (
+          <SatelliteAppuntamento
+            satellite={a}
+            lavoroId={lavoro.id}
+            titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
+            allegati={allegatiById[a.id] ?? []}
+            isOwner={!!isOwner}
+            mostraNonNecessario
+          />
+        ),
+      })
+    })
+  }
+
   return (
     <div>
       <div className="mb-2">
@@ -147,179 +365,71 @@ export default async function LavoroDettaglioPage({
         </Link>
       </div>
 
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{lavoro.titolo}</h1>
-          <div className="mt-1">
-            <LavoroInfo
-              lavoroId={lavoro.id}
-              isOwner={!!isOwner}
-              fields={{
-                titolo: lavoro.titolo,
-                descrizione: lavoro.descrizione,
-                data_lavoro: lavoro.data_lavoro,
-                indirizzo: lavoro.indirizzo,
-                civico: lavoro.civico,
-                cap: lavoro.cap,
-                citta: lavoro.citta,
-                sigla_provincia: lavoro.sigla_provincia,
-                nazione: lavoro.nazione,
-              }}
-            />
-          </div>
-        </div>
-        <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-          {STATO_LAVORO_LABEL[lavoro.stato] ?? lavoro.stato}
-        </span>
+      <div className="mb-6">
+        <LavoroInfo
+          lavoroId={lavoro.id}
+          isOwner={!!isOwner}
+          stato={lavoro.stato}
+          accettatoAt={lavoro.accettato_at}
+          completatoAt={lavoro.completato_at}
+          fields={{
+            titolo: lavoro.titolo,
+            descrizione: lavoro.descrizione,
+            data_lavoro: lavoro.data_lavoro,
+            indirizzo: lavoro.indirizzo,
+            civico: lavoro.civico,
+            cap: lavoro.cap,
+            citta: lavoro.citta,
+            sigla_provincia: lavoro.sigla_provincia,
+            nazione: lavoro.nazione,
+          }}
+        />
       </div>
 
-      <div className="mb-8">
-        {lavoro.stato === 'opportunita' ? (
-          isOwner ? (
+      {lavoro.stato === 'opportunita' && (
+        <div className="mb-8">
+          {isOwner ? (
             <LavoroStatoAzioni lavoroId={lavoro.id} />
           ) : (
             <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
-          )
-        ) : lavoro.stato === 'accettato' ? (
-          <div className="space-y-2">
-            {lavoro.accettato_at && (
-              <p className="text-sm text-gray-500">
-                Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
-              </p>
-            )}
-            {isOwner && (
-              <LavoroSegnaCompletato
-                lavoroId={lavoro.id}
-                pronto={!!pronto}
-                mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
-              />
-            )}
-            {isOwner && <LavoroRiapri lavoroId={lavoro.id} statoAttuale="accettato" />}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {lavoro.accettato_at && (
-              <p className="text-sm text-gray-500">
-                Lavoro accettato il {new Date(lavoro.accettato_at).toLocaleDateString('it-IT')}
-              </p>
-            )}
-            {isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
-              <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
-      <div className="space-y-4">
-        {briefing && (
-          <SatelliteAppuntamento
-            satellite={briefing}
+      {isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
+        <div className="mb-8">
+          <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
+        </div>
+      )}
+
+      <LavoroSatelliteTabella
+        righe={righeTabella}
+        lavoroId={lavoro.id}
+        isOwner={!!isOwner}
+        aggiungi={
+          <>
+            <SatelliteNuovaSerieCampione lavoroId={lavoro.id} />
+            {faseEsecuzione && (
+              <>
+                <SatelliteNuovoAppuntamento lavoroId={lavoro.id} />
+                <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="acquisti" />
+                <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="lavorazione_esterna" />
+              </>
+            )}
+          </>
+        }
+      />
+
+      {lavoro.stato === 'accettato' && isOwner && (
+        <div className="mt-6 space-y-3">
+          <LavoroSegnaCompletato
             lavoroId={lavoro.id}
-            titolo="Briefing"
-            allegati={allegatiById[briefing.id] ?? []}
-            isOwner={!!isOwner}
-            mostraNonNecessario={false}
+            pronto={!!pronto}
+            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
           />
-        )}
-
-        {progettoSatelliti.length > 0 && (
-          <RevisionabileChain
-            tipo="progetto"
-            titolo="Progetto"
-            catena={[...costruisciCatena(progettoSatelliti)].reverse()}
-            statoEffettivoById={statoEffettivoById}
-            allegatiById={allegatiById}
-            isOwner={!!isOwner}
-            lavoroId={lavoro.id}
-          />
-        )}
-
-        {preventivoSatelliti.length > 0 && (
-          <RevisionabileChain
-            tipo="preventivo"
-            titolo="Preventivo"
-            catena={[...costruisciCatena(preventivoSatelliti)].reverse()}
-            statoEffettivoById={statoEffettivoById}
-            allegatiById={allegatiById}
-            isOwner={!!isOwner}
-            lavoroId={lavoro.id}
-            mostraValore
-          />
-        )}
-
-        {(campioneSatelliti.length > 0 || isOwner) && (
-          <SatelliteCampione
-            satelliti={campioneSatelliti}
-            statoEffettivoById={statoEffettivoById}
-            allegatiById={allegatiById}
-            isOwner={!!isOwner}
-            lavoroId={lavoro.id}
-          />
-        )}
-
-        {haEsecuzione && (
-          <div className="mt-6 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-700">Esecuzione</h2>
-
-            {appuntamentiVerificaMisure.map((a) => (
-              <SatelliteAppuntamento
-                key={a.id}
-                satellite={a}
-                lavoroId={lavoro.id}
-                titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
-                allegati={allegatiById[a.id] ?? []}
-                isOwner={!!isOwner}
-                mostraNonNecessario
-              />
-            ))}
-            {isOwner && <SatelliteNuovoAppuntamento lavoroId={lavoro.id} />}
-
-            {acquistiSatelliti.map((s) => (
-              <SatelliteOrdine
-                key={s.id}
-                satellite={s}
-                righe={righePerSatellite[s.id] ?? []}
-                fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
-                lavoroId={lavoro.id}
-                isOwner={!!isOwner}
-              />
-            ))}
-            {isOwner && <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="acquisti" />}
-
-            {lavorazioneEsternaSatelliti.map((s) => (
-              <SatelliteOrdine
-                key={s.id}
-                satellite={s}
-                righe={righePerSatellite[s.id] ?? []}
-                fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
-                lavoroId={lavoro.id}
-                isOwner={!!isOwner}
-              />
-            ))}
-            {isOwner && <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="lavorazione_esterna" />}
-
-            {costruzioneSatellite && (
-              <SatelliteCostruzione satellite={costruzioneSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />
-            )}
-
-            {noleggioSatellite && (
-              <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={!!isOwner} />
-            )}
-
-            {appuntamentiMontaggio.map((a) => (
-              <SatelliteAppuntamento
-                key={a.id}
-                satellite={a}
-                lavoroId={lavoro.id}
-                titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
-                allegati={allegatiById[a.id] ?? []}
-                isOwner={!!isOwner}
-                mostraNonNecessario
-              />
-            ))}
-          </div>
-        )}
-      </div>
+          <LavoroRiapri lavoroId={lavoro.id} statoAttuale="accettato" />
+        </div>
+      )}
     </div>
   )
 }
