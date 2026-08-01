@@ -4,7 +4,6 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmailPersonale } from '@/lib/email/send-email-personale'
 import { decifraPassword } from '@/lib/crypto/credenziali-smtp'
-import { ACQUISTO_CATEGORIA_LABEL } from '@/lib/lavori/satelliti-meta'
 
 // richiedeConfigurazione: distingue il caso "credenziali SMTP personali assenti"
 // dagli altri errori, così la UI può mostrare un link diretto a Profilo/Impostazioni
@@ -92,12 +91,7 @@ export async function inviaOrdineSatellite(
     ? await supabase.from('cliente').select('nome').eq('id', lavoro.cliente_id).maybeSingle()
     : { data: null }
 
-  const oggettoTipo =
-    satellite.tipo === 'lavorazione_esterna'
-      ? 'lavorazione esterna'
-      : satellite.acquisto_categoria
-        ? ACQUISTO_CATEGORIA_LABEL[satellite.acquisto_categoria].toLowerCase()
-        : 'acquisti'
+  const oggettoTipo = satellite.acquisto_categoria ? satellite.acquisto_categoria.toLowerCase() : 'acquisti'
 
   const subject = `Ordine ${oggettoTipo} rif. ${cliente?.nome ?? 'lavoro'}`
 

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import { creaOrdine } from '@/lib/lavori/satelliti'
-import { ACQUISTO_CATEGORIA_LABEL, type TipoOrdine } from '@/lib/lavori/satelliti-meta'
 
 function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
@@ -15,7 +14,17 @@ const RIGA_VUOTA: RigaBozza = { descrizione: '', coloreFinitura: '', quantita: '
 
 type SedeSelezionata = { id: string; label: string }
 
-export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tipo: TipoOrdine }) {
+// Lavorazione_esterna eliminata come tipo satellite a sé dalla revisione
+// satelliti del 1/8: esiste solo Acquisti, con la categoria (facoltativa)
+// scelta tra quelle libere definite dall'artigiano in Profilo/Impostazioni
+// (categorie prop, popolata server-side — vedi app/(app)/lavori/[id]/page.tsx).
+export function SatelliteNuovoOrdine({
+  lavoroId,
+  categorie,
+}: {
+  lavoroId: string
+  categorie: { id: string; nome: string }[]
+}) {
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
 
@@ -61,9 +70,9 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
     setLoading(true)
     setErrore(null)
 
-    const result = await creaOrdine(lavoroId, tipo, {
+    const result = await creaOrdine(lavoroId, {
       fornitoreSedeId: sede?.id ?? null,
-      acquistoCategoria: tipo === 'acquisti' && categoria ? (categoria as 'materiale' | 'ferramenta') : null,
+      acquistoCategoria: categoria || null,
       valoreComplessivo: valore ? Number(valore) : null,
       righe: righe
         .filter((r) => r.descrizione.trim())
@@ -91,7 +100,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
         onClick={() => setAperto(true)}
         className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
       >
-        {tipo === 'acquisti' ? '+ Nuovo ordine acquisti' : '+ Nuova lavorazione esterna'}
+        + Nuovo ordine acquisti
       </button>
     )
   }
@@ -101,7 +110,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
       {errore && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errore}</p>}
 
       <div>
-        <label htmlFor={`ordine-fornitore-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="ordine-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
           Fornitore
         </label>
         {sede ? (
@@ -114,7 +123,7 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
         ) : (
           <>
             <input
-              id={`ordine-fornitore-${tipo}`}
+              id="ordine-fornitore"
               type="search"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
@@ -144,26 +153,24 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
         )}
       </div>
 
-      {tipo === 'acquisti' && (
-        <div>
-          <label htmlFor={`ordine-categoria-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
-            Categoria
-          </label>
-          <select
-            id={`ordine-categoria-${tipo}`}
-            value={categoria}
-            onChange={(e) => setCategoria(e.target.value)}
-            className={inputClass()}
-          >
-            <option value="">— Nessuna —</option>
-            {Object.entries(ACQUISTO_CATEGORIA_LABEL).map(([v, label]) => (
-              <option key={v} value={v}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <label htmlFor="ordine-categoria" className="mb-1 block text-sm font-medium text-gray-700">
+          Categoria
+        </label>
+        <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
+          <option value="">— Nessuna —</option>
+          {categorie.map((c) => (
+            <option key={c.id} value={c.nome}>
+              {c.nome}
+            </option>
+          ))}
+        </select>
+        {categorie.length === 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            Nessuna categoria configurata: aggiungine in Profilo/Impostazioni per poterle scegliere qui.
+          </p>
+        )}
+      </div>
 
       <div>
         <span className="mb-1 block text-sm font-medium text-gray-700">Righe</span>
@@ -211,11 +218,11 @@ export function SatelliteNuovoOrdine({ lavoroId, tipo }: { lavoroId: string; tip
       </div>
 
       <div>
-        <label htmlFor={`ordine-valore-${tipo}`} className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
           Valore complessivo
         </label>
         <input
-          id={`ordine-valore-${tipo}`}
+          id="ordine-valore"
           type="number"
           step="0.01"
           value={valore}

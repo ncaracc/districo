@@ -6,15 +6,13 @@ import { useRouter } from 'next/navigation'
 import { avanzaStatoOrdine } from '@/lib/lavori/satelliti'
 import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-email'
 import {
-  ACQUISTO_CATEGORIA_LABEL,
   DOT_COLOR,
-  azioniPossibiliOrdine,
-  coloreOrdine,
-  labelStatoOrdine,
+  azioniPossibiliAcquisti,
+  coloreAcquisti,
+  labelStatoAcquisti,
   type Satellite,
   type SatelliteArticolo,
-  type StatoOrdine,
-  type TipoOrdine,
+  type StatoAcquisti,
 } from '@/lib/lavori/satelliti-meta'
 
 export function SatelliteOrdine({
@@ -31,7 +29,6 @@ export function SatelliteOrdine({
   isOwner: boolean
 }) {
   const router = useRouter()
-  const tipo = satellite.tipo as TipoOrdine
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
@@ -40,7 +37,7 @@ export function SatelliteOrdine({
   const [contattoScelto, setContattoScelto] = useState('')
   const [richiedeConfigurazione, setRichiedeConfigurazione] = useState(false)
 
-  async function avanza(nuovoStato: StatoOrdine) {
+  async function avanza(nuovoStato: StatoAcquisti) {
     setLoading(true)
     setErrore(null)
     const result = await avanzaStatoOrdine(satellite.id, lavoroId, nuovoStato)
@@ -75,21 +72,19 @@ export function SatelliteOrdine({
     router.refresh()
   }
 
-  const azioni = azioniPossibiliOrdine(tipo, satellite.stato ?? '')
+  const azioni = azioniPossibiliAcquisti(satellite.stato ?? '')
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreOrdine(tipo, satellite.stato ?? '')]}`} />
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreAcquisti(satellite.stato ?? '')]}`} />
           {fornitoreSedeLabel ?? 'Nessun fornitore'}
         </p>
-        <span className="shrink-0 text-xs text-gray-600">{labelStatoOrdine(tipo, satellite.stato ?? '')}</span>
+        <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.stato ?? '')}</span>
       </div>
 
-      {satellite.acquisto_categoria && (
-        <p className="mb-1 text-xs text-gray-500">{ACQUISTO_CATEGORIA_LABEL[satellite.acquisto_categoria]}</p>
-      )}
+      {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
 
       {righe.length > 0 && (
         <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">

@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LavoroStatoAzioni } from '@/components/lavoro-stato-azioni'
 import { LavoroSegnaCompletato } from '@/components/lavoro-segna-completato'
 import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroInfo } from '@/components/lavoro-info'
@@ -9,6 +8,7 @@ import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { SatelliteNuovoAppuntamento } from '@/components/satellite-nuovo-appuntamento'
 import { RevisionabileChain } from '@/components/satellite-revisionabile'
+import { SatellitePreventivo } from '@/components/satellite-preventivo'
 import { SatelliteNuovaSerieCampione } from '@/components/satellite-nuova-serie-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
@@ -18,12 +18,14 @@ import {
   SOTTOTIPO_APPUNTAMENTO_LABEL,
   STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
+  coloreAcquisti,
   coloreCostruzione,
-  coloreOrdine,
+  colorePreventivo,
   coloreRevisionabile,
+  labelStatoAcquisti,
   labelStatoAppuntamento,
   labelStatoNoleggio,
-  labelStatoOrdine,
+  labelStatoPreventivo,
   labelStatoRevisionabile,
   raggruppaPerSerie,
   satelliteTipoLabelBreve,
@@ -100,13 +102,10 @@ export default async function LavoroDettaglioPage({
     .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'montaggio')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const acquistiSatelliti = satelliti.filter((s) => s.tipo === 'acquisti')
-  const lavorazioneEsternaSatelliti = satelliti.filter((s) => s.tipo === 'lavorazione_esterna')
   const costruzioneSatellite = satelliti.find((s) => s.tipo === 'costruzione')
   const noleggioSatellite = satelliti.find((s) => s.tipo === 'noleggio')
 
-  const fornitoreSedeIds = [
-    ...new Set([...acquistiSatelliti, ...lavorazioneEsternaSatelliti].map((s) => s.fornitore_sede_id).filter((v): v is string => !!v)),
-  ]
+  const fornitoreSedeIds = [...new Set(acquistiSatelliti.map((s) => s.fornitore_sede_id).filter((v): v is string => !!v))]
   const { data: fornitoreSedi } =
     fornitoreSedeIds.length > 0
       ? await supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta').in('id', fornitoreSedeIds)
@@ -126,18 +125,20 @@ export default async function LavoroDettaglioPage({
     ]),
   )
 
+  // Categorie acquisto libere dell'artigiano (Profilo/Impostazioni), per il
+  // select del form "+ Nuovo ordine acquisti" — solo se la fase esecuzione è
+  // raggiungibile, stessa condizione di faseEsecuzione più sotto.
+  const { data: categorieAcquisto } = isOwner
+    ? await supabase.from('categoria_acquisto').select('id, nome').order('nome')
+    : { data: [] }
+
   // I satelliti di esecuzione (creati automaticamente all'accettazione) restano
   // nel database anche se il Lavoro torna a 'opportunita' (reversibilità
   // accettato -> opportunita, 26/7) — qui si nascondono semplicemente dalla UI
   // finché il lavoro non è di nuovo accettato o completato, senza eliminare nulla.
   const haEsecuzione =
     (lavoro.stato === 'accettato' || lavoro.stato === 'completato') &&
-    (appuntamentiVerificaMisure.length > 0 ||
-      appuntamentiMontaggio.length > 0 ||
-      acquistiSatelliti.length > 0 ||
-      lavorazioneEsternaSatelliti.length > 0 ||
-      !!costruzioneSatellite ||
-      !!noleggioSatellite)
+    (appuntamentiVerificaMisure.length > 0 || appuntamentiMontaggio.length > 0 || acquistiSatelliti.length > 0 || !!costruzioneSatellite || !!noleggioSatellite)
 
   // Distinta da haEsecuzione (che dipende dai satelliti già esistenti): governa
   // la disponibilità dei flussi "+ Aggiungi satellite" per i tipi di esecuzione
@@ -165,7 +166,7 @@ export default async function LavoroDettaglioPage({
       satelliteId: briefing.id,
       nome: 'Briefing',
       colore: briefing.concluso ? 'green' : 'red',
-      statoLabel: labelStatoAppuntamento(briefing.concluso, false),
+      statoLabel: labelStatoAppuntamento(briefing.concluso),
       contenuto: (
         <SatelliteAppuntamento
           satellite={briefing}
@@ -173,7 +174,6 @@ export default async function LavoroDettaglioPage({
           titolo="Briefing"
           allegati={allegatiById[briefing.id] ?? []}
           isOwner={isOwnerEffettivo}
-          mostraNonNecessario={false}
         />
       ),
     })
@@ -206,24 +206,14 @@ export default async function LavoroDettaglioPage({
   if (preventivoSatelliti.length > 0) {
     const catena = [...costruisciCatena(preventivoSatelliti)].reverse()
     const corrente = catena[0]
-    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
     righeTabella.push({
       key: 'preventivo',
       satelliteId: corrente.id,
       nome: 'Preventivo',
-      colore: coloreRevisionabile('preventivo', statoEff),
-      statoLabel: labelStatoRevisionabile('preventivo', statoEff),
+      colore: colorePreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
+      statoLabel: labelStatoPreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
       contenuto: (
-        <RevisionabileChain
-          tipo="preventivo"
-          titolo="Preventivo"
-          catena={catena}
-          statoEffettivoById={statoEffettivoById}
-          allegatiById={allegatiById}
-          isOwner={isOwnerEffettivo}
-          lavoroId={lavoro.id}
-          mostraValore
-        />
+        <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
     })
   }
@@ -261,8 +251,8 @@ export default async function LavoroDettaglioPage({
         key: `app-vm-${a.id}`,
         satelliteId: a.id,
         nome,
-        colore: a.concluso || a.non_necessario ? 'green' : 'red',
-        statoLabel: labelStatoAppuntamento(a.concluso, a.non_necessario),
+        colore: a.concluso ? 'green' : 'red',
+        statoLabel: labelStatoAppuntamento(a.concluso),
         contenuto: (
           <SatelliteAppuntamento
             satellite={a}
@@ -270,7 +260,6 @@ export default async function LavoroDettaglioPage({
             titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
             allegati={allegatiById[a.id] ?? []}
             isOwner={isOwnerEffettivo}
-            mostraNonNecessario
           />
         ),
       })
@@ -283,29 +272,8 @@ export default async function LavoroDettaglioPage({
         key: `acquisti-${s.id}`,
         satelliteId: s.id,
         nome,
-        colore: coloreOrdine('acquisti', s.stato ?? ''),
-        statoLabel: labelStatoOrdine('acquisti', s.stato ?? ''),
-        contenuto: (
-          <SatelliteOrdine
-            satellite={s}
-            righe={righePerSatellite[s.id] ?? []}
-            fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
-            lavoroId={lavoro.id}
-            isOwner={isOwnerEffettivo}
-          />
-        ),
-      })
-    })
-
-    lavorazioneEsternaSatelliti.forEach((s, i) => {
-      const base = satelliteTipoLabelBreve(s)
-      const nome = lavorazioneEsternaSatelliti.length > 1 ? `${base} ${i + 1}` : base
-      righeTabella.push({
-        key: `lavorazione-esterna-${s.id}`,
-        satelliteId: s.id,
-        nome,
-        colore: coloreOrdine('lavorazione_esterna', s.stato ?? ''),
-        statoLabel: labelStatoOrdine('lavorazione_esterna', s.stato ?? ''),
+        colore: coloreAcquisti(s.stato ?? ''),
+        statoLabel: labelStatoAcquisti(s.stato ?? ''),
         contenuto: (
           <SatelliteOrdine
             satellite={s}
@@ -335,8 +303,8 @@ export default async function LavoroDettaglioPage({
         key: 'noleggio',
         satelliteId: noleggioSatellite.id,
         nome: 'Noleggio',
-        colore: noleggioSatellite.prenotazione_effettuata || noleggioSatellite.non_necessario ? 'green' : 'red',
-        statoLabel: labelStatoNoleggio(noleggioSatellite.prenotazione_effettuata, noleggioSatellite.non_necessario),
+        colore: noleggioSatellite.prenotazione_effettuata ? 'green' : 'red',
+        statoLabel: labelStatoNoleggio(noleggioSatellite.prenotazione_effettuata),
         contenuto: <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
       })
     }
@@ -347,8 +315,8 @@ export default async function LavoroDettaglioPage({
         key: `app-montaggio-${a.id}`,
         satelliteId: a.id,
         nome,
-        colore: a.concluso || a.non_necessario ? 'green' : 'red',
-        statoLabel: labelStatoAppuntamento(a.concluso, a.non_necessario),
+        colore: a.concluso ? 'green' : 'red',
+        statoLabel: labelStatoAppuntamento(a.concluso),
         contenuto: (
           <SatelliteAppuntamento
             satellite={a}
@@ -356,7 +324,6 @@ export default async function LavoroDettaglioPage({
             titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
             allegati={allegatiById[a.id] ?? []}
             isOwner={isOwnerEffettivo}
-            mostraNonNecessario
           />
         ),
       })
@@ -395,13 +362,15 @@ export default async function LavoroDettaglioPage({
         />
       </div>
 
-      {lavoro.stato === 'opportunita' && (
+      {lavoro.stato === 'opportunita' && preventivoSatelliti.length === 0 && (
         <div className="mb-8">
-          {isOwner ? (
-            <LavoroStatoAzioni lavoroId={lavoro.id} />
-          ) : (
-            <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
-          )}
+          <p className="text-sm text-gray-500">In attesa di preventivo.</p>
+        </div>
+      )}
+
+      {lavoro.stato === 'opportunita' && preventivoSatelliti.length > 0 && !isOwner && (
+        <div className="mb-8">
+          <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
         </div>
       )}
 
@@ -422,8 +391,7 @@ export default async function LavoroDettaglioPage({
             {faseEsecuzione && (
               <>
                 <SatelliteNuovoAppuntamento lavoroId={lavoro.id} />
-                <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="acquisti" />
-                <SatelliteNuovoOrdine lavoroId={lavoro.id} tipo="lavorazione_esterna" />
+                <SatelliteNuovoOrdine lavoroId={lavoro.id} categorie={categorieAcquisto ?? []} />
               </>
             )}
           </>

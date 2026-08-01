@@ -23,20 +23,17 @@ export function SatelliteAppuntamento({
   titolo,
   allegati,
   isOwner,
-  mostraNonNecessario,
 }: {
   satellite: Satellite
   lavoroId: string
   titolo: string
   allegati: SatelliteAllegato[]
   isOwner: boolean
-  mostraNonNecessario: boolean
 }) {
   const router = useRouter()
   const [data, setData] = useState(aDatetimeLocal(satellite.data_appuntamento))
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
-  const [nonNecessario, setNonNecessario] = useState(satellite.non_necessario)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [salvato, setSalvato] = useState(false)
@@ -50,7 +47,6 @@ export function SatelliteAppuntamento({
       data: data ? new Date(data).toISOString() : null,
       descrizione: descrizione.trim() || null,
       concluso,
-      nonNecessario: mostraNonNecessario ? nonNecessario : false,
     })
 
     setLoading(false)
@@ -62,7 +58,7 @@ export function SatelliteAppuntamento({
     router.refresh()
   }
 
-  const verde = mostraNonNecessario ? concluso || nonNecessario : concluso
+  const verde = concluso
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
@@ -110,18 +106,6 @@ export function SatelliteAppuntamento({
             />
             Concluso
           </label>
-
-          {mostraNonNecessario && (
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={nonNecessario}
-                onChange={(e) => setNonNecessario(e.target.checked)}
-                className="accent-primary"
-              />
-              Non necessario
-            </label>
-          )}
 
           {errore && <p className="text-xs text-red-600">{errore}</p>}
           <div className="flex items-center gap-2">

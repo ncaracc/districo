@@ -1,9 +1,16 @@
 'use server'
 
 import { randomUUID } from 'crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+// Stessa cartella base usata per gli allegati (vedi lib/lavori/allegati.ts):
+// /app/uploads in produzione (volume montato su /srv/apps/districo/uploads),
+// ./uploads in locale.
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 
 type LavoroResult = { ok: true; id: string } | { ok: false; error: string }
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -112,68 +119,68 @@ export async function aggiornaLavoro(
   return { ok: true }
 }
 
-// Transizioni manuali del ciclo di vita del Lavoro (opportunità -> accettato/
-// rifiutato, accettato -> completato). "Segna come accettato"/"rifiutato" restano
-// senza vincoli, coerente con "transizioni sempre manuali" della revisione
-// 2026-07-25. "Segna lavoro completato" invece NON è più sempre disponibile
-// (fix emerso dal test end-to-end in produzione, supera la decisione originale
-// dello Sprint C): è bloccata se lavoro_pronto_per_montaggio() risulta falso,
-// cioè se un qualsiasi satellite bloccante (acquisti, lavorazione esterna,
-// costruzione, noleggio, oltre a preventivo/progetto/campione) non è ancora
+// "Segna lavoro completato": bloccata se lavoro_pronto_per_montaggio()
+// risulta falso, cioè se un qualsiasi satellite bloccante (preventivo,
+// acquisti, costruzione, noleggio, oltre a progetto/campione) non è ancora
 // verde. Il controllo è qui lato server (non solo il bottone disabilitato in
 // UI) perché è un vincolo reale, non solo un suggerimento — riusa la stessa
-// funzione SQL già esistente, nessuna nuova logica di gate. `accettato_at`
-// continua a essere popolato alla transizione verso 'accettato' per continuità
-// con la UI esistente, pur essendo ridondante con stato='accettato'.
-export async function segnaLavoroStato(
-  lavoroId: string,
-  nuovoStato: 'accettato' | 'rifiutato' | 'completato',
-): Promise<AzioneResult> {
+// funzione SQL già esistente, nessuna nuova logica di gate.
+//
+// Le transizioni opportunità -> accettato/rifiutato NON passano più da qui
+// dalla revisione satelliti del 1/8 (vedi CLAUDE.md): sono derivate
+// automaticamente dal satellite Preventivo (impostaPreventivoDecisione in
+// lib/lavori/satelliti.ts), unica via per far avanzare un Lavoro da
+// 'opportunita'.
+export async function completaLavoro(lavoroId: string): Promise<AzioneResult> {
   const supabase = await createClient()
 
-  if (nuovoStato === 'completato') {
-    const { data: pronto } = await supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: lavoroId })
-    if (!pronto) {
-      return {
-        ok: false,
-        error: 'Non tutti i satelliti bloccanti sono completi: il lavoro non può ancora essere segnato come completato.',
-      }
+  const { data: pronto } = await supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: lavoroId })
+  if (!pronto) {
+    return {
+      ok: false,
+      error: 'Non tutti i satelliti bloccanti sono completi: il lavoro non può ancora essere segnato come completato.',
     }
   }
 
-  const update: {
-    stato: 'accettato' | 'rifiutato' | 'completato'
-    accettato_at?: string
-    prima_accettazione_at?: string
-    completato_at?: string
-  } = { stato: nuovoStato }
-
-  if (nuovoStato === 'accettato') {
-    update.accettato_at = new Date().toISOString()
-
-    // prima_accettazione_at: valorizzata una sola volta e mai più toccata dopo,
-    // a differenza di accettato_at che viene sovrascritta a ogni ri-accettazione
-    // — serve al KPI "accettazione -> produzione" per non calcolare durate
-    // negative/errate dopo un ciclo accettato->opportunita->accettato (vedi
-    // CLAUDE.md, diagnosi KPI del 26/7). Letta prima di scrivere: il client
-    // Supabase non supporta espressioni riferite alla colonna stessa nel
-    // payload di update (niente coalesce(colonna, now()) diretto).
-    const { data: attuale } = await supabase.from('lavoro').select('prima_accettazione_at').eq('id', lavoroId).maybeSingle()
-    if (attuale && !attuale.prima_accettazione_at) {
-      update.prima_accettazione_at = update.accettato_at
-    }
-  }
-
-  if (nuovoStato === 'completato') update.completato_at = new Date().toISOString()
-
-  const { error } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
+  const { error } = await supabase
+    .from('lavoro')
+    .update({ stato: 'completato', completato_at: new Date().toISOString() })
+    .eq('id', lavoroId)
 
   if (error) {
-    console.error('segnaLavoroStato: update fallito', error)
+    console.error('completaLavoro: update fallito', error)
     return { ok: false, error: 'Errore, riprova' }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Eliminazione definitiva e a cascata di un Lavoro: righe DB (lavoro,
+// lavoro_artigiani, satelliti/allegati/righe collegate, allegato generale,
+// attivita/fasi/pagamenti — tutte già "on delete cascade" su lavoro_id dalla
+// 0001/0009/0012, RLS "lavoro: eliminazione solo owner" già esistente dalla
+// 0001, nessuna migrazione necessaria) più i file fisici caricati sul
+// volume uploads del VPS, mai ripuliti da un semplice DELETE via FK. La
+// cartella allegati di un Lavoro vive tutta sotto uploads/lavori/<lavoroId>/
+// (satelliti e, in futuro, il repository generale "allegato" — vedi
+// lib/lavori/allegati.ts), quindi una singola rimozione ricorsiva della
+// cartella basta, senza dover enumerare ogni singolo file. Rimozione file
+// eseguita DOPO il delete DB riuscito: se il delete fallisse (es. RLS nega
+// perché non owner) non tocchiamo comunque nulla su disco.
+export async function eliminaLavoro(lavoroId: string): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const { error } = await supabase.from('lavoro').delete().eq('id', lavoroId)
+
+  if (error) {
+    console.error('eliminaLavoro: delete fallito', error)
+    return { ok: false, error: "Errore nell'eliminazione, riprova" }
+  }
+
+  await fs.rm(path.join(UPLOADS_DIR, 'lavori', lavoroId), { recursive: true, force: true }).catch(() => {})
+
   revalidatePath('/lavori')
   return { ok: true }
 }
@@ -186,11 +193,11 @@ export async function segnaLavoroStato(
 // dall'accettazione) restano invariati nel database — la sezione "Esecuzione"
 // smette solo di essere mostrata in UI finché il lavoro non torna accettato
 // (vedi app/(app)/lavori/[id]/page.tsx). Il trigger crea_satelliti_post_
-// accettazione ha già una guardia di idempotenza (Sprint A: non ricrea i
-// segnaposto se esistono già satelliti acquisti/lavorazione_esterna/
-// costruzione/noleggio per il lavoro), quindi un ciclo accettato ->
-// opportunita -> accettato ripetuto più volte non duplica nulla. Nessun
-// controllo di gate qui (a differenza di segnaLavoroStato verso 'completato'):
+// accettazione ha già una guardia di idempotenza (Sprint A, aggiornata dalla
+// revisione satelliti del 1/8: non ricrea i segnaposto se esistono già
+// satelliti acquisti/costruzione/noleggio per il lavoro), quindi un ciclo
+// accettato -> opportunita -> accettato ripetuto più volte non duplica
+// nulla. Nessun controllo di gate qui (a differenza di completaLavoro):
 // riaprire/correggere non ha condizioni, è sempre concesso.
 export async function riapriLavoro(
   lavoroId: string,
@@ -202,7 +209,7 @@ export async function riapriLavoro(
   // Uscendo da 'completato' si azzera esplicitamente completato_at: altrimenti
   // resterebbe un timestamp fantasma di un completamento poi annullato,
   // falsando il KPI "durata montaggio" se il lavoro viene poi ricompletato
-  // (segnaLavoroStato lo rivalorizzerà da zero al prossimo completamento).
+  // (completaLavoro lo rivalorizzerà da zero al prossimo completamento).
   // prima_accettazione_at non viene mai toccato qui: resta immutabile per
   // design, indipendentemente da quante volte il lavoro viene riaperto.
   const update: { stato: 'accettato' | 'opportunita'; completato_at?: null } = { stato: nuovoStato }

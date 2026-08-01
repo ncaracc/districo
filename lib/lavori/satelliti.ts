@@ -9,11 +9,9 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
   generaNuovaRevisione,
-  statoInizialeOrdine,
   type SottotipoAppuntamento,
-  type StatoOrdine,
+  type StatoAcquisti,
   type StatoRevisionabile,
-  type TipoOrdine,
   type TipoRevisionabile,
 } from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
@@ -24,7 +22,7 @@ type CreazioneResult = { ok: true; id: string } | { ok: false; error: string }
 export async function aggiornaAppuntamento(
   satelliteId: string,
   lavoroId: string,
-  fields: { data: string | null; descrizione: string | null; concluso: boolean; nonNecessario: boolean },
+  fields: { data: string | null; descrizione: string | null; concluso: boolean },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
@@ -37,7 +35,6 @@ export async function aggiornaAppuntamento(
       data_appuntamento: fields.data,
       descrizione: fields.descrizione,
       concluso: fields.concluso,
-      non_necessario: fields.nonNecessario,
     })
     .eq('id', satelliteId)
 
@@ -64,7 +61,7 @@ export async function creaAppuntamento(
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
-    .insert({ lavoro_id: lavoroId, tipo: 'appuntamento', tipo_appuntamento: sottotipo, concluso: false, non_necessario: false })
+    .insert({ lavoro_id: lavoroId, tipo: 'appuntamento', tipo_appuntamento: sottotipo, concluso: false })
     .select('id')
     .single()
 
@@ -78,9 +75,11 @@ export async function creaAppuntamento(
   return { ok: true, id: data.id }
 }
 
-// Imposta lo stato di un satellite "revisionabile" (preventivo/progetto/campione).
-// Se il nuovo stato è quello che richiede una nuova revisione (necessaria_revisione per
-// preventivo/progetto, necessario_nuovo_campione per campione), crea prima la nuova riga
+// Imposta lo stato di un satellite "revisionabile" (progetto/campione — il
+// Preventivo non ne fa più parte dalla revisione satelliti del 1/8, vedi
+// impostaPreventivoDecisione più sotto). Se il nuovo stato è quello che
+// richiede una nuova revisione (necessaria_revisione per progetto,
+// necessario_nuovo_campione per campione), crea prima la nuova riga
 // collegata via revisione_di (stato iniziale in_preparazione, stessa serie se campione),
 // poi aggiorna la riga corrente — se l'aggiornamento fallisse, la nuova riga appena creata
 // viene rimossa (stesso principio di rollback già in uso in creaLavoro/creaSatellite).
@@ -128,14 +127,13 @@ export async function impostaStatoRevisionabile(
     const updatePayload: { stato: StatoRevisionabile; data_presentazione?: string } = { stato: nuovoStato }
 
     // data_presentazione: valorizzata una sola volta, alla prima transizione a
-    // "presentato" per Preventivo/Progetto — mai più sovrascritta da
-    // transizioni successive sulla stessa riga (es. necessaria_revisione,
-    // "Annulla accettazione" che riporta da accettato a presentato), per non
-    // perdere il dato storico usato dal KPI "tempo di preventivazione/
-    // progetto" (vedi CLAUDE.md, diagnosi del 26/7). Letta prima di scrivere:
-    // il client Supabase non supporta coalesce(colonna, now()) diretto nel
-    // payload di update.
-    if ((tipo === 'preventivo' || tipo === 'progetto') && nuovoStato === 'presentato') {
+    // "presentato" per Progetto — mai più sovrascritta da transizioni
+    // successive sulla stessa riga (es. necessaria_revisione, "Annulla
+    // accettazione" che riporta da accettato a presentato), per non perdere
+    // il dato storico usato dal KPI "tempo di progetto" (vedi CLAUDE.md,
+    // diagnosi del 26/7). Letta prima di scrivere: il client Supabase non
+    // supporta coalesce(colonna, now()) diretto nel payload di update.
+    if (tipo === 'progetto' && nuovoStato === 'presentato') {
       const { data: corrente } = await supabase
         .from('lavoro_satellite')
         .select('data_presentazione')
@@ -160,6 +158,13 @@ export async function impostaStatoRevisionabile(
   return { ok: true }
 }
 
+// data_presentazione: nel vecchio modello a stati scattava alla prima
+// transizione a "presentato" — con il Preventivo ridotto a due flag
+// (revisione satelliti del 1/8, vedi impostaPreventivoDecisione più sotto)
+// il momento analogo è la prima volta che viene inserito un valore (diventa
+// "presentabile" al cliente, semaforo giallo). Valorizzata una sola volta,
+// mai sovrascritta, per non perdere il dato storico usato dal KPI "tempo di
+// preventivazione".
 export async function aggiornaValorePreventivo(
   satelliteId: string,
   lavoroId: string,
@@ -170,14 +175,84 @@ export async function aggiornaValorePreventivo(
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
-  const { error } = await supabase
-    .from('lavoro_satellite')
-    .update({ valore_complessivo: valore })
-    .eq('id', satelliteId)
+  const updatePayload: { valore_complessivo: number | null; data_presentazione?: string } = { valore_complessivo: valore }
+
+  if (valore != null) {
+    const { data: corrente } = await supabase
+      .from('lavoro_satellite')
+      .select('data_presentazione')
+      .eq('id', satelliteId)
+      .maybeSingle()
+
+    if (corrente && !corrente.data_presentazione) {
+      updatePayload.data_presentazione = new Date().toISOString()
+    }
+  }
+
+  const { error } = await supabase.from('lavoro_satellite').update(updatePayload).eq('id', satelliteId)
 
   if (error) {
     console.error('aggiornaValorePreventivo: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Gate lavoro.stato derivato SOLO dal Preventivo (revisione satelliti del
+// 1/8, vedi CLAUDE.md): preventivo_accettato=true -> lavoro.stato='accettato'
+// (accettato_at/prima_accettazione_at valorizzati solo se non già impostati);
+// preventivo_rifiutato=true -> lavoro.stato='rifiutato'. Annullare una
+// decisione (decisione=null, entrambi i flag tornano false) non tocca mai
+// lavoro.stato: non si forza mai indietro a 'opportunita' (es. se il lavoro
+// fosse già avanzato oltre) — l'unica via indietro resta "Riporta a
+// opportunità"/"Riapri lavoro" (lib/lavori/actions.ts).
+export async function impostaPreventivoDecisione(
+  satelliteId: string,
+  lavoroId: string,
+  decisione: 'accettato' | 'rifiutato' | null,
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({
+      preventivo_accettato: decisione === 'accettato',
+      preventivo_rifiutato: decisione === 'rifiutato',
+    })
+    .eq('id', satelliteId)
+
+  if (error) {
+    console.error('impostaPreventivoDecisione: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  if (decisione === 'accettato' || decisione === 'rifiutato') {
+    const update: { stato: 'accettato' | 'rifiutato'; accettato_at?: string; prima_accettazione_at?: string } = {
+      stato: decisione,
+    }
+
+    if (decisione === 'accettato') {
+      const ora = new Date().toISOString()
+      const { data: attuale } = await supabase
+        .from('lavoro')
+        .select('accettato_at, prima_accettazione_at')
+        .eq('id', lavoroId)
+        .maybeSingle()
+      if (attuale && !attuale.accettato_at) update.accettato_at = ora
+      if (attuale && !attuale.prima_accettazione_at) update.prima_accettazione_at = ora
+    }
+
+    const { error: lavoroErr } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
+    if (lavoroErr) {
+      console.error('impostaPreventivoDecisione: update lavoro fallito', lavoroErr)
+      return { ok: false, error: "Preventivo salvato, ma errore nell'aggiornamento dello stato del lavoro" }
+    }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
@@ -235,15 +310,17 @@ export async function creaNuovaSerieCampione(lavoroId: string, serie: string): P
   return { ok: true }
 }
 
-// --- Acquisti / Lavorazione esterna ---
-// Più istanze dello stesso tipo sullo stesso Lavoro sono ammesse (più ordini
-// successivi), nessun vincolo di unicità nello schema.
+// --- Acquisti ---
+// Lavorazione_esterna eliminata come tipo satellite a sé (revisione
+// satelliti del 1/8): resta solo 'acquisti', con acquisto_categoria come
+// testo libero facoltativo (dalle preferenze dell'artigiano, vedi
+// lib/acquisti/categorie.ts). Più istanze sullo stesso Lavoro sono ammesse
+// (più ordini successivi), nessun vincolo di unicità nello schema.
 export async function creaOrdine(
   lavoroId: string,
-  tipo: TipoOrdine,
   fields: {
     fornitoreSedeId: string | null
-    acquistoCategoria: 'materiale' | 'ferramenta' | null
+    acquistoCategoria: string | null
     valoreComplessivo: number | null
     righe: { descrizione: string; coloreFinitura: string | null; quantita: number }[]
   },
@@ -257,10 +334,10 @@ export async function creaOrdine(
     .from('lavoro_satellite')
     .insert({
       lavoro_id: lavoroId,
-      tipo,
-      stato: statoInizialeOrdine(tipo),
+      tipo: 'acquisti',
+      stato: 'da_acquistare',
       fornitore_sede_id: fields.fornitoreSedeId,
-      acquisto_categoria: tipo === 'acquisti' ? fields.acquistoCategoria : null,
+      acquisto_categoria: fields.acquistoCategoria,
       valore_complessivo: fields.valoreComplessivo,
     })
     .select('id')
@@ -294,7 +371,7 @@ export async function creaOrdine(
   return { ok: true, id: data.id }
 }
 
-export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, nuovoStato: StatoOrdine): Promise<AzioneResult> {
+export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, nuovoStato: StatoAcquisti): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
@@ -419,7 +496,6 @@ export async function aggiornaNoleggio(
     dataA: string | null
     costo: number | null
     prenotazioneEffettuata: boolean
-    nonNecessario: boolean
   },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
@@ -434,7 +510,6 @@ export async function aggiornaNoleggio(
       data_a: fields.dataA,
       costo: fields.costo,
       prenotazione_effettuata: fields.prenotazioneEffettuata,
-      non_necessario: fields.nonNecessario,
     })
     .eq('id', satelliteId)
 

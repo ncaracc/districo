@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { segnaLavoroStato } from '@/lib/lavori/actions'
+import { completaLavoro } from '@/lib/lavori/actions'
 
 export function LavoroSegnaCompletato({
   lavoroId,
@@ -20,7 +20,7 @@ export function LavoroSegnaCompletato({
   async function handleClick() {
     setLoading(true)
     setErrore(null)
-    const result = await segnaLavoroStato(lavoroId, 'completato')
+    const result = await completaLavoro(lavoroId)
     setLoading(false)
     if (!result.ok) {
       setErrore(result.error)

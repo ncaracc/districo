@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { KpiDurateDashboard } from '@/components/kpi-durate-dashboard'
+import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const STATO_LABEL: Record<string, string> = {
@@ -146,6 +147,7 @@ export default async function LavoriPage() {
                   <th className="px-4 py-3">Stato</th>
                   <th className="px-4 py-3">Avanzamento</th>
                   <th className="px-4 py-3 text-right">Valore</th>
+                  <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -181,6 +183,9 @@ export default async function LavoriPage() {
                       <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-right text-gray-700 transition-colors group-hover:bg-gray-50">
                         {l.valore_preventivo_accettato != null ? `€ ${l.valore_preventivo_accettato.toFixed(2)}` : '—'}
                       </Link>
+                    </td>
+                    <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
+                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
                     </td>
                   </tr>
                 ))}

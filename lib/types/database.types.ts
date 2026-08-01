@@ -103,6 +103,9 @@ export type Database = {
         Update: { nota?: string; updated_at?: string }
         Relationships: []
       }
+      // Categorie acquisto libere per artigiano (dalla 0001, mai usata fino
+      // alla revisione satelliti del 1/8: ora popola il select "Categoria"
+      // in Acquisti, sostituendo il vecchio enum chiuso materiale/ferramenta.
       categoria_acquisto: {
         Row: { id: string; artigiano_id: string; nome: string; created_at: string }
         Insert: { id?: string; artigiano_id: string; nome: string; created_at?: string }
@@ -246,46 +249,52 @@ export type Database = {
       lavoro_satellite: {
         Row: {
           id: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'lavorazione_esterna' | 'campione' | 'costruzione' | 'noleggio'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio'
+          // Per tipo='preventivo' questa colonna è legacy: non più letta/scritta
+          // dall'app dalla revisione satelliti del 1/8, sostituita da
+          // preventivo_accettato/preventivo_rifiutato. Resta nello schema perché
+          // condivisa con progetto/campione/acquisti/costruzione.
           stato: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
-            | 'da_ordinare' | 'ordinato' | 'completato'
             | 'da_iniziare' | 'in_corso' | 'completata'
           descrizione: string | null; tipo_appuntamento: 'briefing' | 'verifica_misure' | 'montaggio' | null
-          concluso: boolean; non_necessario: boolean
+          concluso: boolean
           data_appuntamento: string | null
           revisione_di: string | null; valore_complessivo: number | null
           serie: string | null
           fornitore_sede_id: string | null; descrizione_libera: string | null
-          acquisto_categoria: 'materiale' | 'ferramenta' | null
+          // Testo libero (nome di una categoria_acquisto dell'artigiano), non più
+          // un enum chiuso a materiale/ferramenta dalla revisione satelliti del 1/8.
+          acquisto_categoria: string | null
           data_invio_ordine: string | null; contatto_invio_id: string | null
           data_inizio: string | null; data_fine: string | null
           prenotazione_effettuata: boolean; data_da: string | null; data_a: string | null; costo: number | null
           data_presentazione: string | null
+          preventivo_accettato: boolean; preventivo_rifiutato: boolean
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
           id?: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'lavorazione_esterna' | 'campione' | 'costruzione' | 'noleggio'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio'
           stato?: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
-            | 'da_ordinare' | 'ordinato' | 'completato'
             | 'da_iniziare' | 'in_corso' | 'completata'
           descrizione?: string | null; tipo_appuntamento?: 'briefing' | 'verifica_misure' | 'montaggio' | null
-          concluso?: boolean; non_necessario?: boolean
+          concluso?: boolean
           data_appuntamento?: string | null
           revisione_di?: string | null; valore_complessivo?: number | null
           serie?: string | null
           fornitore_sede_id?: string | null; descrizione_libera?: string | null
-          acquisto_categoria?: 'materiale' | 'ferramenta' | null
+          acquisto_categoria?: string | null
           data_invio_ordine?: string | null; contatto_invio_id?: string | null
           data_inizio?: string | null; data_fine?: string | null
           prenotazione_effettuata?: boolean; data_da?: string | null; data_a?: string | null; costo?: number | null
           data_presentazione?: string | null
+          preventivo_accettato?: boolean; preventivo_rifiutato?: boolean
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

@@ -28,11 +28,10 @@ export function SatelliteNoleggio({
   const [dataA, setDataA] = useState(aDateLocal(satellite.data_a))
   const [costo, setCosto] = useState(satellite.costo != null ? String(satellite.costo) : '')
   const [prenotazioneEffettuata, setPrenotazioneEffettuata] = useState(satellite.prenotazione_effettuata)
-  const [nonNecessario, setNonNecessario] = useState(satellite.non_necessario)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
-  const verde = prenotazioneEffettuata || nonNecessario
+  const verde = prenotazioneEffettuata
 
   async function handleSalva() {
     setLoading(true)
@@ -42,7 +41,6 @@ export function SatelliteNoleggio({
       dataA: dataA || null,
       costo: costo ? Number(costo) : null,
       prenotazioneEffettuata,
-      nonNecessario,
     })
     setLoading(false)
     if (!result.ok) setErrore(result.error)
@@ -95,16 +93,6 @@ export function SatelliteNoleggio({
               className="accent-primary"
             />
             Prenotazione effettuata
-          </label>
-
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={nonNecessario}
-              onChange={(e) => setNonNecessario(e.target.checked)}
-              className="accent-primary"
-            />
-            Non necessario
           </label>
 
           {errore && <p className="text-xs text-red-600">{errore}</p>}

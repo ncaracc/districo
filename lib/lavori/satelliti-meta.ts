@@ -3,7 +3,6 @@ export type TipoSatellite =
   | 'preventivo'
   | 'progetto'
   | 'acquisti'
-  | 'lavorazione_esterna'
   | 'campione'
   | 'costruzione'
   | 'noleggio'
@@ -16,7 +15,11 @@ export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string>
   montaggio: 'Montaggio',
 }
 
-export type TipoRevisionabile = 'preventivo' | 'progetto' | 'campione'
+// Preventivo non fa più parte di questo gruppo dalla revisione satelliti del
+// 1/8: usa un modello a due flag booleani indipendenti (vedi colorePreventivo/
+// labelStatoPreventivo/azioniPossibiliPreventivo più sotto), non più il vecchio
+// stato a 5 valori condiviso con Progetto/Campione.
+export type TipoRevisionabile = 'progetto' | 'campione'
 
 export type StatoRevisionabile =
   | 'in_preparazione'
@@ -36,14 +39,13 @@ export type Satellite = {
   descrizione: string | null
   tipo_appuntamento: SottotipoAppuntamento | null
   concluso: boolean
-  non_necessario: boolean
   data_appuntamento: string | null
   revisione_di: string | null
   valore_complessivo: number | null
   serie: string | null
   fornitore_sede_id: string | null
   descrizione_libera: string | null
-  acquisto_categoria: 'materiale' | 'ferramenta' | null
+  acquisto_categoria: string | null
   data_invio_ordine: string | null
   contatto_invio_id: string | null
   data_inizio: string | null
@@ -52,6 +54,8 @@ export type Satellite = {
   data_da: string | null
   data_a: string | null
   costo: number | null
+  preventivo_accettato: boolean
+  preventivo_rifiutato: boolean
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -80,8 +84,10 @@ export const DOT_COLOR: Record<ColoreSemaforo, string> = {
   green: 'bg-green-500',
 }
 
-// --- Progetto / Preventivo ---
-export const STATI_PROGETTO_PREVENTIVO = [
+// --- Progetto ---
+// (Preventivo usava lo stesso modello fino alla revisione satelliti del 1/8:
+// ora ha due flag booleani indipendenti, vedi colorePreventivo più sotto.)
+export const STATI_PROGETTO = [
   'in_preparazione',
   'presentato',
   'necessaria_revisione',
@@ -89,7 +95,7 @@ export const STATI_PROGETTO_PREVENTIVO = [
   'non_necessario',
 ] as const
 
-export const STATO_PROGETTO_PREVENTIVO_LABEL: Record<string, string> = {
+export const STATO_PROGETTO_LABEL: Record<string, string> = {
   in_preparazione: 'In preparazione',
   presentato: 'Presentato',
   necessaria_revisione: 'Necessaria revisione',
@@ -115,7 +121,7 @@ export const STATO_CAMPIONE_LABEL: Record<string, string> = {
 }
 
 export function labelStatoRevisionabile(tipo: TipoRevisionabile, stato: string): string {
-  return tipo === 'campione' ? STATO_CAMPIONE_LABEL[stato] ?? stato : STATO_PROGETTO_PREVENTIVO_LABEL[stato] ?? stato
+  return tipo === 'campione' ? STATO_CAMPIONE_LABEL[stato] ?? stato : STATO_PROGETTO_LABEL[stato] ?? stato
 }
 
 // necessaria_revisione/necessario_nuovo_campione sono un rifiuto esplicito del
@@ -220,6 +226,27 @@ export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttua
   }
 }
 
+// --- Preventivo ---
+// Modello a due flag booleani indipendenti (preventivo_accettato/
+// preventivo_rifiutato), non più il vecchio stato a 5 valori condiviso con
+// Progetto/Campione (revisione satelliti del 1/8). Mutuamente esclusivi in UI
+// (impostaPreventivoDecisione in lib/lavori/satelliti.ts garantisce che
+// impostarne uno azzeri l'altro), ma restano due colonne indipendenti a
+// livello di schema.
+export function colorePreventivo(accettato: boolean, rifiutato: boolean, valoreComplessivo: number | null): ColoreSemaforo {
+  if (accettato) return 'green'
+  if (rifiutato) return 'red'
+  if (valoreComplessivo == null) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoPreventivo(accettato: boolean, rifiutato: boolean, valoreComplessivo: number | null): string {
+  if (accettato) return 'Accettato'
+  if (rifiutato) return 'Rifiutato'
+  if (valoreComplessivo == null) return 'Valore da inserire'
+  return 'In attesa'
+}
+
 // Ricostruisce la catena di revisioni (root -> ultima) a partire da un insieme piatto
 // di satelliti che condividono la stessa catena (stesso tipo, o stessa serie per campione).
 export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
@@ -237,43 +264,34 @@ export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
   return ordinata
 }
 
-// --- Acquisti / Lavorazione esterna ---
-export type TipoOrdine = 'acquisti' | 'lavorazione_esterna'
+// --- Acquisti ---
+// Lavorazione_esterna esisteva come tipo satellite parallelo fino alla
+// revisione satelliti del 1/8: ora è solo un'eventuale categoria libera
+// dentro Acquisti (acquisto_categoria, testo definito dall'artigiano nelle
+// proprie preferenze — vedi categoria_acquisto/lib/acquisti/categorie.ts),
+// non più un tipo satellite a sé.
+export type StatoAcquisti = 'da_acquistare' | 'acquistato' | 'ricevuto'
 
-export type StatoOrdine = 'da_acquistare' | 'acquistato' | 'ricevuto' | 'da_ordinare' | 'ordinato' | 'completato'
-
-export const STATO_ORDINE_LABEL: Record<TipoOrdine, Record<string, string>> = {
-  acquisti: { da_acquistare: 'Da acquistare', acquistato: 'Acquistato', ricevuto: 'Ricevuto' },
-  lavorazione_esterna: { da_ordinare: 'Da ordinare', ordinato: 'Ordinato', completato: 'Completato' },
+export const STATO_ACQUISTI_LABEL: Record<StatoAcquisti, string> = {
+  da_acquistare: 'Da acquistare',
+  acquistato: 'Acquistato',
+  ricevuto: 'Ricevuto',
 }
 
-const STATO_INIZIALE_ORDINE = { acquisti: 'da_acquistare', lavorazione_esterna: 'da_ordinare' } satisfies Record<TipoOrdine, StatoOrdine>
-const STATO_FINALE_ORDINE = { acquisti: 'ricevuto', lavorazione_esterna: 'completato' } satisfies Record<TipoOrdine, StatoOrdine>
-
-export function statoInizialeOrdine(tipo: TipoOrdine): StatoOrdine {
-  return STATO_INIZIALE_ORDINE[tipo]
+export function labelStatoAcquisti(stato: string): string {
+  return STATO_ACQUISTI_LABEL[stato as StatoAcquisti] ?? stato
 }
 
-export function labelStatoOrdine(tipo: TipoOrdine, stato: string): string {
-  return STATO_ORDINE_LABEL[tipo][stato] ?? stato
-}
-
-export function coloreOrdine(tipo: TipoOrdine, stato: string): ColoreSemaforo {
-  if (stato === STATO_INIZIALE_ORDINE[tipo]) return 'red'
-  if (stato === STATO_FINALE_ORDINE[tipo]) return 'green'
+export function coloreAcquisti(stato: string): ColoreSemaforo {
+  if (stato === 'da_acquistare') return 'red'
+  if (stato === 'ricevuto') return 'green'
   return 'yellow'
 }
 
-export function azioniPossibiliOrdine(tipo: TipoOrdine, statoAttuale: string): { stato: StatoOrdine; label: string }[] {
-  const [rosso, giallo, verde] = Object.keys(STATO_ORDINE_LABEL[tipo]) as StatoOrdine[]
-  if (statoAttuale === rosso) return [{ stato: giallo, label: `Segna come ${STATO_ORDINE_LABEL[tipo][giallo].toLowerCase()}` }]
-  if (statoAttuale === giallo) return [{ stato: verde, label: `Segna come ${STATO_ORDINE_LABEL[tipo][verde].toLowerCase()}` }]
+export function azioniPossibiliAcquisti(statoAttuale: string): { stato: StatoAcquisti; label: string }[] {
+  if (statoAttuale === 'da_acquistare') return [{ stato: 'acquistato', label: 'Segna come acquistato' }]
+  if (statoAttuale === 'acquistato') return [{ stato: 'ricevuto', label: 'Segna come ricevuto' }]
   return []
-}
-
-export const ACQUISTO_CATEGORIA_LABEL: Record<string, string> = {
-  materiale: 'Materiale',
-  ferramenta: 'Ferramenta',
 }
 
 // --- Costruzione ---
@@ -298,17 +316,18 @@ export function azioniPossibiliCostruzione(statoAttuale: string): { stato: strin
 // --- Gate "pronto per il montaggio" — versione informativa lato client ---
 //
 // Mirror in JS della stessa logica SQL di lavoro_pronto_per_montaggio()
-// (migration 0012/0013/0017): non ricalcola il booleano (quello resta l'unica
-// fonte di verità, riusato così com'è sia in UI sia — soprattutto —
-// server-side in segnaLavoroStato() prima di accettare la transizione a
+// (migration 0012/0013/0017/0022): non ricalcola il booleano (quello resta
+// l'unica fonte di verità, riusato così com'è sia in UI sia — soprattutto —
+// server-side in completaLavoro() prima di accettare la transizione a
 // "completato"), serve solo a derivare QUALI satelliti risultano bloccanti,
 // per mostrare un messaggio "cosa manca" nella UI. Stessi criteri: revisioni
 // superate (non l'ultima della catena) escluse, stato effettivo per
-// preventivo/progetto/campione già risolto dal chiamante tramite
-// lavoro_satellite_stato_effettivo(). Dalla 0017 gli appuntamenti NON sono
-// più esclusi: contano come qualunque altro satellite (verde se
-// concluso=true oppure non_necessario=true, stesso trattamento binario già
-// in uso per noleggio).
+// progetto/campione già risolto dal chiamante tramite
+// lavoro_satellite_stato_effettivo() (il Preventivo non ne fa più parte dalla
+// revisione satelliti del 1/8: usa preventivo_accettato direttamente). Gli
+// appuntamenti contano come qualunque altro satellite (verde solo se
+// concluso=true — non_necessario rimosso, stesso trattamento per noleggio
+// con prenotazione_effettuata).
 export function satellitiBloccantiMontaggio(
   satelliti: Satellite[],
   statoEffettivoById: Record<string, string>,
@@ -318,23 +337,22 @@ export function satellitiBloccantiMontaggio(
   return satelliti.filter((s) => {
     if (superati.has(s.id)) return false
 
+    if (s.tipo === 'preventivo') return !s.preventivo_accettato
+
     const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
     switch (s.tipo) {
-      case 'preventivo':
       case 'progetto':
         return stato !== 'accettato' && stato !== 'non_necessario'
       case 'campione':
         return stato !== 'approvato' && stato !== 'non_necessario'
       case 'acquisti':
         return stato !== 'ricevuto'
-      case 'lavorazione_esterna':
-        return stato !== 'completato'
       case 'costruzione':
         return stato !== 'completata'
       case 'noleggio':
-        return !(s.non_necessario || s.prenotazione_effettuata)
+        return !s.prenotazione_effettuata
       case 'appuntamento':
-        return !(s.concluso || s.non_necessario)
+        return !s.concluso
       default:
         return false
     }
@@ -346,7 +364,6 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   preventivo: 'Preventivo',
   progetto: 'Progetto',
   acquisti: 'Acquisti',
-  lavorazione_esterna: 'Lavorazione esterna',
   campione: 'Campione',
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
@@ -354,33 +371,31 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
 
 // Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
 // serie per il Campione (più catene indipendenti possono essere bloccanti
-// contemporaneamente), la categoria per gli Acquisti quando presente, e il
-// sottotipo specifico per gli Appuntamenti (Briefing/Verifica misure/
-// Montaggio — più istanze dello stesso sottotipo possono essere bloccanti
-// contemporaneamente, l'etichetta generica "Appuntamento" non basterebbe a
-// distinguerle).
+// contemporaneamente), la categoria per gli Acquisti quando presente (ora
+// testo libero, mostrato così com'è), e il sottotipo specifico per gli
+// Appuntamenti (Briefing/Verifica misure/Montaggio — più istanze dello
+// stesso sottotipo possono essere bloccanti contemporaneamente, l'etichetta
+// generica "Appuntamento" non basterebbe a distinguerle).
 export function satelliteTipoLabelBreve(s: Satellite): string {
   if (s.tipo === 'appuntamento' && s.tipo_appuntamento) return SOTTOTIPO_APPUNTAMENTO_LABEL[s.tipo_appuntamento]
   const base = TIPO_SATELLITE_LABEL_BREVE[s.tipo] ?? s.tipo
   if (s.tipo === 'campione' && s.serie) return `${base} (${s.serie})`
-  if (s.tipo === 'acquisti' && s.acquisto_categoria) return `${base} (${ACQUISTO_CATEGORIA_LABEL[s.acquisto_categoria]})`
+  if (s.tipo === 'acquisti' && s.acquisto_categoria) return `${base} (${s.acquisto_categoria})`
   return base
 }
 
 // --- Etichette di stato per i tipi a semaforo binario (nessuna colonna
-// `stato` testuale: appuntamento usa concluso/non_necessario, noleggio usa
-// prenotazione_effettuata/non_necessario) — servono per la colonna STATO
-// della tabella riepilogativa satelliti nel dettaglio Lavoro.
-export function labelStatoAppuntamento(concluso: boolean, nonNecessario: boolean): string {
-  if (concluso) return 'Concluso'
-  if (nonNecessario) return 'Non necessario'
-  return 'Da fare'
+// `stato` testuale: appuntamento usa concluso, noleggio usa
+// prenotazione_effettuata) — servono per la colonna STATO della tabella
+// riepilogativa satelliti nel dettaglio Lavoro. "Non necessario" rimosso
+// dalla revisione satelliti del 1/8 (0 righe lo usavano): se un'attività non
+// serve, semplicemente non si crea.
+export function labelStatoAppuntamento(concluso: boolean): string {
+  return concluso ? 'Concluso' : 'Da fare'
 }
 
-export function labelStatoNoleggio(prenotazioneEffettuata: boolean, nonNecessario: boolean): string {
-  if (prenotazioneEffettuata) return 'Prenotato'
-  if (nonNecessario) return 'Non necessario'
-  return 'Da prenotare'
+export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
+  return prenotazioneEffettuata ? 'Prenotato' : 'Da prenotare'
 }
 
 export function raggruppaPerSerie(satelliti: Satellite[]): { serie: string; satelliti: Satellite[] }[] {
