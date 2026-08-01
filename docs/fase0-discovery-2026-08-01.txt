@@ -1,0 +1,165 @@
+Districo — Revisione satelliti: FASE 0 (discovery, sola lettura)
+Data: 2026-08-01
+Branch: feature/revisione-satelliti
+
+Metodo: nessuna connection string Postgres diretta salvata in locale (coerente
+con CLAUDE.md). Introspezione fatta contro Supabase Cloud (produzione) via
+endpoint OpenAPI di PostgREST (Accept: application/openapi+json) con la
+service role key già presente in .env.local, più conteggi riga per riga via
+REST (Prefer: count=exact). Nessuna scrittura eseguita.
+
+==========================================================
+1) MODELLO SATELLITI OGGI
+==========================================================
+
+Tabella UNICA `lavoro_satellite` con campo `tipo` (non una tabella per tipo).
+76 righe totali su 12 Lavori, ripartite così:
+
+  tipo                  righe
+  --------------------  -----
+  appuntamento          22
+  preventivo            12
+  progetto              11
+  campione               10
+  costruzione             6
+  acquisti                5
+  lavorazione_esterna     5
+  noleggio                5
+  --------------------  -----
+  TOTALE                 76
+
+Colonne di `lavoro_satellite` (unione di tutti i tipi, molte nullable perché
+condivise tra tipi diversi):
+
+  id                          uuid, PK
+  lavoro_id                   uuid, FK -> lavoro.id, NOT NULL
+  tipo                        text, NOT NULL
+  stato                       text, nullable
+  descrizione                 text, nullable
+  tipo_appuntamento           text, nullable
+  revisione_di                uuid, FK -> lavoro_satellite.id, nullable
+  valore_complessivo          numeric, nullable
+  fornitore_sede_id           uuid, FK -> fornitore_sede.id, nullable
+  descrizione_libera          text, nullable
+  data_creazione               timestamptz, NOT NULL, default now()
+  data_ultimo_cambio_stato     timestamptz, NOT NULL, default now()
+  data_appuntamento           timestamptz, nullable
+  concluso                    boolean, NOT NULL, default false
+  non_necessario               boolean, NOT NULL, default false
+  serie                       text, nullable
+  acquisto_categoria          text, nullable
+  data_invio_ordine           timestamptz, nullable
+  contatto_invio_id           uuid, FK -> fornitore_sede_contatto.id, nullable
+  data_inizio                  timestamptz, nullable
+  data_fine                    timestamptz, nullable
+  prenotazione_effettuata      boolean, NOT NULL, default false
+  data_da                     timestamptz, nullable
+  data_a                      timestamptz, nullable
+  costo                       numeric, nullable
+  data_presentazione          timestamptz, nullable
+
+Tabelle satellite figlie:
+  lavoro_satellite_allegato   14 righe  (id, satellite_id FK, nome_file,
+                                          storage_path, data_caricamento)
+  lavoro_satellite_articolo    0 righe  (id, satellite_id FK, articolo_id FK
+                                          nullable, descrizione, colore_finitura,
+                                          quantita, created_at)
+
+==========================================================
+2) "LAVORAZIONE ESTERNA"
+==========================================================
+
+NON è una tabella dedicata. È già `lavoro_satellite.tipo = 'lavorazione_esterna'`,
+con 5 righe esistenti in produzione.
+
+IMPORTANTE — non corrisponde al modello richiesto nel prompt originale
+("categoria dentro l'attività Acquisto"): oggi `acquisti` e
+`lavorazione_esterna` sono due `tipo` satellite DISTINTI E PARALLELI (5 righe
+ciascuno), non uno annidato nell'altro. Serve una decisione esplicita
+dell'utente su come trattare le 5 righe esistenti se si vuole fonderli in
+un'unica categoria dentro Acquisto.
+
+==========================================================
+3) FASE_TEMPLATE / LAVORO_FASI
+==========================================================
+
+Esistono ancora nello schema, ENTRAMBE A 0 RIGHE in produzione (coerente con
+CLAUDE.md: rimosse dalla UI il 18/7/2026, mai droppate dallo schema). Nessuna
+FK esterna le referenzia (solo self-FK interne). Per istruzione esplicita
+dell'utente, NON toccate senza conferma — nessun DROP eseguito.
+
+Trovate anche altre due/tre tabelle "morte" non menzionate nel prompt
+originale, stesso pattern (schema iniziale 0001, mai ripulito, 0 righe,
+nessun uso applicativo secondo CLAUDE.md):
+
+  ordine_acquisto         0 righe
+  ordine_acquisto_riga    0 righe
+  categoria_acquisto      0 righe
+  artigiano_fornitore_categoria   0 righe (non in CLAUDE.md, motivo ignoto)
+  artigiano_fornitore_nota        0 righe (non in CLAUDE.md, motivo ignoto)
+
+Segnalate solo per trasparenza. Nessuna azione presa.
+
+==========================================================
+4) PREVENTIVO E ALLEGATO
+==========================================================
+
+--- Allegato (repository generale a livello Lavoro, non satellite) ---
+Schema confermato ESATTAMENTE come atteso dal prompt:
+  id, lavoro_id, tipo, nome_file, storage_path, data_caricamento, note
+0 righe (nessuna UI l'ha mai popolata, coerente con CLAUDE.md: "rimandata dal
+18/7, mai più ripresa").
+
+--- Preventivo ---
+*** DISCREPANZA REALE CON LA FASE 1 PUNTO 3 DEL PROMPT — BLOCCANTE ***
+
+Non è modellato con due flag booleani accettato/rifiutato. È
+`lavoro_satellite` con tipo='preventivo' e un campo `stato` (testo) a 5
+valori possibili, vincolati da check constraint (migration 0012):
+
+  in_preparazione -> presentato -> necessaria_revisione -> accettato
+                                                          -> non_necessario
+
+Non esiste alcuno stato "rifiutato" per il Preventivo, né due colonne
+booleane indipendenti accettato/rifiutato.
+
+Opzioni presentate all'utente (in attesa di risposta, nessuna scelta fatta
+autonomamente):
+
+  (a) Derivare lavoro.stato solo da preventivo.stato = 'accettato' (o
+      'non_necessario') -> lavoro.stato='accettato'; nessun trigger di
+      "rifiuto" automatico (il rifiuto del Lavoro resta una transizione
+      manuale come oggi, dato che il Preventivo non ha un concetto di
+      "rifiutato").
+  (b) Aggiungere davvero due nuove colonne booleane accettato/rifiutato al
+      satellite Preventivo (ridondanti rispetto a stato, comportamento
+      radio-button come richiesto nel prompt), sostituendo o affiancando
+      l'attuale campo stato — cambio di modello non banale, tocca
+      gate/dashboard/UI già esistenti e documentati estesamente in CLAUDE.md
+      (Sprint A-D).
+  (c) Altro, da definire con l'utente.
+
+==========================================================
+DATI GREZZI DI SUPPORTO
+==========================================================
+
+Tabelle presenti nello schema public esposto via PostgREST (23 totali):
+allegato, articolo, artigiano, artigiano_fornitore_categoria,
+artigiano_fornitore_nota, attivita, categoria_acquisto, cliente,
+fase_template, fornitore, fornitore_sede, fornitore_sede_contatto, lavoro,
+lavoro_artigiani, lavoro_fasi, lavoro_satellite, lavoro_satellite_allegato,
+lavoro_satellite_articolo, ordine_acquisto, ordine_acquisto_riga, pagamento,
+sla_attivita, specializzazione.
+
+Conteggi aggiuntivi di controllo:
+  lavoro                12 righe
+  cliente                10 righe
+  fornitore               3 righe
+  articolo                0 righe
+
+Schema lavoro (per riferimento, colonne rilevanti al gate stato):
+  id, cliente_id, titolo, descrizione, stato (default 'opportunita'),
+  accettato_at, created_at, indirizzo, civico, cap, citta, sigla_provincia,
+  nazione, tracking, data_lavoro, prima_accettazione_at, completato_at
+
+  lavoro.stato check: opportunita | accettato | rifiutato | completato
