@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { avanzaStatoOrdine } from '@/lib/lavori/satelliti'
 import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-email'
+import { formattaValuta } from '@/lib/formato-valuta'
 import {
   DOT_COLOR,
   azioniPossibiliAcquisti,
@@ -98,7 +99,7 @@ export function SatelliteOrdine({
       )}
 
       {satellite.valore_complessivo != null && (
-        <p className="mb-2 text-sm text-gray-700">€ {satellite.valore_complessivo.toFixed(2)}</p>
+        <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
       )}
 
       {satellite.data_invio_ordine && (

@@ -8,6 +8,7 @@ import {
   impostaStatoRevisionabile,
 } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
+import { formattaValuta } from '@/lib/formato-valuta'
 import {
   DOT_COLOR,
   azioniPossibiliRevisionabile,
@@ -146,7 +147,7 @@ export function RevisionabileChain({
           </div>
         )}
         {mostraValore && !isOwner && corrente.valore_complessivo != null && (
-          <p className="mb-2 text-sm text-gray-700">€ {corrente.valore_complessivo.toFixed(2)}</p>
+          <p className="mb-2 text-sm text-gray-700">{formattaValuta(corrente.valore_complessivo)}</p>
         )}
 
         {mostraDescrizione && isOwner && (

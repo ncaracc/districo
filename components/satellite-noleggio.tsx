@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaNoleggio } from '@/lib/lavori/satelliti'
 import type { Satellite } from '@/lib/lavori/satelliti-meta'
+import { formattaValuta } from '@/lib/formato-valuta'
 
 function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
@@ -113,7 +114,7 @@ export function SatelliteNoleggio({
               {satellite.data_a ? new Date(satellite.data_a).toLocaleDateString('it-IT') : '—'}
             </p>
           )}
-          {satellite.costo != null && <p>€ {satellite.costo.toFixed(2)}</p>}
+          {satellite.costo != null && <p>{formattaValuta(satellite.costo)}</p>}
         </div>
       )}
     </div>

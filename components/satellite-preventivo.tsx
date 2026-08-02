@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { aggiornaValorePreventivo, impostaPreventivoDecisione } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
 import { DOT_COLOR, colorePreventivo, labelStatoPreventivo, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
+import { formattaValuta } from '@/lib/formato-valuta'
 
 function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
@@ -101,7 +102,7 @@ export function SatellitePreventivo({
             </button>
           </div>
         ) : (
-          corrente.valore_complessivo != null && <p className="mb-2 text-sm text-gray-700">€ {corrente.valore_complessivo.toFixed(2)}</p>
+          corrente.valore_complessivo != null && <p className="mb-2 text-sm text-gray-700">{formattaValuta(corrente.valore_complessivo)}</p>
         )}
 
         <SatelliteAllegati satelliteId={corrente.id} lavoroId={lavoroId} allegati={allegatiById[corrente.id] ?? []} isOwner={isOwner} />

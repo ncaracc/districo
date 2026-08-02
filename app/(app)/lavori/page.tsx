@@ -5,6 +5,7 @@ import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { KpiDurateDashboard } from '@/components/kpi-durate-dashboard'
 import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
 import { IconaCalendario } from '@/components/icons'
+import { formattaValuta } from '@/lib/formato-valuta'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const STATO_LABEL: Record<string, string> = {
@@ -190,7 +191,7 @@ export default async function LavoriPage() {
                     </td>
                     <td className="p-0">
                       <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-right text-gray-700 transition-colors group-hover:bg-gray-50">
-                        {l.valore_preventivo_accettato != null ? `€ ${l.valore_preventivo_accettato.toFixed(2)}` : '—'}
+                        {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
                       </Link>
                     </td>
                     <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
