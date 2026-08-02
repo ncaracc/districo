@@ -120,7 +120,7 @@ export function SatellitePreventivo({
                   setDecisione(
                     e.target.checked,
                     'accettato',
-                    'Segnare il preventivo come accettato? Il lavoro passerà allo stato "Accettato" e verranno create le attività di esecuzione.',
+                    'Segnare il preventivo come accettato? Il lavoro passerà allo stato "Accettato".',
                     "Annullare l'accettazione del preventivo? Lo stato del lavoro non tornerà automaticamente indietro.",
                   )
                 }
