@@ -89,6 +89,8 @@ export function SatelliteOrdine({
         <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.stato ?? '')}</span>
       </div>
 
+      <p className="mb-1 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
+
       {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
 
       {righe.length > 0 && (
