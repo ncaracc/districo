@@ -166,13 +166,22 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(s.concluso, s.data_appuntamento),
       statoLabel: labelStatoAppuntamento(s.concluso, s.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.briefing,
-      contenuto: (
+      contenutoModifica: (
         <SatelliteAppuntamento
           satellite={s}
           lavoroId={lavoro.id}
           titolo={nome}
           allegati={allegatiById[s.id] ?? []}
           isOwner={isOwnerEffettivo}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteAppuntamento
+          satellite={s}
+          lavoroId={lavoro.id}
+          titolo={nome}
+          allegati={allegatiById[s.id] ?? []}
+          isOwner={false}
         />
       ),
     })
@@ -190,11 +199,19 @@ export default async function LavoroDettaglioPage({
       colore: coloreProgetto(corrente.progetto_accettato, haAllegati),
       statoLabel: labelStatoProgetto(corrente.progetto_accettato, haAllegati),
       posizione: POSIZIONE_ATTIVITA.progetto,
-      contenuto: (
+      contenutoModifica: (
         <SatelliteProgetto
           satellite={corrente}
           allegati={allegatiById[corrente.id] ?? []}
           isOwner={isOwnerEffettivo}
+          lavoroId={lavoro.id}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteProgetto
+          satellite={corrente}
+          allegati={allegatiById[corrente.id] ?? []}
+          isOwner={false}
           lavoroId={lavoro.id}
         />
       ),
@@ -210,8 +227,11 @@ export default async function LavoroDettaglioPage({
       colore: colorePreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
       statoLabel: labelStatoPreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
       posizione: POSIZIONE_ATTIVITA.preventivo,
-      contenuto: (
+      contenutoModifica: (
         <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
+      ),
+      contenutoLettura: (
+        <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={false} lavoroId={lavoro.id} />
       ),
     })
   }
@@ -226,7 +246,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreRevisionabile('campione', statoEff),
       statoLabel: labelStatoRevisionabile('campione', statoEff),
       posizione: POSIZIONE_ATTIVITA.campionatura,
-      contenuto: (
+      contenutoModifica: (
         <RevisionabileChain
           tipo="campione"
           titolo={g.serie}
@@ -234,6 +254,19 @@ export default async function LavoroDettaglioPage({
           statoEffettivoById={statoEffettivoById}
           allegatiById={allegatiById}
           isOwner={isOwnerEffettivo}
+          lavoroId={lavoro.id}
+          mostraDescrizione
+          storicoConStatoReale
+        />
+      ),
+      contenutoLettura: (
+        <RevisionabileChain
+          tipo="campione"
+          titolo={g.serie}
+          catena={catena}
+          statoEffettivoById={statoEffettivoById}
+          allegatiById={allegatiById}
+          isOwner={false}
           lavoroId={lavoro.id}
           mostraDescrizione
           storicoConStatoReale
@@ -250,13 +283,22 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
       statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.verifica_misure,
-      contenuto: (
+      contenutoModifica: (
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
           titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={isOwnerEffettivo}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteAppuntamento
+          satellite={a}
+          lavoroId={lavoro.id}
+          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
+          allegati={allegatiById[a.id] ?? []}
+          isOwner={false}
         />
       ),
     })
@@ -271,7 +313,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreAcquisti(s.stato ?? ''),
       statoLabel: labelStatoAcquisti(s.stato ?? ''),
       posizione: POSIZIONE_ATTIVITA.acquisto,
-      contenuto: (
+      contenutoModifica: (
         <SatelliteOrdine
           satellite={s}
           righe={righePerSatellite[s.id] ?? []}
@@ -279,6 +321,16 @@ export default async function LavoroDettaglioPage({
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
           lavoroId={lavoro.id}
           isOwner={isOwnerEffettivo}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteOrdine
+          satellite={s}
+          righe={righePerSatellite[s.id] ?? []}
+          allegati={allegatiById[s.id] ?? []}
+          fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          lavoroId={lavoro.id}
+          isOwner={false}
         />
       ),
     })
@@ -293,7 +345,8 @@ export default async function LavoroDettaglioPage({
       colore: coloreCostruzione(stato),
       statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
       posizione: POSIZIONE_ATTIVITA.costruzione,
-      contenuto: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
+      contenutoModifica: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
+      contenutoLettura: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={false} />,
     })
   })
 
@@ -305,7 +358,8 @@ export default async function LavoroDettaglioPage({
       colore: s.prenotazione_effettuata ? 'green' : 'red',
       statoLabel: labelStatoNoleggio(s.prenotazione_effettuata),
       posizione: POSIZIONE_ATTIVITA.noleggio,
-      contenuto: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
+      contenutoModifica: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
+      contenutoLettura: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={false} />,
     })
   })
 
@@ -317,13 +371,22 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
       statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.montaggio,
-      contenuto: (
+      contenutoModifica: (
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
           titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={isOwnerEffettivo}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteAppuntamento
+          satellite={a}
+          lavoroId={lavoro.id}
+          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
+          allegati={allegatiById[a.id] ?? []}
+          isOwner={false}
         />
       ),
     })

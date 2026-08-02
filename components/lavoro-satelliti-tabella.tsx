@@ -1,6 +1,6 @@
 'use client'
 
-import { cloneElement, isValidElement, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
 import { IconaCestino, IconaMatita } from '@/components/icons'
@@ -27,7 +27,23 @@ export type RigaSatellite = {
   nome: string
   colore: ColoreSemaforo
   statoLabel: string
-  contenuto: ReactNode
+  // Due varianti pre-costruite server-side invece di una sola con un
+  // successivo tentativo di override client-side dell'isOwner via
+  // cloneElement (fix UX 2026-08-02 -> bug scoperto nello Sprint C, 2/8):
+  // cloneElement/isValidElement su un elemento React passato da un Server
+  // Component a un Client Component non sono affidabili — a seconda di come
+  // Next.js serializza quello specifico riferimento a Client Component
+  // attraverso il confine RSC, l'elemento può arrivare già "risolto" (clone
+  // funziona) o ancora avvolto in un riferimento lazy non ancora risolto
+  // (isValidElement torna false, l'override viene silenziosamente ignorato)
+  // — verificato che il comportamento diverga *tra tipi di satellite diversi
+  // nella stessa pagina* (Appuntamento/Progetto funzionavano, Preventivo no),
+  // quindi non è un problema di uno specifico componente ma della tecnica in
+  // sé. Costruire entrambe le varianti lato server elimina il problema alla
+  // radice: nessun override a runtime, solo una scelta tra due elementi già
+  // completamente validi.
+  contenutoModifica: ReactNode
+  contenutoLettura: ReactNode
 }
 
 function inputClass() {
@@ -101,18 +117,10 @@ export function LavoroSatelliteTabella({
 
   const rigaAperta = righe.find((r) => r.satelliteId === apertoSatelliteId) ?? null
 
-  // Il contenuto di ogni riga arriva già pre-costruito da page.tsx con un
-  // isOwner fisso (isOwnerEffettivo: già false per ospiti o Lavoro
-  // completato, invariato in quei casi). Qui lo forziamo ulteriormente a
-  // false quando la modale è stata aperta dal nome — senza toccare i singoli
-  // componenti satellite, che già sanno rendersi in sola lettura quando
-  // isOwner è false (stesso branch già usato per il ruolo ospite).
-  const contenutoDaMostrare =
-    rigaAperta && isValidElement<{ isOwner: boolean }>(rigaAperta.contenuto)
-      ? cloneElement(rigaAperta.contenuto, {
-          isOwner: rigaAperta.contenuto.props.isOwner && !apertaInSolaLettura,
-        })
-      : rigaAperta?.contenuto
+  // page.tsx costruisce entrambe le varianti (già con isOwner corretto
+  // ciascuna, incluso il caso ospite/Lavoro completato dove sono identiche):
+  // qui si sceglie solo quale mostrare, nessun override a runtime.
+  const contenutoDaMostrare = rigaAperta && (apertaInSolaLettura ? rigaAperta.contenutoLettura : rigaAperta.contenutoModifica)
 
   async function handleElimina(riga: RigaSatellite) {
     if (!confirm('Eliminare definitivamente questa attività? L\'azione non è reversibile.')) return
