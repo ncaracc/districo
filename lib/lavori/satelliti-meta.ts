@@ -16,10 +16,16 @@ export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string>
 }
 
 // Preventivo non fa più parte di questo gruppo dalla revisione satelliti del
-// 1/8: usa un modello a due flag booleani indipendenti (vedi colorePreventivo/
-// labelStatoPreventivo/azioniPossibiliPreventivo più sotto), non più il vecchio
-// stato a 5 valori condiviso con Progetto/Campione.
-export type TipoRevisionabile = 'progetto' | 'campione'
+// 1/8 (modello a due flag booleani, vedi colorePreventivo/labelStatoPreventivo/
+// azioniPossibiliPreventivo più sotto). Progetto non ne fa più parte dallo
+// Sprint C (documenti) del 2/8: modello a singolo flag progetto_accettato +
+// semaforo derivato dagli allegati caricati, vedi coloreProgetto/
+// labelStatoProgetto più sotto — non più il vecchio stato a 5 valori. Resta
+// solo Campione sul vecchio modello: il tipo è ridotto a un solo membro
+// (invece di rimuovere l'astrazione, per non escludere un cambio analogo per
+// Campione in un prossimo sprint) — i rami `tipo === 'progetto'` nelle
+// funzioni sotto restano temporaneamente come codice morto innocuo.
+export type TipoRevisionabile = 'campione'
 
 export type StatoRevisionabile =
   | 'in_preparazione'
@@ -56,6 +62,7 @@ export type Satellite = {
   costo: number | null
   preventivo_accettato: boolean
   preventivo_rifiutato: boolean
+  progetto_accettato: boolean
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -248,6 +255,24 @@ export function labelStatoPreventivo(accettato: boolean, rifiutato: boolean, val
   return 'In attesa'
 }
 
+// --- Progetto ---
+// Sprint C (documenti) 2026-08-02: singolo flag booleano progetto_accettato,
+// non più il vecchio stato a 5 valori condiviso con Campione (vedi
+// TipoRevisionabile più sopra). Semaforo derivato dagli allegati caricati
+// invece che da transizioni manuali — stessa priorità di colorePreventivo
+// (accettato sempre verde, indipendentemente dagli allegati).
+export function coloreProgetto(accettato: boolean, haAllegati: boolean): ColoreSemaforo {
+  if (accettato) return 'green'
+  if (!haAllegati) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoProgetto(accettato: boolean, haAllegati: boolean): string {
+  if (accettato) return 'Accettato'
+  if (!haAllegati) return 'Nessun allegato'
+  return 'In attesa'
+}
+
 // Ricostruisce la catena di revisioni (root -> ultima) a partire da un insieme piatto
 // di satelliti che condividono la stessa catena (stesso tipo, o stessa serie per campione).
 export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
@@ -339,11 +364,10 @@ export function satellitiBloccantiMontaggio(
     if (superati.has(s.id)) return false
 
     if (s.tipo === 'preventivo') return !s.preventivo_accettato
+    if (s.tipo === 'progetto') return !s.progetto_accettato
 
     const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
     switch (s.tipo) {
-      case 'progetto':
-        return stato !== 'accettato' && stato !== 'non_necessario'
       case 'campione':
         return stato !== 'approvato' && stato !== 'non_necessario'
       case 'acquisti':

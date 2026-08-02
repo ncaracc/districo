@@ -65,13 +65,26 @@ export async function caricaAllegatiSatellite(
     return { ok: false, error: 'Nessun file selezionato' }
   }
 
-  // Etichetta facoltativa lato server: solo il flusso Appuntamento (Briefing/
-  // Verifica misure/Montaggio) la raccoglie e la richiede obbligatoria lato
-  // client per ora (vedi CLAUDE.md) — gli altri satelliti con allegati
-  // (Preventivo/Progetto/Campione) non hanno ancora quel campo in UI
-  // (arriverà nello Sprint C), quindi qui si ricade sul nome del file perché
-  // la colonna è NOT NULL a schema.
+  // Etichetta facoltativa lato server: il flusso a modale (Appuntamento,
+  // Progetto, Acquisto dallo Sprint C) la raccoglie e la richiede
+  // obbligatoria lato client — Preventivo/Campione restano sul vecchio
+  // flusso inline, quindi qui si ricade sul nome del file perché la
+  // colonna è NOT NULL a schema.
   const etichettaCondivisa = (formData.get('etichetta') as string | null)?.trim() || null
+
+  // Progetto (Sprint C, 2/8): il primo allegato caricato è il momento
+  // analogo alla vecchia transizione manuale a "presentato" — stesso
+  // principio già seguito per il Preventivo quando è passato al modello a
+  // due flag (il primo valore inserito vale come "presentazione"), per non
+  // perdere il dato storico usato dal KPI "tempo di progetto". Letto prima
+  // di scrivere: il client Supabase non supporta coalesce(colonna, now())
+  // diretto nel payload di un update().
+  const { data: satelliteInfo } = await supabase
+    .from('lavoro_satellite')
+    .select('tipo, data_presentazione')
+    .eq('id', satelliteId)
+    .maybeSingle()
+  const impostaDataPresentazioneProgetto = satelliteInfo?.tipo === 'progetto' && !satelliteInfo.data_presentazione
 
   const cartella = path.join(UPLOADS_DIR, 'lavori', lavoroId, satelliteId)
   await fs.mkdir(cartella, { recursive: true })
@@ -107,6 +120,15 @@ export async function caricaAllegatiSatellite(
       await fs.unlink(percorsoAssoluto).catch(() => {})
       return { ok: false, error: `Errore imprevisto sul file "${f.name}": ${err instanceof Error ? err.message : String(err)}` }
     }
+  }
+
+  if (impostaDataPresentazioneProgetto) {
+    await supabase
+      .from('lavoro_satellite')
+      .update({ data_presentazione: new Date().toISOString() })
+      .eq('id', satelliteId)
+    // Nessun controllo errore bloccante: è un dato per il KPI, non deve far
+    // fallire un upload altrimenti riuscito.
   }
 
   revalidatePath(`/lavori/${lavoroId}`)

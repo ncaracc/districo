@@ -250,10 +250,10 @@ export type Database = {
         Row: {
           id: string; lavoro_id: string
           tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio'
-          // Per tipo='preventivo' questa colonna è legacy: non più letta/scritta
-          // dall'app dalla revisione satelliti del 1/8, sostituita da
-          // preventivo_accettato/preventivo_rifiutato. Resta nello schema perché
-          // condivisa con progetto/campione/acquisti/costruzione.
+          // Per tipo='preventivo' (dal 1/8) e tipo='progetto' (dal 2/8) questa
+          // colonna è legacy: non più letta/scritta dall'app, sostituita da
+          // preventivo_accettato/preventivo_rifiutato e progetto_accettato.
+          // Resta nello schema perché condivisa con campione/acquisti/costruzione.
           stato: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
@@ -273,6 +273,7 @@ export type Database = {
           prenotazione_effettuata: boolean; data_da: string | null; data_a: string | null; costo: number | null
           data_presentazione: string | null
           preventivo_accettato: boolean; preventivo_rifiutato: boolean
+          progetto_accettato: boolean
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
@@ -295,6 +296,7 @@ export type Database = {
           prenotazione_effettuata?: boolean; data_da?: string | null; data_a?: string | null; costo?: number | null
           data_presentazione?: string | null
           preventivo_accettato?: boolean; preventivo_rifiutato?: boolean
+          progetto_accettato?: boolean
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

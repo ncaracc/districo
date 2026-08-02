@@ -8,6 +8,7 @@ import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { RevisionabileChain } from '@/components/satellite-revisionabile'
 import { SatellitePreventivo } from '@/components/satellite-preventivo'
+import { SatelliteProgetto } from '@/components/satellite-progetto'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
@@ -20,11 +21,13 @@ import {
   coloreAppuntamento,
   coloreCostruzione,
   colorePreventivo,
+  coloreProgetto,
   coloreRevisionabile,
   labelStatoAcquisti,
   labelStatoAppuntamento,
   labelStatoNoleggio,
   labelStatoPreventivo,
+  labelStatoProgetto,
   labelStatoRevisionabile,
   raggruppaPerSerie,
   satelliteTipoLabelBreve,
@@ -176,22 +179,21 @@ export default async function LavoroDettaglioPage({
   })
 
   if (progettoSatelliti.length > 0) {
-    const catena = [...costruisciCatena(progettoSatelliti)].reverse()
-    const corrente = catena[0]
-    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
+    // Non più una catena di revisioni dallo Sprint C (2/8): un solo
+    // satellite per Lavoro (non ripetibile, "Aggiungi attività" lo propone
+    // solo se assente) — si prende direttamente, nessun costruisciCatena.
+    const corrente = progettoSatelliti[0]
+    const haAllegati = (allegatiById[corrente.id] ?? []).length > 0
     righeTabella.push({
       satelliteId: corrente.id,
       nome: 'Progetto',
-      colore: coloreRevisionabile('progetto', statoEff),
-      statoLabel: labelStatoRevisionabile('progetto', statoEff),
+      colore: coloreProgetto(corrente.progetto_accettato, haAllegati),
+      statoLabel: labelStatoProgetto(corrente.progetto_accettato, haAllegati),
       posizione: POSIZIONE_ATTIVITA.progetto,
       contenuto: (
-        <RevisionabileChain
-          tipo="progetto"
-          titolo="Progetto"
-          catena={catena}
-          statoEffettivoById={statoEffettivoById}
-          allegatiById={allegatiById}
+        <SatelliteProgetto
+          satellite={corrente}
+          allegati={allegatiById[corrente.id] ?? []}
           isOwner={isOwnerEffettivo}
           lavoroId={lavoro.id}
         />

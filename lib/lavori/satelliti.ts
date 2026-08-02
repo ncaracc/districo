@@ -79,6 +79,11 @@ export async function creaAppuntamento(
 // (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md): non essendo ripetibile,
 // "Aggiungi attività" lo propone finché non esiste già una catena per questo
 // Lavoro (il chiamante verifica l'assenza prima di invocare questa azione).
+// Progetto non scrive più `stato` dallo Sprint C (documenti) del 2/8:
+// modello a flag progetto_accettato (default false a schema), semaforo
+// derivato dagli allegati caricati — stesso principio già seguito da
+// creaPreventivo() (nessuno stato/flag da impostare al momento della
+// creazione, parte sempre dai default a schema).
 export async function creaProgetto(lavoroId: string): Promise<CreazioneResult> {
   const supabase = await createClient()
 
@@ -87,7 +92,7 @@ export async function creaProgetto(lavoroId: string): Promise<CreazioneResult> {
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
-    .insert({ lavoro_id: lavoroId, tipo: 'progetto', stato: 'in_preparazione' })
+    .insert({ lavoro_id: lavoroId, tipo: 'progetto' })
     .select('id')
     .single()
 
@@ -101,13 +106,35 @@ export async function creaProgetto(lavoroId: string): Promise<CreazioneResult> {
   return { ok: true, id: data.id }
 }
 
-// Imposta lo stato di un satellite "revisionabile" (progetto/campione — il
-// Preventivo non ne fa più parte dalla revisione satelliti del 1/8, vedi
-// impostaPreventivoDecisione più sotto). Se il nuovo stato è quello che
-// richiede una nuova revisione (necessaria_revisione per progetto,
-// necessario_nuovo_campione per campione), crea prima la nuova riga
-// collegata via revisione_di (stato iniziale in_preparazione, stessa serie se campione),
-// poi aggiorna la riga corrente — se l'aggiornamento fallisse, la nuova riga appena creata
+// Flag "Accettato" del Progetto (Sprint C, 2/8): a differenza del
+// Preventivo, non ha alcun effetto su lavoro.stato — resta indipendente dal
+// gate, che dipende solo dal Preventivo (verificato esplicitamente: questa
+// funzione tocca solo la riga lavoro_satellite, mai la tabella lavoro).
+export async function impostaProgettoAccettato(satelliteId: string, lavoroId: string, accettato: boolean): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase.from('lavoro_satellite').update({ progetto_accettato: accettato }).eq('id', satelliteId)
+
+  if (error) {
+    console.error('impostaProgettoAccettato: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Imposta lo stato di un satellite "revisionabile" (solo Campione dallo
+// Sprint C del 2/8 — Preventivo dal 1/8, Progetto dal 2/8 hanno lasciato
+// questo modello, vedi impostaPreventivoDecisione/impostaProgettoAccettato
+// più sotto). Se il nuovo stato è quello che richiede una nuova revisione
+// (necessario_nuovo_campione), crea prima la nuova riga collegata via
+// revisione_di (stato iniziale in_preparazione, stessa serie), poi aggiorna
+// la riga corrente — se l'aggiornamento fallisse, la nuova riga appena creata
 // viene rimossa (stesso principio di rollback già in uso in creaLavoro/creaSatellite).
 export async function impostaStatoRevisionabile(
   satelliteId: string,
@@ -150,28 +177,7 @@ export async function impostaStatoRevisionabile(
       return { ok: false, error: 'Errore nel salvataggio, riprova' }
     }
   } else {
-    const updatePayload: { stato: StatoRevisionabile; data_presentazione?: string } = { stato: nuovoStato }
-
-    // data_presentazione: valorizzata una sola volta, alla prima transizione a
-    // "presentato" per Progetto — mai più sovrascritta da transizioni
-    // successive sulla stessa riga (es. necessaria_revisione, "Annulla
-    // accettazione" che riporta da accettato a presentato), per non perdere
-    // il dato storico usato dal KPI "tempo di progetto" (vedi CLAUDE.md,
-    // diagnosi del 26/7). Letta prima di scrivere: il client Supabase non
-    // supporta coalesce(colonna, now()) diretto nel payload di update.
-    if (tipo === 'progetto' && nuovoStato === 'presentato') {
-      const { data: corrente } = await supabase
-        .from('lavoro_satellite')
-        .select('data_presentazione')
-        .eq('id', satelliteId)
-        .maybeSingle()
-
-      if (corrente && !corrente.data_presentazione) {
-        updatePayload.data_presentazione = new Date().toISOString()
-      }
-    }
-
-    const { error } = await supabase.from('lavoro_satellite').update(updatePayload).eq('id', satelliteId)
+    const { error } = await supabase.from('lavoro_satellite').update({ stato: nuovoStato }).eq('id', satelliteId)
 
     if (error) {
       console.error('impostaStatoRevisionabile: aggiornamento stato fallito', error)
