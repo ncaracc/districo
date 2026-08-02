@@ -363,8 +363,8 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   appuntamento: 'Appuntamento',
   preventivo: 'Preventivo',
   progetto: 'Progetto',
-  acquisti: 'Acquisti',
-  campione: 'Campione',
+  acquisti: 'Acquisto',
+  campione: 'Campionatura',
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
 }
