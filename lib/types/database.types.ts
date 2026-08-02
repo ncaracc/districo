@@ -341,13 +341,13 @@ export type Database = {
           ha_appuntamento_scaduto: boolean
         }[]
       }
-      kpi_durate: {
+      kpi_dashboard: {
         Args: Record<string, never>
         Returns: {
-          tempo_preventivazione_giorni: number | null; tempo_preventivazione_campione: number
-          tempo_progetto_giorni: number | null; tempo_progetto_campione: number
-          tempo_produzione_giorni: number | null; tempo_produzione_campione: number
-          tempo_montaggio_giorni: number | null; tempo_montaggio_campione: number
+          lavori_in_corso: number
+          importo_lavori_accettati: number
+          tempo_preventivo_giorni: number | null; tempo_preventivo_campione: number
+          tempo_completamento_giorni: number | null; tempo_completamento_campione: number
         }[]
       }
       imposta_sede_preferita: { Args: { p_fornitore_id: string; p_sede_id: string }; Returns: undefined }

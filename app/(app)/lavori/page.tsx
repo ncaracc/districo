@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
-import { KpiDurateDashboard } from '@/components/kpi-durate-dashboard'
+import { KpiDashboardCards } from '@/components/kpi-dashboard'
 import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
 import { IconaCalendario } from '@/components/icons'
 import { formattaValuta } from '@/lib/formato-valuta'
@@ -77,14 +77,9 @@ export default async function LavoriPage() {
     }),
   )
 
-  const [{ data: lavori }, { data: kpiGrezzo }, { data: artigiano }] = await Promise.all([
+  const [{ data: lavori }, { data: kpiGrezzo }] = await Promise.all([
     supabase.rpc('lavori_dashboard'),
-    supabase.rpc('kpi_durate'),
-    supabase
-      .from('artigiano')
-      .select('target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni')
-      .eq('id', user.id)
-      .maybeSingle(),
+    supabase.rpc('kpi_dashboard'),
   ])
   const kpi = kpiGrezzo?.[0] ?? null
 
@@ -127,15 +122,7 @@ export default async function LavoriPage() {
           </Link>
         </div>
 
-        <KpiDurateDashboard
-          kpi={kpi}
-          target={{
-            target_preventivo_giorni: artigiano?.target_preventivo_giorni ?? 10,
-            target_progetto_giorni: artigiano?.target_progetto_giorni ?? 7,
-            target_produzione_giorni: artigiano?.target_produzione_giorni ?? 60,
-            target_montaggio_giorni: artigiano?.target_montaggio_giorni ?? 7,
-          }}
-        />
+        <KpiDashboardCards kpi={kpi} />
 
         {!lavori || lavori.length === 0 ? (
           <p className="text-sm text-gray-500">Non hai ancora nessun lavoro aperto.</p>

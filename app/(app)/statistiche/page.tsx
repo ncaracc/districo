@@ -1,24 +1,34 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import { KpiDurateNeutro } from '@/components/kpi-durate-neutro'
 
 const STATO_LABEL: Record<string, string> = {
   rifiutato: 'Rifiutato',
   completato: 'Completato',
 }
 
-export default async function StatistichePage() {
+const FILTRI = [
+  { valore: undefined, label: 'Tutti' },
+  { valore: 'completato', label: 'Completati' },
+  { valore: 'rifiutato', label: 'Rifiutati' },
+] as const
+
+export default async function StatistichePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stato?: string }>
+}) {
+  const { stato } = await searchParams
+  const filtroAttivo = stato === 'completato' || stato === 'rifiutato' ? stato : undefined
+
   const supabase = await createClient()
 
-  const [{ data: lavori }, { data: kpiGrezzo }] = await Promise.all([
-    supabase
-      .from('lavoro')
-      .select('id, titolo, stato, cliente_id, data_lavoro')
-      .in('stato', ['completato', 'rifiutato'])
-      .order('data_lavoro', { ascending: false, nullsFirst: false }),
-    supabase.rpc('kpi_durate'),
-  ])
-  const kpi = kpiGrezzo?.[0] ?? null
+  let query = supabase
+    .from('lavoro')
+    .select('id, titolo, stato, cliente_id, data_lavoro')
+    .order('data_lavoro', { ascending: false, nullsFirst: false })
+  query = filtroAttivo ? query.eq('stato', filtroAttivo) : query.in('stato', ['completato', 'rifiutato'])
+
+  const { data: lavori } = await query
 
   const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
   const { data: clienti } =
@@ -34,12 +44,30 @@ export default async function StatistichePage() {
       <div className="lg:px-12">
         <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori conclusi</h1>
 
-        <KpiDurateNeutro kpi={kpi} />
+        {/* Filtro per stato (Sprint E, 2026-08-03): tab via searchParams, pagina
+            resta un Server Component puro, nessun client component necessario —
+            stesso pattern già in uso per la ricerca di app/(app)/clienti/page.tsx. */}
+        <div className="mb-4 flex gap-2">
+          {FILTRI.map((f) => {
+            const attivo = f.valore === filtroAttivo
+            return (
+              <Link
+                key={f.label}
+                href={f.valore ? `/statistiche?stato=${f.valore}` : '/statistiche'}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  attivo ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {f.label}
+              </Link>
+            )
+          })}
+        </div>
 
         <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
 
         {!lavori || lavori.length === 0 ? (
-          <p className="text-sm text-gray-500">Nessun lavoro completato o rifiutato.</p>
+          <p className="text-sm text-gray-500">Nessun lavoro trovato per questo filtro.</p>
         ) : (
           <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
             {lavori.map((l) => (

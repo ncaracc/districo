@@ -1,26 +1,17 @@
-export type KpiDurate = {
-  tempo_preventivazione_giorni: number | null
-  tempo_preventivazione_campione: number
-  tempo_progetto_giorni: number | null
-  tempo_progetto_campione: number
-  tempo_produzione_giorni: number | null
-  tempo_produzione_campione: number
-  tempo_montaggio_giorni: number | null
-  tempo_montaggio_campione: number
+export type KpiDashboard = {
+  lavori_in_corso: number
+  importo_lavori_accettati: number
+  tempo_preventivo_giorni: number | null
+  tempo_preventivo_campione: number
+  tempo_completamento_giorni: number | null
+  tempo_completamento_campione: number
 }
 
-export type SemaforoKpi = 'verde' | 'giallo' | 'rosso' | 'neutro'
-
-// neutro: nessun dato ancora disponibile nella finestra temporale (campione=0)
-// — non è un valore "cattivo" (rosso), è semplicemente assente, quindi va
-// mostrato come stato neutro invece di un colore fuorviante.
-export function semaforoKpi(mediaGiorni: number | null, campione: number, targetGiorni: number): SemaforoKpi {
-  if (campione === 0 || mediaGiorni === null) return 'neutro'
-  if (mediaGiorni <= targetGiorni) return 'verde'
-  if (mediaGiorni <= targetGiorni * 1.2) return 'giallo'
-  return 'rosso'
-}
-
+// campione=0: nessun dato ancora disponibile nella finestra rolling (KPI 3/4,
+// media storica) — non è un valore "cattivo", è semplicemente assente, quindi
+// va mostrato come "Dati insufficienti" invece di un numero fuorviante. I KPI
+// 1/2 (conteggio/somma puntuali, non storici) non usano questa funzione: uno
+// zero reale è una risposta valida, non "dati insufficienti".
 export function formattaGiorni(mediaGiorni: number | null, campione: number): string {
   if (campione === 0 || mediaGiorni === null) return '—'
   return mediaGiorni.toFixed(1)
