@@ -17,6 +17,20 @@ const STATO_LABEL: Record<string, string> = {
 
 const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const
 
+// Sprint E (2026-08-03): il numero va dentro il pallino, non più a fianco.
+// h-6 w-6 (era il pallino decorativo h-2 w-2) per restare leggibile anche
+// con due cifre — verificato visivamente in fase di test con un lavoro a
+// doppia cifra (vedi CLAUDE.md).
+function BadgeConteggio({ colore, valore }: { colore: keyof typeof DOT_COLOR; valore: number }) {
+  return (
+    <span
+      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${DOT_COLOR[colore]}`}
+    >
+      {valore}
+    </span>
+  )
+}
+
 function RiepilogoSatelliti({
   rossi,
   gialli,
@@ -30,25 +44,10 @@ function RiepilogoSatelliti({
     return <span className="text-xs text-gray-400">Nessuna attività</span>
   }
   return (
-    <div className="flex items-center gap-3 text-xs text-gray-600">
-      {rossi > 0 && (
-        <span className="flex items-center gap-1">
-          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.rosso}`} />
-          {rossi}
-        </span>
-      )}
-      {gialli > 0 && (
-        <span className="flex items-center gap-1">
-          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.giallo}`} />
-          {gialli}
-        </span>
-      )}
-      {verdi > 0 && (
-        <span className="flex items-center gap-1">
-          <span className={`h-2 w-2 rounded-full ${DOT_COLOR.verde}`} />
-          {verdi}
-        </span>
-      )}
+    <div className="flex items-center gap-2">
+      {rossi > 0 && <BadgeConteggio colore="rosso" valore={rossi} />}
+      {gialli > 0 && <BadgeConteggio colore="giallo" valore={gialli} />}
+      {verdi > 0 && <BadgeConteggio colore="verde" valore={verdi} />}
     </div>
   )
 }
