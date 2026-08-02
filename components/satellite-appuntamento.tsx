@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
-import { SatelliteAllegati } from '@/components/satellite-allegati'
+import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import { coloreAppuntamento, DOT_COLOR } from '@/lib/lavori/satelliti-meta'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
@@ -65,11 +65,25 @@ export function SatelliteAppuntamento({
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
+      {/* Pallino+nome a sinistra, "Concluso" (solo per chi può modificare)
+          all'estrema destra della stessa riga — restyling 2026-08-02, vedi
+          CLAUDE.md: prima era un campo separato più in basso nel form. */}
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
           <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
           {titolo}
         </p>
+        {isOwner && (
+          <label className="flex items-center gap-1.5 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={concluso}
+              onChange={(e) => setConcluso(e.target.checked)}
+              className="accent-primary"
+            />
+            Concluso
+          </label>
+        )}
       </div>
 
       {isOwner ? (
@@ -91,57 +105,50 @@ export function SatelliteAppuntamento({
             <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
               Descrizione
             </label>
+            {/* rows 4 -> 8: piu spazio per note lunghe, restyling 2026-08-02 */}
             <textarea
               id={`app-descrizione-${satellite.id}`}
-              rows={4}
+              rows={8}
               value={descrizione}
               onChange={(e) => setDescrizione(e.target.value)}
               className={inputClass()}
             />
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={concluso}
-              onChange={(e) => setConcluso(e.target.checked)}
-              className="accent-primary"
-            />
-            Concluso
-          </label>
+          {/* Fermaglio spostato qui (era il posto del checkbox "Concluso",
+              ora in alto) e ingrandito con più padding verticale — resta lo
+              stesso AllegatoTrigger/AllegatoModale di feature/allegati-modale,
+              solo dimensione/posizione cambiate. */}
+          <AllegatoTrigger
+            satelliteId={satellite.id}
+            lavoroId={lavoroId}
+            isOwner={isOwner}
+            richiedeEtichetta
+            iconClassName="h-6 w-6"
+            bottoneClassName="py-3 px-2"
+          />
 
           {errore && <p className="text-xs text-red-600">{errore}</p>}
-          <div className="flex items-center gap-2">
+
+          <div>
             <button
               type="button"
               onClick={handleSalva}
               disabled={loading}
-              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               {loading ? 'Salvataggio…' : 'Salva'}
             </button>
-            {salvato && <span className="text-xs text-gray-500">Salvato</span>}
+            {salvato && <p className="mt-1 text-xs text-gray-500">Salvato</p>}
           </div>
 
-          <SatelliteAllegati
-            satelliteId={satellite.id}
-            lavoroId={lavoroId}
-            allegati={allegati}
-            isOwner={isOwner}
-            richiedeEtichetta
-          />
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
         </div>
       ) : (
         <div className="space-y-1 text-sm text-gray-700">
           {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
           {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
-          <SatelliteAllegati
-            satelliteId={satellite.id}
-            lavoroId={lavoroId}
-            allegati={allegati}
-            isOwner={isOwner}
-            richiedeEtichetta
-          />
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
         </div>
       )}
     </div>
