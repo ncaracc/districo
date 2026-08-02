@@ -1,0 +1,215 @@
+Districo — Verifica preliminare Sprint C (documenti)
+Data: 2026-08-02
+Branch: feature/sprint-c-documenti (creato da main, allineato dopo
+feature/menu-mobile e feature/allegati-modale)
+
+Nessuna modifica al codice o al database in questa fase — solo lettura
+del codice sorgente attuale e query di sola lettura (REST, service role
+key) su Supabase Cloud di produzione, per contare righe reali.
+
+=============================================================
+VERIFICA 1 — Stato attuale del Progetto
+=============================================================
+
+Componente coinvolto: components/satellite-revisionabile.tsx
+(RevisionabileChain), condiviso da Progetto e Campione — usato da
+app/(app)/lavori/[id]/page.tsx per la riga "Progetto" della tabella
+attività.
+
+Flag "accettato" (booleano dedicato): NON esiste.
+  Progetto usa ancora il vecchio modello a 5 stati testuali su
+  lavoro_satellite.stato (in_preparazione / presentato /
+  necessaria_revisione / accettato / non_necessario), lo stesso
+  modello condiviso con Campione dalla revisione strutturale del 25/7 —
+  NON il modello a due flag booleani introdotto per il Preventivo il
+  1/8 (preventivo_accettato/preventivo_rifiutato). "accettato" oggi è
+  uno dei 5 valori possibili della colonna stato, non una colonna a sé.
+
+Semaforo attuale: coloreRevisionabile() in lib/lavori/satelliti-meta.ts
+  - in_preparazione            -> rosso
+  - presentato                 -> giallo
+  - necessaria_revisione       -> rosso (rifiuto esplicito, non attesa)
+  - accettato / non_necessario -> verde
+
+  Le transizioni sono MANUALI (bottoni "Segna come presentato",
+  "Richiedi nuova revisione", "Segna come accettato" — vedi
+  azioniPossibiliRevisionabile() in satelliti-meta.ts), non derivate dal
+  numero di allegati caricati. Il modello richiesto dal documento di
+  revisione ("rosso finché nessun allegato, giallo al primo allegato,
+  verde quando accettato=true") è STRUTTURALMENTE DIVERSO da quello
+  attuale: oggi il giallo dipende da un click esplicito su "Segna come
+  presentato", non dal caricare un file. Serve un cambio di modello, non
+  solo un'aggiunta.
+
+  mostraValore (campo valore su Progetto): il prop esiste sul
+  componente ma non viene mai passato come true da page.tsx per la riga
+  Progetto — oggi Progetto non mostra alcun campo Valore in UI, coerente
+  con la decisione "valore_complessivo: solo Preventivo, non Progetto"
+  della revisione strutturale del 25/7. Il documento di revisione di
+  questo sprint non richiede un valore su Progetto, solo flag+allegati:
+  nessuna azione necessaria su questo punto.
+
+Allegati su Progetto: usa components/satellite-allegati.tsx ->
+  SatelliteAllegati(satelliteId, lavoroId, allegati, isOwner) SENZA il
+  prop richiedeEtichetta (quindi richiedeEtichetta=false di default).
+  Questo significa:
+  - la LISTA allegati (AllegatoLista, dentro lo stesso file) è GIÀ
+    quella nuova a 3 colonne (nome/etichetta a sinistra, data centrata,
+    icona cestino a destra) introdotta nel restyling del form
+    Appuntamento del 2/8 — Progetto la eredita automaticamente perché
+    SatelliteAllegati è rimasto un wrapper che compone AllegatoLista +
+    AllegatoTrigger, non è stato duplicato codice.
+  - il TRIGGER di upload (AllegatoTrigger) è invece ancora sul vecchio
+    flusso inline: label "+ Allega file" che wrappa un input file
+    nascosto, upload immediato alla selezione, NESSUNA etichetta
+    richiesta (il server ricade sul nome del file per la colonna
+    etichetta, NOT NULL dal 2/8). NON usa AllegatoModale/
+    feature/allegati-modale.
+
+  Per allineare Progetto al documento di revisione ("elenco di file con
+  etichetta") serve passare richiedeEtichetta={true} al posto giusto (o
+  costruire l'equivalente con AllegatoTrigger direttamente, come già
+  fatto per Appuntamento) — la lista è già pronta, serve intervenire
+  solo sul trigger.
+
+Gate lavoro.stato: VERIFICATO — impostaStatoRevisionabile()
+  (lib/lavori/satelliti.ts) opera esclusivamente sulla tabella
+  lavoro_satellite (insert nuova revisione, update stato) — nessun
+  riferimento alla tabella lavoro in tutta la funzione. L'indipendenza
+  di Progetto dal gate lavoro.stato è già garantita oggi, come richiesto
+  dal documento — nessuna azione necessaria.
+
+=============================================================
+VERIFICA 2 — Formattazione valuta sul Preventivo
+=============================================================
+
+Formato attuale ovunque: `€ ${numero.toFixed(2)}` — es. "€ 3500.00",
+nessun separatore delle migliaia, sempre due decimali anche per importi
+interi. Confermato lo screenshot descritto in chat.
+
+Punti esatti nel codice dove compare (5 punti, stesso pattern
+`.toFixed(2)` preceduto da "€ "):
+
+  1. components/satellite-preventivo.tsx:104
+     Vista sola lettura del Preventivo (isOwner=false):
+     `<p>€ {corrente.valore_complessivo.toFixed(2)}</p>`
+
+  2. components/satellite-revisionabile.tsx:149
+     Stesso pattern nel ramo mostraValore di RevisionabileChain — MAI
+     invocato con mostraValore=true oggi (vedi Verifica 1), quindi
+     attualmente dead code, ma da includere comunque nel fix per
+     coerenza futura (se un giorno mostraValore tornasse utile).
+
+  3. components/satellite-ordine.tsx:101
+     Valore complessivo dell'Acquisto: `<p>€ {satellite.valore_complessivo.toFixed(2)}</p>`
+
+  4. app/(app)/lavori/page.tsx:193
+     Colonna "Valore" della Dashboard:
+     `` {l.valore_preventivo_accettato != null ? `€ ${l.valore_preventivo_accettato.toFixed(2)}` : '—'} ``
+
+  5. components/satellite-noleggio.tsx:116
+     Campo "costo" del Noleggio — stesso pattern (`€ {satellite.costo.toFixed(2)}`),
+     stessa colonna di formattazione valuta ma NON è il Preventivo:
+     il documento di revisione parla esplicitamente solo del Preventivo,
+     segnalato qui per completezza/decisione esplicita da parte
+     dell'utente (applicare la stessa formattazione anche qui, o
+     lasciarlo con i decimali essendo un costo/durata diverso da un
+     valore commerciale "a corpo" come il preventivo).
+
+Nessuna funzione di formattazione condivisa esiste oggi (lib/lavori/ non
+ha un formattaValuta()/formattaEuro() o simile) — i 5 punti sopra sono
+ciascuno un'espressione inline indipendente. Un fix centralizzato
+richiederebbe una nuova utility condivisa (es. lib/formattazione.ts)
+richiamata da tutti e 5 (o 4, escludendo Noleggio se si decide di
+lasciarlo invariato).
+
+Valori reali in produzione (8 preventivi con valore impostato, per
+avere un'idea concreta dell'intervallo da formattare):
+  350, 3500, 6000, 170, 4000, 350, 1700, 850
+Tutti interi (nessun centesimo reale in produzione oggi) — 0 valori
+acquisti impostati (nessuna riga acquisti con valore_complessivo non
+nullo, coerente con "0 satelliti acquisti" trovato in Verifica 3).
+
+=============================================================
+VERIFICA 3 — Etichetta allegati su Progetto e Acquisto
+=============================================================
+
+Progetto: come da Verifica 1 — usa SatelliteAllegati senza
+  richiedeEtichetta, quindi il vecchio flusso di upload (nessuna
+  etichetta richiesta, nessuna modale). La LISTA è già quella nuova
+  (AllegatoLista), il TRIGGER no.
+
+Acquisto: components/satellite-ordine.tsx NON ha ALCUNA sezione
+  allegati — nessun import di SatelliteAllegati/AllegatoLista/
+  AllegatoTrigger, nessuna UI di upload o elenco file. Andrebbe
+  costruita da zero (non "switchata" da un flusso vecchio a uno nuovo,
+  perché oggi semplicemente non esiste).
+
+Conteggio righe reali (query REST diretta su Supabase Cloud,
+  read-only, service role key):
+  - Satelliti tipo='progetto' in produzione: 9
+  - Satelliti tipo='acquisti' in produzione: 0
+  - Allegati collegati a satelliti progetto: 7
+  - Allegati collegati a satelliti acquisti: 0 (non potendo essercene,
+    zero satelliti acquisti esistono oggi)
+
+  Distribuzione stato dei 9 satelliti progetto:
+    accettato: 2, presentato: 3, in_preparazione: 1, non_necessario: 3
+  (nessuno in necessaria_revisione — utile per capire l'impatto di un
+  eventuale cambio di modello: 2 progetti già "accettato" nel vecchio
+  senso testuale, da mappare su un eventuale nuovo flag booleano).
+
+=============================================================
+VERIFICA 4 — Cancellazione singola allegato su Progetto
+=============================================================
+
+Esiste già e funziona, ereditata automaticamente dal restyling del 2/8:
+AllegatoLista (components/satellite-allegati.tsx) — lo stesso
+componente riusato da Preventivo/Progetto/Campione tramite il wrapper
+SatelliteAllegati — include già, per ogni riga:
+  - icona cestino (IconaCestino, components/icons.tsx)
+  - conferma nativa (`confirm("Eliminare questo allegato? ...")`)
+  - eliminaAllegatoSatellite() (lib/lavori/allegati.ts): elimina la
+    riga DB e il file su disco
+  - stato di caricamento per-riga (eliminandoId) mentre l'eliminazione
+    è in corso
+
+Nessuna nuova funzionalità da costruire per questo punto — la
+cancellazione singola con cestino è già disponibile su Progetto oggi,
+identica a quella verificata nel form Appuntamento.
+
+=============================================================
+RIEPILOGO — cosa serve fare (nessuna azione presa, solo elenco)
+=============================================================
+
+1. Progetto — cambio di modello (non solo aggiunta):
+   a. Nuovo flag booleano "accettato" su lavoro_satellite per
+      tipo='progetto' (nuova colonna o riuso di un pattern simile a
+      preventivo_accettato) — il vecchio stato a 5 valori testuali
+      andrebbe sostituito o affiancato, decisione da prendere.
+   b. Nuovo semaforo derivato da (a) file caricati e (b) flag accettato,
+      non più dalle transizioni manuali attuali —
+      coloreRevisionabile()/azioniPossibiliRevisionabile() per
+      tipo='progetto' andrebbero ripensati (Campione NON è menzionato
+      nel documento di revisione per questo sprint: verificare con
+      l'utente se resta sul vecchio modello o se il cambio riguarda
+      anche lui, dato che condivide lo stesso componente).
+   c. Migrazione dei 9 satelliti progetto esistenti (2 "accettato" da
+      mappare al nuovo flag, gli altri 7 da valutare) verso il nuovo
+      modello.
+   d. Passare richiedeEtichetta={true} al trigger di upload di Progetto
+      (la lista è già pronta, nessuna modifica lì).
+
+2. Formattazione valuta: nuova utility condivisa (es.
+   lib/formattazione.ts, una funzione formattaValuta()), applicata ai 4
+   punti del Preventivo/Acquisto/Dashboard (+ eventualmente Noleggio,
+   da confermare con l'utente).
+
+3. Acquisto — allegati da costruire da zero (nessun flusso esistente):
+   decidere se richiedeEtichetta anche lì (coerente col resto) e dove
+   posizionare lista+trigger nel form esistente (satellite-ordine.tsx).
+
+4. Cancellazione singola allegato: nessuna azione, già funzionante.
+
+Nessuna implementazione eseguita in questa fase, come da istruzioni.
+In attesa del prompt successivo per procedere.
