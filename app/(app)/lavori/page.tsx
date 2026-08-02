@@ -126,8 +126,48 @@ export default async function LavoriPage() {
         {!lavori || lavori.length === 0 ? (
           <p className="text-sm text-gray-500">Non hai ancora nessun lavoro aperto.</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-gray-200">
-            <table className="w-full text-left text-sm">
+          <>
+            {/* Sprint E (2026-08-03): card impilate su mobile, stesse 6 info
+                della tabella desktop (Cliente/Descrizione/Stato/Avanzamento/
+                Valore/Azioni) senza scroll interno/orizzontale — sostituisce
+                lo scroll nascosto del contenitore overflow-x-auto sotto md,
+                dove la tabella a 6 colonne non ci sta comunque. Il bottone
+                elimina resta fuori dal Link (come già in tabella) per non
+                annidare un <button> dentro un <a>. */}
+            <div className="space-y-3 md:hidden">
+              {lavori.map((l) => (
+                <div key={l.id} className="rounded-lg border border-gray-200 p-4">
+                  <Link href={`/lavori/${l.id}`} className="block">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
+                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                        {STATO_LABEL[l.stato] ?? l.stato}
+                      </span>
+                    </div>
+                    <p className="mt-1 flex items-center gap-1.5 font-medium text-gray-900">
+                      {l.titolo}
+                      {l.ha_appuntamento_scaduto && (
+                        <span title="Appuntamento scaduto" aria-label="Appuntamento scaduto" className="shrink-0">
+                          <IconaCalendario className="h-4 w-4 text-red-500" />
+                        </span>
+                      )}
+                    </p>
+                    <div className="mt-3">
+                      <RiepilogoSatelliti rossi={l.satelliti_rossi} gialli={l.satelliti_gialli} verdi={l.satelliti_verdi} />
+                    </div>
+                  </Link>
+                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
+                    <span className="text-sm text-gray-700">
+                      {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
+                    </span>
+                    <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-lg border border-gray-200 md:block">
+              <table className="w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-500">
                   <th className="px-4 py-3">Cliente</th>
@@ -187,7 +227,8 @@ export default async function LavoriPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>
