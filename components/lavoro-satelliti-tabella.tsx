@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { cloneElement, isValidElement, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
 import { IconaCestino, IconaMatita } from '@/components/icons'
@@ -27,7 +27,7 @@ export type RigaSatellite = {
   nome: string
   colore: ColoreSemaforo
   statoLabel: string
-  contenuto: React.ReactNode
+  contenuto: ReactNode
 }
 
 function inputClass() {
@@ -36,10 +36,16 @@ function inputClass() {
 
 // Tabella riepilogativa delle attività nel dettaglio Lavoro, al posto del
 // vecchio box discorsivo "Satelliti ancora da completare: ...". Il click sul
-// nome (unico target che apre la vista) e la matita montano nella stessa
-// modale lo stesso componente satellite già esistente, così com'è oggi — non
-// esiste una modalità "sola lettura" dedicata, resta quella implicita già
-// gestita da ciascun componente in base al ruolo (isOwner).
+// nome e la matita montano nella stessa modale lo stesso componente
+// satellite già esistente — ma non più con lo stesso prop isOwner (fix UX
+// 2026-08-02, vedi CLAUDE.md, sezione "Visualizzazione vs modifica"): il
+// nome apre sempre in sola lettura (clona l'elemento forzando isOwner a
+// false), solo la matita apre la modifica vera e propria (isOwner
+// invariato). Nessun componente satellite nuovo: tutti già distinguono
+// editabile/sola-lettura tramite lo stesso prop isOwner (era già usato per
+// il ruolo "ospite" e per un Lavoro completato) — qui lo forziamo a false
+// anche per un owner su un Lavoro aperto, quando la modale è stata aperta
+// dal nome invece che dalla matita.
 //
 // "Aggiungi attività" (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md):
 // sostituisce il vecchio "+ Aggiungi satellite" (tre mini-form separati) con
@@ -79,6 +85,10 @@ export function LavoroSatelliteTabella({
 }) {
   const router = useRouter()
   const [apertoSatelliteId, setApertoSatelliteId] = useState<string | null>(null)
+  // true = aperta dal nome (sola lettura), false = aperta dalla matita
+  // (modifica) o da una creazione appena avvenuta (anch'essa modifica: l'utente
+  // ha appena creato l'attività, ha senso che la trovi subito compilabile).
+  const [apertaInSolaLettura, setApertaInSolaLettura] = useState(false)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   const [mostraAggiungi, setMostraAggiungi] = useState(false)
@@ -90,6 +100,19 @@ export function LavoroSatelliteTabella({
   const [erroreAggiungi, setErroreAggiungi] = useState<string | null>(null)
 
   const rigaAperta = righe.find((r) => r.satelliteId === apertoSatelliteId) ?? null
+
+  // Il contenuto di ogni riga arriva già pre-costruito da page.tsx con un
+  // isOwner fisso (isOwnerEffettivo: già false per ospiti o Lavoro
+  // completato, invariato in quei casi). Qui lo forziamo ulteriormente a
+  // false quando la modale è stata aperta dal nome — senza toccare i singoli
+  // componenti satellite, che già sanno rendersi in sola lettura quando
+  // isOwner è false (stesso branch già usato per il ruolo ospite).
+  const contenutoDaMostrare =
+    rigaAperta && isValidElement<{ isOwner: boolean }>(rigaAperta.contenuto)
+      ? cloneElement(rigaAperta.contenuto, {
+          isOwner: rigaAperta.contenuto.props.isOwner && !apertaInSolaLettura,
+        })
+      : rigaAperta?.contenuto
 
   async function handleElimina(riga: RigaSatellite) {
     if (!confirm('Eliminare definitivamente questa attività? L\'azione non è reversibile.')) return
@@ -128,6 +151,7 @@ export function LavoroSatelliteTabella({
       return
     }
     setApertoSatelliteId(result.id)
+    setApertaInSolaLettura(false)
     chiudiAggiungi()
     router.refresh()
   }
@@ -182,7 +206,10 @@ export function LavoroSatelliteTabella({
                   <td className="px-4 py-2.5">
                     <button
                       type="button"
-                      onClick={() => setApertoSatelliteId(riga.satelliteId)}
+                      onClick={() => {
+                        setApertoSatelliteId(riga.satelliteId)
+                        setApertaInSolaLettura(true)
+                      }}
                       className="text-left font-medium text-gray-900 underline-offset-2 hover:underline"
                     >
                       {riga.nome}
@@ -199,7 +226,10 @@ export function LavoroSatelliteTabella({
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => setApertoSatelliteId(riga.satelliteId)}
+                          onClick={() => {
+                            setApertoSatelliteId(riga.satelliteId)
+                            setApertaInSolaLettura(false)
+                          }}
                           disabled={completato}
                           aria-label="Modifica"
                           title={completato ? 'Riapri il lavoro per modificare' : 'Modifica'}
@@ -309,7 +339,7 @@ export function LavoroSatelliteTabella({
       </Modal>
 
       <Modal aperto={!!rigaAperta} onChiudi={() => setApertoSatelliteId(null)} titolo={rigaAperta?.nome}>
-        {rigaAperta?.contenuto}
+        {contenutoDaMostrare}
       </Modal>
     </div>
   )
