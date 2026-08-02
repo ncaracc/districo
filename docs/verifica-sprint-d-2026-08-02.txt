@@ -1,0 +1,320 @@
+Districo — Verifica preliminare Sprint D (produzione: Campionatura,
+Costruzione, Noleggio, rifiniture Acquisto)
+Data: 2026-08-02
+Branch: feature/sprint-d-produzione (creato da main, allineato dopo
+merge/deploy Sprint C)
+
+Nessuna modifica al codice o al database in questa fase — solo lettura
+del codice sorgente attuale e query di sola lettura (REST, service role
+key) su Supabase Cloud di produzione, per contare righe reali.
+
+=============================================================
+VERIFICA 1 — Campionatura: campo "serie" e uso di revisione_di
+=============================================================
+
+Premessa da segnalare esplicitamente: ho cercato in CLAUDE.md (grep su
+varianti di "revisione_di", "raggruppamento", "istanza indipendente",
+"Campionatura NON") una decisione precedente che corrisponda al modello
+descritto in questo prompt (nessun raggruppamento per serie, nessun
+revisione_di, istanze indipendenti con flag consegnato/data_consegna) —
+NON ho trovato nessuna voce corrispondente. L'unico riferimento vicino,
+dallo Sprint "fondamenta" (2/8), dice solo che il campo serie "è
+destinato a sparire del tutto in un prossimo sprint dedicato" — un
+intento generale, non il modello specifico ora descritto. Segnalo la
+discrepanza per trasparenza, senza modificare nulla: se la decisione è
+stata presa a voce/altrove, va bene, ma nel file di riferimento del
+progetto non risulta.
+
+Stato attuale nel codice — ancora interamente il vecchio modello:
+
+- Creazione: non esiste un file satellite-nuova-serie-campione.tsx
+  separato (eliminato come dead code nello Sprint "fondamenta", quando
+  "Aggiungi attività" è stato unificato) — oggi la creazione avviene
+  dentro components/lavoro-satelliti-tabella.tsx, che chiede ancora
+  esplicitamente il "Nome della serie" (input testo, righe ~297-319) e
+  blocca il bottone Crea se vuoto:
+    disabled={creandoChiave !== null || !serieInInserimento.trim()}
+
+- lib/lavori/satelliti.ts, creaNuovaSerieCampione() (righe 340-374):
+    .insert({ lavoro_id: lavoroId, tipo: 'campione',
+              stato: 'in_preparazione', serie: nomeSerie })
+  Scrive ancora sul vecchio campo stato testuale a 5 valori e richiede
+  serie non vuoto (validato anche qui, oltre che in UI).
+
+- Vincolo a DB (supabase/migrations/0012_ristrutturazione_ciclo_vita_e_
+  satelliti.sql): serie è tuttora NOT-NULL-equivalente per tipo='campione'
+    alter table lavoro_satellite add constraint
+      lavoro_satellite_campione_serie_check
+      check (tipo <> 'campione' or serie is not null);
+
+- revisione_di è ancora attivamente popolato per questo tipo:
+  lib/lavori/satelliti-meta.ts, generaNuovaRevisione() (righe 152-154):
+    return tipo === 'campione'
+      ? nuovoStato === 'necessario_nuovo_campione'
+      : nuovoStato === 'necessaria_revisione'
+  Quando un campione passa a "necessario_nuovo_campione",
+  impostaStatoRevisionabile() (lib/lavori/satelliti.ts) crea ancora una
+  nuova riga collegata via revisione_di alla precedente — esattamente
+  il comportamento che il nuovo modello vorrebbe eliminare.
+
+- Semaforo attuale: coloreRevisionabile() (lib/lavori/satelliti-meta.ts,
+  righe 139-149), branch campione:
+    if (stato === 'in_preparazione') return 'red'
+    if (tipo === 'campione') {
+      if (stato === 'approvato' || stato === 'non_necessario') return 'green'
+      if (stato === 'necessario_nuovo_campione') return 'red'
+      return 'yellow' // consegnato
+    }
+  È ancora il vecchio modello a 5 stati testuali condiviso (nella sua
+  origine) con Progetto — NON corrisponde a "rosso finché manca
+  descrizione, giallo con descrizione, verde con consegnato" descritto
+  nel prompt. Il campo booleano "consegnato" e la colonna "data_consegna"
+  richiesti dal nuovo modello NON esistono a schema.
+
+- Descrizione/data: la colonna generica descrizione (satellite.descrizione,
+  condivisa da più tipi) e data_creazione esistono già a livello di
+  tabella lavoro_satellite (nessuna colonna dedicata mancante per questi
+  due campi specifici), ma non sono usate da Campione con la semantica
+  richiesta (rosso finché descrizione vuota) — oggi Campione usa
+  descrizione_libera tramite RevisionabileChain, con semantica invariata
+  rispetto al resto del modello a 5 stati.
+
+Dati reali (query REST, sola lettura):
+  Totale satelliti tipo='campione': 8
+  Con revisione_di popolato (cioè con almeno una catena attiva di
+    revisioni): 1
+  Valori distinti di "serie": 2
+  Distribuzione stato: consegnato=2, necessario_nuovo_campione=1,
+    in_preparazione=2, non_necessario=3
+
+=============================================================
+VERIFICA 2 — Costruzione
+=============================================================
+
+Componente: components/satellite-costruzione.tsx
+
+Campi presenti — corrispondono già a quanto richiesto:
+  - descrizione_libera, esposta come textarea con placeholder "Note"
+    (righe 80-86), salvata da aggiornaDescrizioneCostruzione()
+    (lib/lavori/satelliti.ts, righe 486-509)
+  - data_inizio, data_fine — mostrate in UI come durata calcolata
+    (formattaDurata(), righe 18-24) e stampate automaticamente dalle
+    transizioni di stato, non compilabili a mano
+
+Semaforo: coloreCostruzione() (lib/lavori/satelliti-meta.ts, righe
+  330-334):
+    da_iniziare -> rosso, completata -> verde, altrimenti (in_corso) -> giallo
+  Guidato dal campo stato (non direttamente dalla presenza delle date),
+  ma le due cose sono sempre allineate per costruzione: avanzaStatoCostruzione()
+  (lib/lavori/satelliti.ts, righe 511-537) imposta SEMPRE data_inizio
+  quando lo stato passa a in_corso e data_fine quando passa a completata,
+  nella stessa chiamata:
+    if (nuovoStato === 'in_corso') update.data_inizio = new Date().toISOString()
+    if (nuovoStato === 'completata') update.data_fine = new Date().toISOString()
+  Risultato pratico: identico al modello richiesto (rosso alla
+  creazione, giallo quando si valorizza data_inizio, verde quando si
+  valorizza data_fine) — solo implementato tramite bottoni di
+  transizione stato espliciti ("Segna come iniziata"/"Segna come
+  completata") invece che da un calcolo diretto sulle due date. Nessuna
+  differenza di comportamento osservabile per l'utente.
+
+creaCostruzione(): presente e funzionante (lib/lavori/satelliti.ts,
+  righe 464-484), collegata al bottone "Aggiungi attività"
+  (components/lavoro-satelliti-tabella.tsx, case 'costruzione') — la
+  lacuna trovata nello Sprint A è stata effettivamente colmata nello
+  Sprint "fondamenta" e resta in piedi.
+
+Dati reali: 7 satelliti tipo='costruzione'. 6 ancora al default
+  (da_iniziare, nessuna data, nessuna nota). 1 completata con dati reali
+  (data_inizio 29/07 16:29, data_fine 29/07 16:30, nota "4 ore cnc +
+  bordatrice").
+
+=============================================================
+VERIFICA 3 — Noleggio
+=============================================================
+
+Componente: components/satellite-noleggio.tsx
+
+Campi presenti:
+  - data_da, data_a (etichettati "Da"/"A") — NOTA naming: lo schema
+    usa data_da/data_a fin dallo Sprint A (non data_inizio/data_fine
+    come nominati nel prompt), stesso concetto, nome colonna diverso
+  - costo (etichettato "Costo"), formattato con formattaValuta() dallo
+    Sprint C — corrisponde al campo "importo" richiesto
+  - prenotazione_effettuata (checkbox "Prenotazione effettuata")
+
+Campi MANCANTI rispetto alla richiesta:
+  - "compagnia": non esiste in nessun punto (schema, tipi, componente,
+    form di creazione) — nessuna colonna dedicata, nessun campo in UI
+  - "note": la colonna descrizione_libera esiste a livello di tabella
+    (condivisa da più tipi, es. usata da Costruzione) ma NON è esposta
+    né in lettura né in scrittura da SatelliteNoleggio — nessuna
+    textarea, a differenza di Costruzione che la usa per lo stesso scopo
+
+Semaforo: binario, calcolato inline nel componente (riga 35 e 54), non
+  tramite il tipo condiviso ColoreSemaforo/DOT_COLOR usato altrove:
+    const verde = prenotazioneEffettuata
+    <span className={`... ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
+  Corrisponde già a "rosso alla creazione, verde alla compilazione"
+  richiesto dal prompt — nessun giallo. Sul dubbio esplicito del prompt
+  ("verifica se ha senso o se ne serve uno"): un giallo intermedio
+  potrebbe avere senso per "date compilate ma prenotazione non ancora
+  confermata" — è però una scelta di design da fare con te, non una
+  lacuna tecnica: lo stato binario attuale è internamente coerente e
+  funziona già come richiesto in assenza di quella scelta.
+
+creaNoleggio(): presente e funzionante (lib/lavori/satelliti.ts, righe
+  587-607), stessa lacuna dello Sprint A colmata nello Sprint
+  "fondamenta", stesso schema di Costruzione.
+
+Dati reali: 5 satelliti tipo='noleggio', tutti ancora ai valori di
+  default (data_da/data_a/costo nulli, prenotazione_effettuata=false,
+  descrizione_libera nulla) — nessun utilizzo reale finora, nessun
+  rischio di perdita dati per un eventuale cambio di modello.
+
+=============================================================
+VERIFICA 4 — Acquisto: rifiniture rimanenti
+=============================================================
+
+Componenti coinvolti: components/satellite-nuovo-ordine.tsx (creazione),
+components/satellite-ordine.tsx (dettaglio), lib/lavori/ordini-email.ts
+(invio), lib/acquisti/categorie.ts (categorie).
+
+1. Dropdown categoria — GIÀ PRESENTE E COMPLETO.
+   categoria_acquisto (tabella dalla 0001, attivata nella revisione
+   satelliti dell'1/8) gestita in Profilo/Impostazioni tramite
+   creaCategoriaAcquisto()/eliminaCategoriaAcquisto()
+   (lib/acquisti/categorie.ts). app/(app)/lavori/[id]/page.tsx (righe
+   140-141) la interroga server-side e la passa come prop categorie a
+   SatelliteNuovoOrdine, reso come <select> (satellite-nuovo-ordine.tsx,
+   righe 144-161). Nessuna azione necessaria.
+
+2. Dropdown fornitore — presente ma con un pattern diverso da un
+   <select> letterale: satellite-nuovo-ordine.tsx (righe 42-141) usa una
+   ricerca live (cercaFornitoreSedi, debounce 300ms) con selezione da un
+   elenco di risultati filtrati — funzionalmente equivalente ("scegli un
+   fornitore dall'anagrafica"), ma non un menu a tendina con tutte le
+   sedi elencate. Se l'intento era letteralmente un <select>, è una
+   differenza da confermare; se l'intento era "selezionabile
+   dall'anagrafica Fornitori", è già soddisfatto.
+
+3. Una o più righe articolo/descrizione/quantità — GIÀ PRESENTE.
+   Array righe (descrizione, coloreFinitura, quantita), righe 163-206:
+   aggiunta/rimozione dinamica, submit tramite creaOrdine() che le
+   inserisce in lavoro_satellite_articolo. Nessuna azione necessaria.
+
+4. Campo data (default=creazione) — MANCANTE. Nessun campo "data"
+   esplicito esiste nel form di creazione né viene mostrato/modificabile
+   nel dettaglio (satellite-ordine.tsx). Esistono solo: data_creazione
+   (colonna generica automatica, non esposta in UI per questo tipo) e
+   data_invio_ordine (valorizzata solo all'invio mail, concetto diverso
+   da "data dell'ordine"). Da costruire.
+
+5. Flag "ordinato" riferito a tutte le righe — MODELLO DIVERSO da quanto
+   descritto, non un flag booleano singolo. Oggi Acquisto usa uno stato
+   a 3 valori (lib/lavori/satelliti-meta.ts, righe 299-321):
+     da_acquistare -> acquistato -> ricevuto
+   con transizioni manuali one-way (azioniPossibiliAcquisti()). Il
+   concetto di "ordinato" corrisponde concettualmente allo stato
+   intermedio "acquistato", già esistente, ma non come booleano
+   indipendente riferito esplicitamente "a tutte le righe" — è una
+   differenza strutturale da chiarire (mantenere il modello a 3 stati,
+   o sostituirlo con un flag booleano come da richiesta).
+
+6. Campo importo (già formattato) — GIÀ PRESENTE. valore_complessivo,
+   editabile come "Valore complessivo" nel form di creazione (righe
+   208-220), mostrato formattato con formattaValuta() nel dettaglio
+   (satellite-ordine.tsx, righe 105-107). Nessuna azione necessaria.
+
+7. Bottone "invia mail" — GIÀ PRESENTE E FUNZIONANTE ("Invia ordine",
+   satellite-ordine.tsx righe 152-161), ma con una discrepanza da
+   segnalare esplicitamente sulla premessa del prompt: la colonna
+   destinatario_ordini su fornitore_sede_contatto NON ESISTE — è stata
+   rimossa deliberatamente nella migration 0012 (Sprint A, 25/7),
+   decisione già documentata in CLAUDE.md ("la scelta del destinatario
+   avviene ad ogni invio", non un flag fisso in anagrafica). Confermato
+   ancora vero oggi: contattiPerInvio() (lib/lavori/ordini-email.ts,
+   righe 15-26) restituisce TUTTI i contatti della sede che hanno
+   un'email, senza alcun filtro per destinatario_ordini — l'utente
+   sceglie il destinatario da un <select> a ogni invio. Non è una
+   lacuna da colmare: è il comportamento voluto, il prompt fa
+   riferimento a un campo che non esiste più dal 25/7.
+
+Dati reali: 1 solo satellite tipo='acquisti' in produzione, senza
+  fornitore/categoria/valore impostati e 0 righe in
+  lavoro_satellite_articolo in totale (su tutti i satelliti acquisti
+  esistenti) — rischio di migrazione dati sostanzialmente nullo per
+  qualunque cambio di modello su questo tipo.
+
+=============================================================
+VERIFICA 5 — Portata dati reali (riepilogo)
+=============================================================
+
+Conteggi da query REST dirette su Supabase Cloud (sola lettura, service
+role key):
+
+  campione:     8 righe  (1 con revisione_di popolato, 2 serie distinte)
+  costruzione:  7 righe  (1 con dati reali compilati, 6 al default)
+  noleggio:     5 righe  (tutte ancora al default, nessun dato reale)
+  acquisti:     1 riga   (senza fornitore/categoria/valore, 0 righe
+                          articolo collegate)
+
+Lettura d'insieme: il rischio di una migrazione dati è basso su tutti e
+quattro i tipi — nessuno ha un volume significativo di dati reali
+compilati (l'unico caso non banale è il singolo satellite Costruzione
+completato e 1 catena di revisione Campione). Un eventuale cambio di
+modello (specialmente per Campione, che richiederebbe di "spezzare" le
+catene revisione_di esistenti, e per Acquisto, che richiederebbe di
+sostituire lo stato a 3 valori) toccherebbe pochissime righe reali.
+
+=============================================================
+RIEPILOGO — cosa servirebbe fare (nessuna azione presa, solo elenco)
+=============================================================
+
+1. Campionatura — cambio di modello (non solo aggiunta), e serve prima
+   una conferma esplicita della decisione (non trovata in CLAUDE.md):
+   a. Rimuovere il campo serie (UI + vincolo DB) e la generazione di
+      nuove revisione_di per questo tipo — ogni Campionatura diventa
+      un'istanza indipendente.
+   b. Nuove colonne: flag consegnato (booleano), data_consegna
+      (valorizzata automaticamente al cambio flag), riuso di descrizione
+      e data_creazione già esistenti a schema.
+   c. Nuovo semaforo (rosso finché descrizione vuota, giallo con
+      descrizione, verde con consegnato) al posto di
+      coloreRevisionabile()/STATI_CAMPIONE/azioniPossibiliRevisionabile()
+      per questo tipo — Campione uscirebbe del tutto dal componente
+      condiviso RevisionabileChain (che resterebbe eventualmente vuoto,
+      essendo Preventivo/Progetto già usciti da questo pattern in sprint
+      precedenti).
+   d. Le 8 righe esistenti (1 catena attiva) restano invariate come da
+      istruzione esplicita — nessuna migrazione dati necessaria per
+      questo verificatore, ma andrà deciso come renderle comunque
+      leggibili nella nuova UI (serie/revisione_di storici non più
+      significativi per le nuove istanze).
+
+2. Costruzione: nessuna azione — già conforme al documento.
+
+3. Noleggio:
+   a. Aggiungere il campo "compagnia" (nuova colonna).
+   b. Esporre descrizione_libera come campo "Note" in UI (colonna già
+      esistente, solo la UI manca).
+   c. Decidere se introdurre uno stato giallo intermedio o mantenere il
+      semaforo binario attuale (già funzionante).
+
+4. Acquisto:
+   a. Aggiungere un campo data esplicito (default=creazione) al form e
+      al dettaglio.
+   b. Decidere se sostituire lo stato a 3 valori con un flag booleano
+      "ordinato" unico, o mantenere il modello attuale (già copre lo
+      stesso bisogno con più granularità).
+   c. Confermare se il dropdown fornitore attuale (ricerca live) va bene
+      così o se serve un vero <select> con elenco completo.
+   d. Nessuna azione sul bottone "invia mail": già funzionante col
+      modello "scelta del destinatario ad ogni invio", deliberatamente
+      senza destinatario_ordini in anagrafica.
+
+5. Portata dati: rischio basso su tutti i tipi, nessun volume che renda
+   problematica una migrazione.
+
+Nessuna implementazione eseguita in questa fase, come da istruzioni.
+In attesa del prompt successivo per procedere.
