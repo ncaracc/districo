@@ -1,0 +1,33 @@
+-- =============================================================
+-- Fix "rimozione trigger accettazione" 2026-08-02 — rimuove il trigger
+-- (introdotto nella 0012, ultima ridefinizione della funzione nella 0022)
+-- che creava automaticamente Verifica misure/Acquisto/Costruzione/
+-- Noleggio/Montaggio quando lavoro.stato transitava a 'accettato'.
+--
+-- Decisione superata dallo Sprint "fondamenta" (2026-08-02, vedi CLAUDE.md):
+-- da allora TUTTE le attività, ripetibili o no, si aggiungono solo tramite
+-- il modale "Aggiungi attività" — nessuna creazione automatica oltre al
+-- Briefing alla creazione del Lavoro (trigger crea_satelliti_iniziali,
+-- ridotto alla 0023, NON toccato da questa migration). Il trigger qui
+-- rimosso era rimasto un residuo del vecchio modello (Sprint A, 25/7),
+-- mai disattivato quando lo Sprint "fondamenta" ha spostato la creazione
+-- delle attività di esecuzione al modale.
+--
+-- Verificato prima di scrivere questa migration: crea_satelliti_post_
+-- accettazione() non è referenziata da nessun'altra parte del sistema
+-- (nessun altro trigger la usa, EXECUTE già revocato da public/anon/
+-- authenticated dalla 0012 — non è mai stata chiamabile direttamente
+-- dall'applicazione) — sicuro droppare anche la funzione, non solo il
+-- trigger.
+--
+-- Nessuna migrazione dati: i Lavori già passati per 'accettato' fino ad
+-- oggi mantengono i satelliti eventualmente auto-creati dal trigger,
+-- inclusi eventuali dati di test delle sessioni di verifica precedenti —
+-- stesso principio già seguito per gli altri automatismi rimossi in
+-- questo progetto (es. creazione automatica di Progetto/Preventivo/
+-- Campionatura alla creazione del Lavoro, Sprint "fondamenta"). La
+-- rimozione vale solo per le transizioni future.
+-- =============================================================
+
+drop trigger trg_lavoro_crea_satelliti_post_accettazione on lavoro;
+drop function public.crea_satelliti_post_accettazione();
