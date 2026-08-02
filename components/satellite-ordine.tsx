@@ -6,12 +6,14 @@ import { useRouter } from 'next/navigation'
 import { avanzaStatoOrdine } from '@/lib/lavori/satelliti'
 import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-email'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import {
   DOT_COLOR,
   azioniPossibiliAcquisti,
   coloreAcquisti,
   labelStatoAcquisti,
   type Satellite,
+  type SatelliteAllegato,
   type SatelliteArticolo,
   type StatoAcquisti,
 } from '@/lib/lavori/satelliti-meta'
@@ -19,12 +21,14 @@ import {
 export function SatelliteOrdine({
   satellite,
   righe,
+  allegati,
   fornitoreSedeLabel,
   lavoroId,
   isOwner,
 }: {
   satellite: Satellite
   righe: SatelliteArticolo[]
+  allegati: SatelliteAllegato[]
   fornitoreSedeLabel: string | null
   lavoroId: string
   isOwner: boolean
@@ -107,6 +111,15 @@ export function SatelliteOrdine({
           Ordine inviato il {new Date(satellite.data_invio_ordine).toLocaleDateString('it-IT')}
         </p>
       )}
+
+      {isOwner && (
+        <div className="mb-2">
+          <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+        </div>
+      )}
+      <div className="mb-2">
+        <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+      </div>
 
       {errore && (
         <p className="mb-2 text-xs text-red-600">

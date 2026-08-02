@@ -275,6 +275,7 @@ export default async function LavoroDettaglioPage({
         <SatelliteOrdine
           satellite={s}
           righe={righePerSatellite[s.id] ?? []}
+          allegati={allegatiById[s.id] ?? []}
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
           lavoroId={lavoro.id}
           isOwner={isOwnerEffettivo}
