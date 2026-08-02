@@ -55,9 +55,15 @@ export function ProfiloObiettiviForm({ initialValues }: { initialValues: Fields 
       {errore && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errore}</p>}
       {salvato && <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">Obiettivi salvati.</p>}
 
-      <p className="text-sm text-gray-500">
-        Tempi massimi di riferimento per i KPI mostrati in Dashboard e Lavori conclusi — modificabili in
-        qualsiasi momento.
+      {/* Sprint E (2026-08-03): i 4 KPI di Dashboard sono stati sostituiti e
+          nessuno dei nuovi confronta più una media con un obiettivo — questi
+          4 campi non hanno quindi più alcun effetto, ma restano visibili
+          (invece di essere rimossi) su richiesta esplicita dell'utente,
+          segnalata come "sezione in fase di revisione". Le colonne DB
+          restano invariate e continuano a salvarsi normalmente. */}
+      <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-500">
+        Sezione in fase di revisione: questi 4 obiettivi non influenzano più i KPI attuali di Dashboard/Lavori
+        conclusi. Restano salvabili ma senza alcun effetto visibile, in attesa di essere ricollegati o rimossi.
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -118,10 +124,14 @@ export function ProfiloObiettiviForm({ initialValues }: { initialValues: Fields 
         </div>
       </div>
 
-      <div>
+      <div className="border-t border-gray-200 pt-5">
         <label htmlFor="kpi-finestra" className="mb-1 block text-sm font-medium text-gray-700">
           Finestra temporale per le medie (mesi)
         </label>
+        <p className="mb-1 text-xs text-gray-500">
+          Usata dai KPI &quot;Tempo medio preventivo&quot; e &quot;Tempo medio completamento&quot; in Dashboard — questo campo resta
+          attivo.
+        </p>
         <input
           id="kpi-finestra"
           type="number"
