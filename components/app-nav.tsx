@@ -205,11 +205,15 @@ export function AppNav({
 
         {/* Hamburger: solo mobile. Non diventa più una X al click (era così
             prima): il pannello a schermo intero copre anche quest'area, la
-            X per chiudere è quella dentro al pannello stesso. */}
+            X per chiudere è quella dentro al pannello stesso — l'etichetta
+            resta "Apri menu" anche a pannello aperto (invece di alternare con
+            "Chiudi menu") per non avere due controlli con lo stesso nome
+            accessibile in contemporanea sullo schermo; aria-expanded comunica
+            comunque lo stato a chi usa uno screen reader. */}
         <button
           type="button"
           onClick={() => setAperto((v) => !v)}
-          aria-label={aperto ? 'Chiudi menu' : 'Apri menu'}
+          aria-label="Apri menu"
           aria-expanded={aperto}
           className="-mr-2 p-2 text-gray-700 hover:text-gray-900 md:hidden"
         >
