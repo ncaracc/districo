@@ -27,7 +27,7 @@
 
 drop function if exists public.kpi_durate();
 
-create function public.kpi_dashboard()
+create or replace function public.kpi_dashboard()
 returns table (
   lavori_in_corso               integer,
   importo_lavori_accettati      numeric,
