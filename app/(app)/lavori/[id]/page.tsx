@@ -17,6 +17,7 @@ import {
   STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
   coloreAcquisti,
+  coloreAppuntamento,
   coloreCostruzione,
   colorePreventivo,
   coloreRevisionabile,
@@ -159,8 +160,8 @@ export default async function LavoroDettaglioPage({
     righeTabella.push({
       satelliteId: s.id,
       nome,
-      colore: s.concluso ? 'green' : 'red',
-      statoLabel: labelStatoAppuntamento(s.concluso),
+      colore: coloreAppuntamento(s.concluso, s.data_appuntamento),
+      statoLabel: labelStatoAppuntamento(s.concluso, s.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.briefing,
       contenuto: (
         <SatelliteAppuntamento
@@ -244,8 +245,8 @@ export default async function LavoroDettaglioPage({
     righeTabella.push({
       satelliteId: a.id,
       nome,
-      colore: a.concluso ? 'green' : 'red',
-      statoLabel: labelStatoAppuntamento(a.concluso),
+      colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
+      statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.verifica_misure,
       contenuto: (
         <SatelliteAppuntamento
@@ -310,8 +311,8 @@ export default async function LavoroDettaglioPage({
     righeTabella.push({
       satelliteId: a.id,
       nome,
-      colore: a.concluso ? 'green' : 'red',
-      statoLabel: labelStatoAppuntamento(a.concluso),
+      colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
+      statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.montaggio,
       contenuto: (
         <SatelliteAppuntamento

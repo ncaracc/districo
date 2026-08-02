@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
+import { coloreAppuntamento, DOT_COLOR } from '@/lib/lavori/satelliti-meta'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 function inputClass() {
@@ -58,13 +59,15 @@ export function SatelliteAppuntamento({
     router.refresh()
   }
 
-  const verde = concluso
+  // Riflette dal vivo le modifiche non ancora salvate nel form (data/concluso),
+  // stessa logica di coloreAppuntamento() usata per la riga in tabella.
+  const colore = coloreAppuntamento(concluso, data ? new Date(data).toISOString() : null)
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
           {titolo}
         </p>
       </div>

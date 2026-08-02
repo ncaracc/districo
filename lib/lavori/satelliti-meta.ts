@@ -390,8 +390,38 @@ export function satelliteTipoLabelBreve(s: Satellite): string {
 // riepilogativa satelliti nel dettaglio Lavoro. "Non necessario" rimosso
 // dalla revisione satelliti del 1/8 (0 righe lo usavano): se un'attività non
 // serve, semplicemente non si crea.
-export function labelStatoAppuntamento(concluso: boolean): string {
-  return concluso ? 'Concluso' : 'Da fare'
+
+// Confronto per sola data di calendario (non timestamp esatto): un
+// appuntamento fissato per "oggi" resta giallo per l'intera giornata,
+// invece di diventare rosso non appena passa l'orario esatto — coerente con
+// la formulazione "data_appuntamento >= oggi" del documento di revisione
+// (data, non datetime). Stessa funzione riusata dal calcolo colore/label qui
+// sotto e, in forma equivalente, dalla migration SQL lato dashboard.
+function dataOggiOFutura(dataAppuntamento: string): boolean {
+  const oggi = new Date()
+  oggi.setHours(0, 0, 0, 0)
+  const data = new Date(dataAppuntamento)
+  data.setHours(0, 0, 0, 0)
+  return data.getTime() >= oggi.getTime()
+}
+
+// Calcolo dinamico a lettura (mai scritto/salvato): concluso=true è sempre
+// verde indipendentemente dalla data, anche se questa è nel passato o mai
+// stata impostata — priorità esplicita del documento di revisione.
+export function coloreAppuntamento(concluso: boolean, dataAppuntamento: string | null): ColoreSemaforo {
+  if (concluso) return 'green'
+  if (!dataAppuntamento) return 'red'
+  return dataOggiOFutura(dataAppuntamento) ? 'yellow' : 'red'
+}
+
+// Label distinte per i due casi rosso (nessuna data vs. data scaduta) e per
+// il giallo, anche se in due dei tre casi rosso il colore risultante è
+// identico — permette di distinguere a colpo d'occhio "va ancora fissato"
+// da "fissato ma saltato/non aggiornato".
+export function labelStatoAppuntamento(concluso: boolean, dataAppuntamento: string | null): string {
+  if (concluso) return 'Concluso'
+  if (!dataAppuntamento) return 'Da fissare'
+  return dataOggiOFutura(dataAppuntamento) ? 'In programma' : 'Data scaduta'
 }
 
 export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
