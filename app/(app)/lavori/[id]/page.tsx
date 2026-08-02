@@ -297,7 +297,7 @@ export default async function LavoroDettaglioPage({
     righeTabella.push({
       satelliteId: s.id,
       nome,
-      colore: coloreAcquisti(s.stato ?? ''),
+      colore: coloreAcquisti(s.stato ?? '', (righePerSatellite[s.id] ?? []).length > 0),
       statoLabel: labelStatoAcquisti(s.stato ?? ''),
       posizione: POSIZIONE_ATTIVITA.acquisto,
       contenutoModifica: (
@@ -463,7 +463,7 @@ export default async function LavoroDettaglioPage({
           <LavoroSegnaCompletato
             lavoroId={lavoro.id}
             pronto={!!pronto}
-            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
+            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById, righePerSatellite).map(satelliteTipoLabelBreve)}
           />
         </div>
       )}

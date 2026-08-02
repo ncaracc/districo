@@ -83,7 +83,7 @@ export function SatelliteOrdine({
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreAcquisti(satellite.stato ?? '')]}`} />
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreAcquisti(satellite.stato ?? '', righe.length > 0)]}`} />
           {fornitoreSedeLabel ?? 'Nessun fornitore'}
         </p>
         <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.stato ?? '')}</span>
