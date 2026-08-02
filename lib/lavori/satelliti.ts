@@ -194,17 +194,19 @@ export async function creaPreventivo(lavoroId: string): Promise<CreazioneResult>
 }
 
 // Gate lavoro.stato derivato SOLO dal Preventivo (revisione satelliti del
-// 1/8, vedi CLAUDE.md): preventivo_accettato=true -> lavoro.stato='accettato'
-// (accettato_at/prima_accettazione_at valorizzati solo se non già impostati);
-// preventivo_rifiutato=true -> lavoro.stato='rifiutato'. Annullare una
-// decisione (decisione=null, entrambi i flag tornano false) non tocca mai
-// lavoro.stato: non si forza mai indietro a 'opportunita' (es. se il lavoro
-// fosse già avanzato oltre) — dalla rimozione di "Riporta a opportunità" nello
-// Sprint "fondamenta" 2026-08-02 (vedi CLAUDE.md), un Lavoro accettato con
-// entrambi i flag annullati resta "accettato" senza una via automatica
-// indietro in UI: l'unica reversibilità rimasta è "Riapri lavoro" per
-// completato/rifiutato (lib/lavori/actions.ts) — non richiesta una nuova via
-// per questo caso specifico, segnalato qui per consapevolezza futura.
+// 1/8, vedi CLAUDE.md): funzione pura dei due flag correnti, ricalcolata a
+// ogni cambiamento — decisione='accettato' -> 'accettato', 'rifiutato' ->
+// 'rifiutato', null (annullamento/reset di entrambi i flag) -> 'opportunita'.
+// Corretto il 2026-08-02: fino a questo fix il ramo null non toccava affatto
+// lavoro.stato ("non torna mai indietro automaticamente", comportamento
+// verificato e confermato reale prima di cambiarlo, poi giudicato non
+// desiderato e sostituito su richiesta esplicita). accettato_at/
+// prima_accettazione_at restano valorizzati solo se non già impostati (mai
+// azzerati qui, coerente con riapriLavoro() in lib/lavori/actions.ts, che
+// non li tocca nemmeno lui in un reset verso 'opportunita'). Il Lavoro
+// 'completato' è già escluso a monte: assertSatelliteModificabile blocca
+// l'intera funzione prima di arrivare a questo punto, nessuna guardia
+// aggiuntiva necessaria qui.
 export async function impostaPreventivoDecisione(
   satelliteId: string,
   lavoroId: string,
@@ -228,27 +230,26 @@ export async function impostaPreventivoDecisione(
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 
-  if (decisione === 'accettato' || decisione === 'rifiutato') {
-    const update: { stato: 'accettato' | 'rifiutato'; accettato_at?: string; prima_accettazione_at?: string } = {
-      stato: decisione,
-    }
+  const nuovoStato = decisione === 'accettato' ? 'accettato' : decisione === 'rifiutato' ? 'rifiutato' : 'opportunita'
+  const update: { stato: 'accettato' | 'rifiutato' | 'opportunita'; accettato_at?: string; prima_accettazione_at?: string } = {
+    stato: nuovoStato,
+  }
 
-    if (decisione === 'accettato') {
-      const ora = new Date().toISOString()
-      const { data: attuale } = await supabase
-        .from('lavoro')
-        .select('accettato_at, prima_accettazione_at')
-        .eq('id', lavoroId)
-        .maybeSingle()
-      if (attuale && !attuale.accettato_at) update.accettato_at = ora
-      if (attuale && !attuale.prima_accettazione_at) update.prima_accettazione_at = ora
-    }
+  if (decisione === 'accettato') {
+    const ora = new Date().toISOString()
+    const { data: attuale } = await supabase
+      .from('lavoro')
+      .select('accettato_at, prima_accettazione_at')
+      .eq('id', lavoroId)
+      .maybeSingle()
+    if (attuale && !attuale.accettato_at) update.accettato_at = ora
+    if (attuale && !attuale.prima_accettazione_at) update.prima_accettazione_at = ora
+  }
 
-    const { error: lavoroErr } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
-    if (lavoroErr) {
-      console.error('impostaPreventivoDecisione: update lavoro fallito', lavoroErr)
-      return { ok: false, error: "Preventivo salvato, ma errore nell'aggiornamento dello stato del lavoro" }
-    }
+  const { error: lavoroErr } = await supabase.from('lavoro').update(update).eq('id', lavoroId)
+  if (lavoroErr) {
+    console.error('impostaPreventivoDecisione: update lavoro fallito', lavoroErr)
+    return { ok: false, error: "Preventivo salvato, ma errore nell'aggiornamento dello stato del lavoro" }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)

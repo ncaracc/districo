@@ -121,7 +121,7 @@ export function SatellitePreventivo({
                     e.target.checked,
                     'accettato',
                     'Segnare il preventivo come accettato? Il lavoro passerà allo stato "Accettato".',
-                    "Annullare l'accettazione del preventivo? Lo stato del lavoro non tornerà automaticamente indietro.",
+                    "Annullare l'accettazione del preventivo?",
                   )
                 }
                 className="accent-primary"
