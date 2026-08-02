@@ -65,6 +65,14 @@ export async function caricaAllegatiSatellite(
     return { ok: false, error: 'Nessun file selezionato' }
   }
 
+  // Etichetta facoltativa lato server: solo il flusso Appuntamento (Briefing/
+  // Verifica misure/Montaggio) la raccoglie e la richiede obbligatoria lato
+  // client per ora (vedi CLAUDE.md) — gli altri satelliti con allegati
+  // (Preventivo/Progetto/Campione) non hanno ancora quel campo in UI
+  // (arriverà nello Sprint C), quindi qui si ricade sul nome del file perché
+  // la colonna è NOT NULL a schema.
+  const etichettaCondivisa = (formData.get('etichetta') as string | null)?.trim() || null
+
   const cartella = path.join(UPLOADS_DIR, 'lavori', lavoroId, satelliteId)
   await fs.mkdir(cartella, { recursive: true })
 
@@ -83,6 +91,7 @@ export async function caricaAllegatiSatellite(
         satellite_id: satelliteId,
         nome_file: f.name,
         storage_path: storagePath,
+        etichetta: etichettaCondivisa ?? f.name,
       })
 
       if (error) {

@@ -73,6 +73,7 @@ export type SatelliteAllegato = {
   satellite_id: string
   nome_file: string
   storage_path: string
+  etichetta: string
   data_caricamento: string
 }
 

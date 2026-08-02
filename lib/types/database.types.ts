@@ -307,8 +307,8 @@ export type Database = {
         Relationships: []
       }
       lavoro_satellite_allegato: {
-        Row: { id: string; satellite_id: string; nome_file: string; storage_path: string; data_caricamento: string }
-        Insert: { id?: string; satellite_id: string; nome_file: string; storage_path: string; data_caricamento?: string }
+        Row: { id: string; satellite_id: string; nome_file: string; storage_path: string; etichetta: string; data_caricamento: string }
+        Insert: { id?: string; satellite_id: string; nome_file: string; storage_path: string; etichetta: string; data_caricamento?: string }
         Update: Partial<Database['public']['Tables']['lavoro_satellite_allegato']['Insert']>
         Relationships: []
       }

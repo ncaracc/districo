@@ -123,13 +123,25 @@ export function SatelliteAppuntamento({
             {salvato && <span className="text-xs text-gray-500">Salvato</span>}
           </div>
 
-          <SatelliteAllegati satelliteId={satellite.id} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />
+          <SatelliteAllegati
+            satelliteId={satellite.id}
+            lavoroId={lavoroId}
+            allegati={allegati}
+            isOwner={isOwner}
+            richiedeEtichetta
+          />
         </div>
       ) : (
         <div className="space-y-1 text-sm text-gray-700">
           {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
           {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
-          <SatelliteAllegati satelliteId={satellite.id} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />
+          <SatelliteAllegati
+            satelliteId={satellite.id}
+            lavoroId={lavoroId}
+            allegati={allegati}
+            isOwner={isOwner}
+            richiedeEtichetta
+          />
         </div>
       )}
     </div>
