@@ -75,6 +75,32 @@ export async function creaAppuntamento(
   return { ok: true, id: data.id }
 }
 
+// Progetto non è più creato automaticamente alla creazione del Lavoro
+// (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md): non essendo ripetibile,
+// "Aggiungi attività" lo propone finché non esiste già una catena per questo
+// Lavoro (il chiamante verifica l'assenza prima di invocare questa azione).
+export async function creaProgetto(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'progetto', stato: 'in_preparazione' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaProgetto: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
 // Imposta lo stato di un satellite "revisionabile" (progetto/campione — il
 // Preventivo non ne fa più parte dalla revisione satelliti del 1/8, vedi
 // impostaPreventivoDecisione più sotto). Se il nuovo stato è quello che
@@ -201,14 +227,46 @@ export async function aggiornaValorePreventivo(
   return { ok: true }
 }
 
+// Preventivo non è più creato automaticamente alla creazione del Lavoro
+// (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md): non essendo ripetibile,
+// "Aggiungi attività" lo propone finché non ne esiste già uno per questo
+// Lavoro. Nessuno stato/flag da impostare al momento della creazione: parte
+// sempre da preventivo_accettato=false/preventivo_rifiutato=false (default a
+// schema).
+export async function creaPreventivo(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'preventivo' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaPreventivo: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
 // Gate lavoro.stato derivato SOLO dal Preventivo (revisione satelliti del
 // 1/8, vedi CLAUDE.md): preventivo_accettato=true -> lavoro.stato='accettato'
 // (accettato_at/prima_accettazione_at valorizzati solo se non già impostati);
 // preventivo_rifiutato=true -> lavoro.stato='rifiutato'. Annullare una
 // decisione (decisione=null, entrambi i flag tornano false) non tocca mai
 // lavoro.stato: non si forza mai indietro a 'opportunita' (es. se il lavoro
-// fosse già avanzato oltre) — l'unica via indietro resta "Riporta a
-// opportunità"/"Riapri lavoro" (lib/lavori/actions.ts).
+// fosse già avanzato oltre) — dalla rimozione di "Riporta a opportunità" nello
+// Sprint "fondamenta" 2026-08-02 (vedi CLAUDE.md), un Lavoro accettato con
+// entrambi i flag annullati resta "accettato" senza una via automatica
+// indietro in UI: l'unica reversibilità rimasta è "Riapri lavoro" per
+// completato/rifiutato (lib/lavori/actions.ts) — non richiesta una nuova via
+// per questo caso specifico, segnalato qui per consapevolezza futura.
 export async function impostaPreventivoDecisione(
   satelliteId: string,
   lavoroId: string,
@@ -285,7 +343,7 @@ export async function aggiornaDescrizioneCampione(
   return { ok: true }
 }
 
-export async function creaNuovaSerieCampione(lavoroId: string, serie: string): Promise<AzioneResult> {
+export async function creaNuovaSerieCampione(lavoroId: string, serie: string): Promise<CreazioneResult> {
   const supabase = await createClient()
   const nomeSerie = serie.trim()
 
@@ -296,9 +354,11 @@ export async function creaNuovaSerieCampione(lavoroId: string, serie: string): P
   const bloccato = await assertLavoroModificabile(supabase, lavoroId)
   if (bloccato) return bloccato
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('lavoro_satellite')
     .insert({ lavoro_id: lavoroId, tipo: 'campione', stato: 'in_preparazione', serie: nomeSerie })
+    .select('id')
+    .single()
 
   if (error) {
     console.error('creaNuovaSerieCampione: insert fallito', error)
@@ -307,7 +367,7 @@ export async function creaNuovaSerieCampione(lavoroId: string, serie: string): P
 
   revalidatePath(`/lavori/${lavoroId}`)
   revalidatePath('/lavori')
-  return { ok: true }
+  return { ok: true, id: data.id }
 }
 
 // --- Acquisti ---
@@ -390,6 +450,33 @@ export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, n
 }
 
 // --- Costruzione ---
+// Nessuna funzione di creazione esisteva finora (satellite creato solo dal
+// trigger crea_satelliti_post_accettazione): con la Costruzione ripetibile
+// (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md) "Aggiungi attività" deve
+// poterne creare altre istanze in qualunque momento, indipendentemente dallo
+// stato del Lavoro.
+export async function creaCostruzione(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'costruzione', stato: 'da_iniziare' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaCostruzione: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
 export async function aggiornaDescrizioneCostruzione(
   satelliteId: string,
   lavoroId: string,
@@ -488,6 +575,31 @@ export async function eliminaSatellite(satelliteId: string, lavoroId: string): P
 }
 
 // --- Noleggio ---
+// Stesso ragionamento di creaCostruzione sopra: nessuna funzione di
+// creazione esisteva (solo trigger post-accettazione), ora serve per
+// "Aggiungi attività" essendo il Noleggio ripetibile.
+export async function creaNoleggio(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'noleggio', prenotazione_effettuata: false })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaNoleggio: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
 export async function aggiornaNoleggio(
   satelliteId: string,
   lavoroId: string,

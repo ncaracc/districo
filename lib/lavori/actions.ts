@@ -185,23 +185,21 @@ export async function eliminaLavoro(lavoroId: string): Promise<AzioneResult> {
   return { ok: true }
 }
 
-// Riapertura/correzione di un Lavoro (fix emerso dal test end-to-end in
-// produzione, esteso il 26/7 per coprire anche accettato -> opportunita):
-// riporta lo stato al valore precedente logico — completato -> accettato,
-// rifiutato -> opportunita, accettato -> opportunita. Nessun'altra modifica:
-// i satelliti (inclusi quelli di esecuzione creati automaticamente
-// dall'accettazione) restano invariati nel database — la sezione "Esecuzione"
-// smette solo di essere mostrata in UI finché il lavoro non torna accettato
-// (vedi app/(app)/lavori/[id]/page.tsx). Il trigger crea_satelliti_post_
-// accettazione ha già una guardia di idempotenza (Sprint A, aggiornata dalla
-// revisione satelliti del 1/8: non ricrea i segnaposto se esistono già
-// satelliti acquisti/costruzione/noleggio per il lavoro), quindi un ciclo
-// accettato -> opportunita -> accettato ripetuto più volte non duplica
-// nulla. Nessun controllo di gate qui (a differenza di completaLavoro):
-// riaprire/correggere non ha condizioni, è sempre concesso.
+// Riapertura/correzione di un Lavoro: riporta lo stato al valore precedente
+// logico — completato -> accettato, rifiutato -> opportunita. Nessun'altra
+// modifica: i satelliti restano invariati nel database. Nessun controllo di
+// gate qui (a differenza di completaLavoro): riaprire/correggere non ha
+// condizioni, è sempre concesso.
+//
+// La terza variante che esisteva qui (accettato -> opportunita, "Riporta a
+// opportunità") è stata rimossa nello Sprint "fondamenta" 2026-08-02 (vedi
+// CLAUDE.md): lavoro.stato ora si modifica esclusivamente tramite i flag
+// preventivo_accettato/preventivo_rifiutato sul satellite Preventivo
+// (impostaPreventivoDecisione in lib/lavori/satelliti.ts), non più con
+// un'azione manuale diretta sulla pagina Lavoro.
 export async function riapriLavoro(
   lavoroId: string,
-  statoAttuale: 'accettato' | 'completato' | 'rifiutato',
+  statoAttuale: 'completato' | 'rifiutato',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
   const nuovoStato = statoAttuale === 'completato' ? 'accettato' : 'opportunita'

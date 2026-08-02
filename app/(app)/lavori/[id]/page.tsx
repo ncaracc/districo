@@ -6,14 +6,12 @@ import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroInfo } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
-import { SatelliteNuovoAppuntamento } from '@/components/satellite-nuovo-appuntamento'
 import { RevisionabileChain } from '@/components/satellite-revisionabile'
 import { SatellitePreventivo } from '@/components/satellite-preventivo'
-import { SatelliteNuovaSerieCampione } from '@/components/satellite-nuova-serie-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
-import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
+import { POSIZIONE_ATTIVITA } from '@/lib/lavori/attivita-ordine'
 import {
   SOTTOTIPO_APPUNTAMENTO_LABEL,
   STATO_COSTRUZIONE_LABEL,
@@ -90,7 +88,9 @@ export default async function LavoroDettaglioPage({
     if (s.stato_effettivo) statoEffettivoById[s.satellite_id] = s.stato_effettivo
   }
 
-  const briefing = satelliti.find((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'briefing')
+  const briefingSatelliti = satelliti
+    .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'briefing')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const progettoSatelliti = satelliti.filter((s) => s.tipo === 'progetto')
   const preventivoSatelliti = satelliti.filter((s) => s.tipo === 'preventivo')
   const campioneSatelliti = satelliti.filter((s) => s.tipo === 'campione')
@@ -101,9 +101,15 @@ export default async function LavoroDettaglioPage({
   const appuntamentiMontaggio = satelliti
     .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'montaggio')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
-  const acquistiSatelliti = satelliti.filter((s) => s.tipo === 'acquisti')
-  const costruzioneSatellite = satelliti.find((s) => s.tipo === 'costruzione')
-  const noleggioSatellite = satelliti.find((s) => s.tipo === 'noleggio')
+  const acquistiSatelliti = satelliti
+    .filter((s) => s.tipo === 'acquisti')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
+  const costruzioneSatelliti = satelliti
+    .filter((s) => s.tipo === 'costruzione')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
+  const noleggioSatelliti = satelliti
+    .filter((s) => s.tipo === 'noleggio')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
 
   const fornitoreSedeIds = [...new Set(acquistiSatelliti.map((s) => s.fornitore_sede_id).filter((v): v is string => !!v))]
   const { data: fornitoreSedi } =
@@ -126,27 +132,10 @@ export default async function LavoroDettaglioPage({
   )
 
   // Categorie acquisto libere dell'artigiano (Profilo/Impostazioni), per il
-  // select del form "+ Nuovo ordine acquisti" — solo se la fase esecuzione è
-  // raggiungibile, stessa condizione di faseEsecuzione più sotto.
+  // form "Acquisto" nel modale "Aggiungi attività".
   const { data: categorieAcquisto } = isOwner
     ? await supabase.from('categoria_acquisto').select('id, nome').order('nome')
     : { data: [] }
-
-  // I satelliti di esecuzione (creati automaticamente all'accettazione) restano
-  // nel database anche se il Lavoro torna a 'opportunita' (reversibilità
-  // accettato -> opportunita, 26/7) — qui si nascondono semplicemente dalla UI
-  // finché il lavoro non è di nuovo accettato o completato, senza eliminare nulla.
-  const haEsecuzione =
-    (lavoro.stato === 'accettato' || lavoro.stato === 'completato') &&
-    (appuntamentiVerificaMisure.length > 0 || appuntamentiMontaggio.length > 0 || acquistiSatelliti.length > 0 || !!costruzioneSatellite || !!noleggioSatellite)
-
-  // Distinta da haEsecuzione (che dipende dai satelliti già esistenti): governa
-  // la disponibilità dei flussi "+ Aggiungi satellite" per i tipi di esecuzione
-  // in base allo stato del Lavoro, non a cosa esiste già oggi — altrimenti, se
-  // l'ultimo satellite di un tipo di esecuzione viene eliminato dalla tabella,
-  // non ci sarebbe più alcun modo per aggiungerne uno nuovo pur restando il
-  // Lavoro accettato.
-  const faseEsecuzione = lavoro.stato === 'accettato' || lavoro.stato === 'completato'
 
   // Lavoro completato = sola lettura su tutti i satelliti (vedi CLAUDE.md):
   // isOwnerEffettivo riusa lo stesso meccanismo di sola lettura già previsto
@@ -157,38 +146,44 @@ export default async function LavoroDettaglioPage({
   const completato = lavoro.stato === 'completato'
   const isOwnerEffettivo = !!isOwner && !completato
 
-  // --- Righe della tabella riepilogativa satelliti ---
-  const righeTabella: RigaSatellite[] = []
+  // --- Righe della tabella riepilogativa attività ---
+  // Costruite senza un ordine particolare, poi ordinate esplicitamente in
+  // base a POSIZIONE_ATTIVITA (unica fonte di verità, vedi
+  // lib/lavori/attivita-ordine.ts) — un sort stabile mantiene l'ordine di
+  // inserimento tra istanze dello stesso tipo (es. due Acquisti), coerente
+  // con "la nuova istanza va subito dopo l'ultima esistente dello stesso tipo".
+  const righeTabella: (RigaSatellite & { posizione: number })[] = []
 
-  if (briefing) {
+  briefingSatelliti.forEach((s, i) => {
+    const nome = briefingSatelliti.length > 1 ? `Briefing ${i + 1}` : 'Briefing'
     righeTabella.push({
-      key: 'briefing',
-      satelliteId: briefing.id,
-      nome: 'Briefing',
-      colore: briefing.concluso ? 'green' : 'red',
-      statoLabel: labelStatoAppuntamento(briefing.concluso),
+      satelliteId: s.id,
+      nome,
+      colore: s.concluso ? 'green' : 'red',
+      statoLabel: labelStatoAppuntamento(s.concluso),
+      posizione: POSIZIONE_ATTIVITA.briefing,
       contenuto: (
         <SatelliteAppuntamento
-          satellite={briefing}
+          satellite={s}
           lavoroId={lavoro.id}
-          titolo="Briefing"
-          allegati={allegatiById[briefing.id] ?? []}
+          titolo={nome}
+          allegati={allegatiById[s.id] ?? []}
           isOwner={isOwnerEffettivo}
         />
       ),
     })
-  }
+  })
 
   if (progettoSatelliti.length > 0) {
     const catena = [...costruisciCatena(progettoSatelliti)].reverse()
     const corrente = catena[0]
     const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
     righeTabella.push({
-      key: 'progetto',
       satelliteId: corrente.id,
       nome: 'Progetto',
       colore: coloreRevisionabile('progetto', statoEff),
       statoLabel: labelStatoRevisionabile('progetto', statoEff),
+      posizione: POSIZIONE_ATTIVITA.progetto,
       contenuto: (
         <RevisionabileChain
           tipo="progetto"
@@ -207,11 +202,11 @@ export default async function LavoroDettaglioPage({
     const catena = [...costruisciCatena(preventivoSatelliti)].reverse()
     const corrente = catena[0]
     righeTabella.push({
-      key: 'preventivo',
       satelliteId: corrente.id,
       nome: 'Preventivo',
       colore: colorePreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
       statoLabel: labelStatoPreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
+      posizione: POSIZIONE_ATTIVITA.preventivo,
       contenuto: (
         <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
@@ -223,11 +218,11 @@ export default async function LavoroDettaglioPage({
     const corrente = catena[0]
     const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
     righeTabella.push({
-      key: `campione-${g.serie}`,
       satelliteId: corrente.id,
-      nome: `Campione (${g.serie})`,
+      nome: `Campionatura (${g.serie})`,
       colore: coloreRevisionabile('campione', statoEff),
       statoLabel: labelStatoRevisionabile('campione', statoEff),
+      posizione: POSIZIONE_ATTIVITA.campionatura,
       contenuto: (
         <RevisionabileChain
           tipo="campione"
@@ -244,91 +239,96 @@ export default async function LavoroDettaglioPage({
     })
   }
 
-  if (haEsecuzione) {
-    appuntamentiVerificaMisure.forEach((a, i) => {
-      const nome = appuntamentiVerificaMisure.length > 1 ? `Verifica misure ${i + 1}` : 'Verifica misure'
-      righeTabella.push({
-        key: `app-vm-${a.id}`,
-        satelliteId: a.id,
-        nome,
-        colore: a.concluso ? 'green' : 'red',
-        statoLabel: labelStatoAppuntamento(a.concluso),
-        contenuto: (
-          <SatelliteAppuntamento
-            satellite={a}
-            lavoroId={lavoro.id}
-            titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
-            allegati={allegatiById[a.id] ?? []}
-            isOwner={isOwnerEffettivo}
-          />
-        ),
-      })
+  appuntamentiVerificaMisure.forEach((a, i) => {
+    const nome = appuntamentiVerificaMisure.length > 1 ? `Verifica misure ${i + 1}` : 'Verifica misure'
+    righeTabella.push({
+      satelliteId: a.id,
+      nome,
+      colore: a.concluso ? 'green' : 'red',
+      statoLabel: labelStatoAppuntamento(a.concluso),
+      posizione: POSIZIONE_ATTIVITA.verifica_misure,
+      contenuto: (
+        <SatelliteAppuntamento
+          satellite={a}
+          lavoroId={lavoro.id}
+          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
+          allegati={allegatiById[a.id] ?? []}
+          isOwner={isOwnerEffettivo}
+        />
+      ),
     })
+  })
 
-    acquistiSatelliti.forEach((s, i) => {
-      const base = satelliteTipoLabelBreve(s)
-      const nome = acquistiSatelliti.length > 1 ? `${base} ${i + 1}` : base
-      righeTabella.push({
-        key: `acquisti-${s.id}`,
-        satelliteId: s.id,
-        nome,
-        colore: coloreAcquisti(s.stato ?? ''),
-        statoLabel: labelStatoAcquisti(s.stato ?? ''),
-        contenuto: (
-          <SatelliteOrdine
-            satellite={s}
-            righe={righePerSatellite[s.id] ?? []}
-            fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
-            lavoroId={lavoro.id}
-            isOwner={isOwnerEffettivo}
-          />
-        ),
-      })
+  acquistiSatelliti.forEach((s, i) => {
+    const base = satelliteTipoLabelBreve(s)
+    const nome = acquistiSatelliti.length > 1 ? `${base} ${i + 1}` : base
+    righeTabella.push({
+      satelliteId: s.id,
+      nome,
+      colore: coloreAcquisti(s.stato ?? ''),
+      statoLabel: labelStatoAcquisti(s.stato ?? ''),
+      posizione: POSIZIONE_ATTIVITA.acquisto,
+      contenuto: (
+        <SatelliteOrdine
+          satellite={s}
+          righe={righePerSatellite[s.id] ?? []}
+          fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          lavoroId={lavoro.id}
+          isOwner={isOwnerEffettivo}
+        />
+      ),
     })
+  })
 
-    if (costruzioneSatellite) {
-      const stato = costruzioneSatellite.stato ?? 'da_iniziare'
-      righeTabella.push({
-        key: 'costruzione',
-        satelliteId: costruzioneSatellite.id,
-        nome: 'Costruzione',
-        colore: coloreCostruzione(stato),
-        statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
-        contenuto: <SatelliteCostruzione satellite={costruzioneSatellite} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
-      })
-    }
-
-    if (noleggioSatellite) {
-      righeTabella.push({
-        key: 'noleggio',
-        satelliteId: noleggioSatellite.id,
-        nome: 'Noleggio',
-        colore: noleggioSatellite.prenotazione_effettuata ? 'green' : 'red',
-        statoLabel: labelStatoNoleggio(noleggioSatellite.prenotazione_effettuata),
-        contenuto: <SatelliteNoleggio satellite={noleggioSatellite} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
-      })
-    }
-
-    appuntamentiMontaggio.forEach((a, i) => {
-      const nome = appuntamentiMontaggio.length > 1 ? `Montaggio ${i + 1}` : 'Montaggio'
-      righeTabella.push({
-        key: `app-montaggio-${a.id}`,
-        satelliteId: a.id,
-        nome,
-        colore: a.concluso ? 'green' : 'red',
-        statoLabel: labelStatoAppuntamento(a.concluso),
-        contenuto: (
-          <SatelliteAppuntamento
-            satellite={a}
-            lavoroId={lavoro.id}
-            titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
-            allegati={allegatiById[a.id] ?? []}
-            isOwner={isOwnerEffettivo}
-          />
-        ),
-      })
+  costruzioneSatelliti.forEach((s, i) => {
+    const nome = costruzioneSatelliti.length > 1 ? `Costruzione ${i + 1}` : 'Costruzione'
+    const stato = s.stato ?? 'da_iniziare'
+    righeTabella.push({
+      satelliteId: s.id,
+      nome,
+      colore: coloreCostruzione(stato),
+      statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
+      posizione: POSIZIONE_ATTIVITA.costruzione,
+      contenuto: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
     })
-  }
+  })
+
+  noleggioSatelliti.forEach((s, i) => {
+    const nome = noleggioSatelliti.length > 1 ? `Noleggio ${i + 1}` : 'Noleggio'
+    righeTabella.push({
+      satelliteId: s.id,
+      nome,
+      colore: s.prenotazione_effettuata ? 'green' : 'red',
+      statoLabel: labelStatoNoleggio(s.prenotazione_effettuata),
+      posizione: POSIZIONE_ATTIVITA.noleggio,
+      contenuto: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
+    })
+  })
+
+  appuntamentiMontaggio.forEach((a, i) => {
+    const nome = appuntamentiMontaggio.length > 1 ? `Montaggio ${i + 1}` : 'Montaggio'
+    righeTabella.push({
+      satelliteId: a.id,
+      nome,
+      colore: a.concluso ? 'green' : 'red',
+      statoLabel: labelStatoAppuntamento(a.concluso),
+      posizione: POSIZIONE_ATTIVITA.montaggio,
+      contenuto: (
+        <SatelliteAppuntamento
+          satellite={a}
+          lavoroId={lavoro.id}
+          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
+          allegati={allegatiById[a.id] ?? []}
+          isOwner={isOwnerEffettivo}
+        />
+      ),
+    })
+  })
+
+  righeTabella.sort((a, b) => a.posizione - b.posizione)
+
+  const progettoEsiste = progettoSatelliti.length > 0
+  const preventivoEsiste = preventivoSatelliti.length > 0
 
   return (
     <div>
@@ -385,17 +385,9 @@ export default async function LavoroDettaglioPage({
         lavoroId={lavoro.id}
         isOwner={!!isOwner}
         completato={completato}
-        aggiungi={
-          <>
-            <SatelliteNuovaSerieCampione lavoroId={lavoro.id} />
-            {faseEsecuzione && (
-              <>
-                <SatelliteNuovoAppuntamento lavoroId={lavoro.id} />
-                <SatelliteNuovoOrdine lavoroId={lavoro.id} categorie={categorieAcquisto ?? []} />
-              </>
-            )}
-          </>
-        }
+        progettoEsiste={progettoEsiste}
+        preventivoEsiste={preventivoEsiste}
+        categorieAcquisto={categorieAcquisto ?? []}
       />
 
       {lavoro.stato === 'accettato' && isOwner && (
@@ -405,7 +397,6 @@ export default async function LavoroDettaglioPage({
             pronto={!!pronto}
             mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
           />
-          <LavoroRiapri lavoroId={lavoro.id} statoAttuale="accettato" />
         </div>
       )}
     </div>

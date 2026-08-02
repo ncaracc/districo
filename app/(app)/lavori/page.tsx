@@ -25,7 +25,7 @@ function RiepilogoSatelliti({
   verdi: number
 }) {
   if (rossi + gialli + verdi === 0) {
-    return <span className="text-xs text-gray-400">Nessun satellite</span>
+    return <span className="text-xs text-gray-400">Nessuna attività</span>
   }
   return (
     <div className="flex items-center gap-3 text-xs text-gray-600">

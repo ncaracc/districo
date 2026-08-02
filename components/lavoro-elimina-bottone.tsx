@@ -12,7 +12,7 @@ export function LavoroEliminaBottone({ lavoroId, titolo }: { lavoroId: string; t
   async function handleClick() {
     if (
       !window.confirm(
-        `Eliminare definitivamente il lavoro "${titolo}"? Tutti i satelliti e gli allegati collegati verranno cancellati. L'azione non è reversibile.`,
+        `Eliminare definitivamente il lavoro "${titolo}"? Tutte le attività e gli allegati collegati verranno cancellati. L'azione non è reversibile.`,
       )
     ) {
       return

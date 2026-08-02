@@ -38,7 +38,7 @@ export function LavoroSegnaCompletato({
       </p>
       {!pronto && mancanti.length > 0 && (
         <p className="mb-2 text-xs text-gray-600">
-          Satelliti ancora da completare: {mancanti.join(', ')}
+          Attività ancora da completare: {mancanti.join(', ')}
         </p>
       )}
       <button

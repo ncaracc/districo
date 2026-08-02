@@ -4,15 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { riapriLavoro } from '@/lib/lavori/actions'
 
-const LABEL: Record<'accettato' | 'completato' | 'rifiutato', string> = {
-  accettato: 'Riporta a opportunità',
+const LABEL: Record<'completato' | 'rifiutato', string> = {
   completato: 'Riapri lavoro',
   rifiutato: 'Riapri lavoro',
 }
 
-const CONFERMA: Record<'accettato' | 'completato' | 'rifiutato', string> = {
-  accettato:
-    'Riportare il lavoro a "opportunità"? I satelliti di esecuzione già creati restano salvati, ma non saranno visibili finché il lavoro non torna accettato.',
+const CONFERMA: Record<'completato' | 'rifiutato', string> = {
   completato: 'Riaprire questo lavoro?',
   rifiutato: 'Riaprire questo lavoro?',
 }
@@ -22,7 +19,7 @@ export function LavoroRiapri({
   statoAttuale,
 }: {
   lavoroId: string
-  statoAttuale: 'accettato' | 'completato' | 'rifiutato'
+  statoAttuale: 'completato' | 'rifiutato'
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)

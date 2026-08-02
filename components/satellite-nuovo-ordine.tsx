@@ -18,15 +18,26 @@ type SedeSelezionata = { id: string; label: string }
 // satelliti del 1/8: esiste solo Acquisti, con la categoria (facoltativa)
 // scelta tra quelle libere definite dall'artigiano in Profilo/Impostazioni
 // (categorie prop, popolata server-side — vedi app/(app)/lavori/[id]/page.tsx).
+//
+// Unico caso, tra le 9 attività, in cui "Aggiungi attività" (Sprint
+// "fondamenta" 2026-08-02, vedi CLAUDE.md) non crea con stato di default e poi
+// apre il dettaglio: il dettaglio di un Acquisto (SatelliteOrdine) non
+// permette di impostare fornitore/categoria/righe/valore dopo la creazione,
+// quindi questo form resta il solo punto di compilazione, mostrato sempre
+// "aperto" (nessun toggle collassato: chi arriva qui da "Aggiungi attività"
+// ha già scelto "Acquisto").
 export function SatelliteNuovoOrdine({
   lavoroId,
   categorie,
+  onSuccesso,
+  onAnnulla,
 }: {
   lavoroId: string
   categorie: { id: string; nome: string }[]
+  onSuccesso: () => void
+  onAnnulla: () => void
 }) {
   const router = useRouter()
-  const [aperto, setAperto] = useState(false)
 
   const [sede, setSede] = useState<SedeSelezionata | null>(null)
   const [query, setQuery] = useState('')
@@ -55,16 +66,6 @@ export function SatelliteNuovoOrdine({
     setRighe((r) => r.map((riga, idx) => (idx === i ? { ...riga, ...patch } : riga)))
   }
 
-  function reset() {
-    setSede(null)
-    setQuery('')
-    setRisultati([])
-    setCategoria('')
-    setValore('')
-    setRighe([{ ...RIGA_VUOTA }])
-    setErrore(null)
-  }
-
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setLoading(true)
@@ -88,21 +89,8 @@ export function SatelliteNuovoOrdine({
       setErrore(result.error)
       return
     }
-    reset()
-    setAperto(false)
     router.refresh()
-  }
-
-  if (!aperto) {
-    return (
-      <button
-        type="button"
-        onClick={() => setAperto(true)}
-        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-      >
-        + Nuovo ordine acquisti
-      </button>
-    )
+    onSuccesso()
   }
 
   return (
@@ -241,10 +229,7 @@ export function SatelliteNuovoOrdine({
         </button>
         <button
           type="button"
-          onClick={() => {
-            reset()
-            setAperto(false)
-          }}
+          onClick={onAnnulla}
           disabled={loading}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
