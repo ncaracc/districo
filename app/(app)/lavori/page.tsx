@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { KpiDurateDashboard } from '@/components/kpi-durate-dashboard'
 import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
+import { IconaCalendario } from '@/components/icons'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const STATO_LABEL: Record<string, string> = {
@@ -159,8 +160,16 @@ export default async function LavoriPage() {
                       </Link>
                     </td>
                     <td className="p-0">
-                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 font-medium text-gray-900 transition-colors group-hover:bg-gray-50">
+                      <Link
+                        href={`/lavori/${l.id}`}
+                        className="flex items-center gap-1.5 px-4 py-3 font-medium text-gray-900 transition-colors group-hover:bg-gray-50"
+                      >
                         {l.titolo}
+                        {l.ha_appuntamento_scaduto && (
+                          <span title="Appuntamento scaduto" aria-label="Appuntamento scaduto" className="shrink-0">
+                            <IconaCalendario className="h-4 w-4 text-red-500" />
+                          </span>
+                        )}
                       </Link>
                     </td>
                     <td className="p-0">

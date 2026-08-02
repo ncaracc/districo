@@ -334,6 +334,7 @@ export type Database = {
           punteggio_urgenza: number
           satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number
           valore_preventivo_accettato: number | null
+          ha_appuntamento_scaduto: boolean
         }[]
       }
       kpi_durate: {
