@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
+import { IconaChiudi } from '@/components/icons'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
@@ -89,6 +90,26 @@ export function AppNav({
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
+
+  // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
+  // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
+  // prima di qualunque return condizionale (Rules of Hooks: un bug di questo
+  // tipo era già emerso in passato in fornitore-sedi.tsx, vedi CLAUDE.md).
+  useEffect(() => {
+    if (!aperto) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAperto(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+
+    const overflowPrecedente = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = overflowPrecedente
+    }
+  }, [aperto])
 
   // Sulla pagina di login l'header non compare affatto (resta solo il footer).
   if (pathname === '/login') return null
@@ -182,7 +203,9 @@ export function AppNav({
           </button>
         </div>
 
-        {/* Hamburger: solo mobile, comportamento invariato */}
+        {/* Hamburger: solo mobile. Non diventa più una X al click (era così
+            prima): il pannello a schermo intero copre anche quest'area, la
+            X per chiudere è quella dentro al pannello stesso. */}
         <button
           type="button"
           onClick={() => setAperto((v) => !v)}
@@ -190,70 +213,93 @@ export function AppNav({
           aria-expanded={aperto}
           className="-mr-2 p-2 text-gray-700 hover:text-gray-900 md:hidden"
         >
-          {aperto ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
-              <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
-              <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
-            </svg>
-          )}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
+            <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
+          </svg>
         </button>
       </div>
 
-      {aperto && (
-        <nav className="border-t border-gray-200 bg-white md:hidden">
-          <ul className="px-4 py-2">
-            {VOCI_ATTIVE.map((voce) => {
-              const attiva = voceAttiva(pathname, voce.href)
-              return (
-                <li key={voce.href}>
-                  <Link
-                    href={voce.href}
-                    onClick={() => setAperto(false)}
-                    className={`block rounded-lg border-l-2 py-2.5 pl-[10px] pr-2 text-sm transition-colors hover:bg-gray-50 ${
-                      attiva ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-600'
-                    }`}
-                  >
-                    {voce.label}
-                    {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
-                  </Link>
-                </li>
-              )
-            })}
-            {VOCI_IN_ARRIVO.map((label) => (
-              <li key={label}>
-                <span className="flex cursor-not-allowed items-center justify-between border-l-2 border-transparent py-2.5 pl-[10px] pr-2 text-sm text-gray-400">
-                  {label}
-                  <span className="text-xs text-gray-300">in arrivo</span>
-                </span>
+      {/* Menu mobile: pannello overlay a schermo intero (restyling 2026-08-02,
+          vedi CLAUDE.md — sostituisce il vecchio pannello che spingeva il
+          contenuto della pagina verso il basso). Backdrop e pannello restano
+          sempre nel DOM (mai un `{aperto && ...}` che li smonta): l'apertura/
+          chiusura è solo una transizione CSS su opacità/traslazione, altrimenti
+          l'animazione di chiusura non avrebbe il tempo di essere vista. */}
+      <div
+        onClick={() => setAperto(false)}
+        aria-hidden={!aperto}
+        className={`fixed inset-0 z-40 bg-black/50 transition-opacity duration-300 md:hidden ${
+          aperto ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+      <nav
+        aria-hidden={!aperto}
+        className={`fixed inset-y-0 right-0 z-50 flex w-[88%] max-w-sm flex-col bg-white shadow-xl transition-transform duration-300 ease-in-out md:hidden ${
+          aperto ? 'translate-x-0' : 'pointer-events-none translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/districo_logo.svg" alt="Districo" className="h-10 w-auto" />
+          <button
+            type="button"
+            onClick={() => setAperto(false)}
+            aria-label="Chiudi menu"
+            className="rounded-lg p-2 text-gray-700 transition-colors hover:bg-gray-50 hover:text-gray-900"
+          >
+            <IconaChiudi className="h-6 w-6" />
+          </button>
+        </div>
+
+        <ul className="flex-1 overflow-y-auto px-4 py-4">
+          {VOCI_ATTIVE.map((voce) => {
+            const attiva = voceAttiva(pathname, voce.href)
+            return (
+              <li key={voce.href}>
+                <Link
+                  href={voce.href}
+                  onClick={() => setAperto(false)}
+                  className={`block rounded-lg border-l-2 py-4 pl-3 pr-2 text-xl transition-colors hover:bg-gray-50 ${
+                    attiva ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-600'
+                  }`}
+                >
+                  {voce.label}
+                  {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
+                </Link>
               </li>
-            ))}
-            <li className="mt-1 border-t border-gray-100 pt-1">
-              <Link
-                href={VOCE_PROFILO.href}
-                onClick={() => setAperto(false)}
-                className={`flex items-center gap-2 rounded-lg px-2 py-2.5 text-sm transition-colors hover:bg-gray-50 ${
-                  voceAttiva(pathname, VOCE_PROFILO.href) ? 'font-medium text-gray-900' : 'text-gray-600'
-                }`}
-              >
-                <IconaImpostazioni className="h-4 w-4" />
-                {VOCE_PROFILO.label}
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={uscendo}
-                className="flex w-full items-center gap-2 rounded-lg px-2 py-2.5 text-left text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                <IconaPower className="h-4 w-4" />
-                {uscendo ? 'Uscita in corso…' : 'Esci'}
-              </button>
+            )
+          })}
+          {VOCI_IN_ARRIVO.map((label) => (
+            <li key={label}>
+              <span className="flex cursor-not-allowed items-center justify-between border-l-2 border-transparent py-4 pl-3 pr-2 text-xl text-gray-400">
+                {label}
+                <span className="text-sm text-gray-300">in arrivo</span>
+              </span>
             </li>
-          </ul>
-        </nav>
-      )}
+          ))}
+          <li className="mt-2 border-t border-gray-100 pt-2">
+            <Link
+              href={VOCE_PROFILO.href}
+              onClick={() => setAperto(false)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-4 text-lg transition-colors hover:bg-gray-50 ${
+                voceAttiva(pathname, VOCE_PROFILO.href) ? 'font-medium text-gray-900' : 'text-gray-600'
+              }`}
+            >
+              <IconaImpostazioni className="h-5 w-5" />
+              {VOCE_PROFILO.label}
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={uscendo}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-4 text-left text-lg text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              <IconaPower className="h-5 w-5" />
+              {uscendo ? 'Uscita in corso…' : 'Esci'}
+            </button>
+          </li>
+        </ul>
+      </nav>
     </header>
   )
 }
