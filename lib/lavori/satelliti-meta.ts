@@ -392,18 +392,21 @@ export function satelliteTipoLabelBreve(s: Satellite): string {
 // dalla revisione satelliti del 1/8 (0 righe lo usavano): se un'attività non
 // serve, semplicemente non si crea.
 
-// Confronto per sola data di calendario (non timestamp esatto): un
-// appuntamento fissato per "oggi" resta giallo per l'intera giornata,
-// invece di diventare rosso non appena passa l'orario esatto — coerente con
-// la formulazione "data_appuntamento >= oggi" del documento di revisione
-// (data, non datetime). Stessa funzione riusata dal calcolo colore/label qui
-// sotto e, in forma equivalente, dalla migration SQL lato dashboard.
-function dataOggiOFutura(dataAppuntamento: string): boolean {
-  const oggi = new Date()
-  oggi.setHours(0, 0, 0, 0)
-  const data = new Date(dataAppuntamento)
-  data.setHours(0, 0, 0, 0)
-  return data.getTime() >= oggi.getTime()
+// Confronto per orario esatto (non per sola data di calendario): un
+// appuntamento fissato per "oggi alle 11:58" diventa rosso non appena passano
+// le 11:58, non a mezzanotte — cambio richiesto dall'utente il 2/8 dopo aver
+// verificato dal vivo che la granularità a giornata intera (decisione
+// originale dello Sprint B) non corrispondeva all'uso reale atteso. Confronto
+// tra due istanti assoluti (entrambi timestamptz): nessuna dipendenza dal
+// fuso orario del processo Node, a differenza della vecchia
+// implementazione basata su `setHours(0,0,0,0)` (che troncava a mezzanotte
+// nel fuso orario locale del server — un bug distinto scoperto durante
+// l'indagine su questo stesso cambio, ora eliminato come effetto collaterale
+// del passaggio al confronto per istante esatto). Stessa funzione riusata dal
+// calcolo colore/label qui sotto e, in forma equivalente, dalla migration
+// SQL lato dashboard.
+function dataNonAncoraPassata(dataAppuntamento: string): boolean {
+  return new Date(dataAppuntamento).getTime() >= Date.now()
 }
 
 // Calcolo dinamico a lettura (mai scritto/salvato): concluso=true è sempre
@@ -412,7 +415,7 @@ function dataOggiOFutura(dataAppuntamento: string): boolean {
 export function coloreAppuntamento(concluso: boolean, dataAppuntamento: string | null): ColoreSemaforo {
   if (concluso) return 'green'
   if (!dataAppuntamento) return 'red'
-  return dataOggiOFutura(dataAppuntamento) ? 'yellow' : 'red'
+  return dataNonAncoraPassata(dataAppuntamento) ? 'yellow' : 'red'
 }
 
 // Label distinte per i due casi rosso (nessuna data vs. data scaduta) e per
@@ -422,7 +425,7 @@ export function coloreAppuntamento(concluso: boolean, dataAppuntamento: string |
 export function labelStatoAppuntamento(concluso: boolean, dataAppuntamento: string | null): string {
   if (concluso) return 'Concluso'
   if (!dataAppuntamento) return 'Da fissare'
-  return dataOggiOFutura(dataAppuntamento) ? 'In programma' : 'Data scaduta'
+  return dataNonAncoraPassata(dataAppuntamento) ? 'In programma' : 'Data scaduta'
 }
 
 export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
