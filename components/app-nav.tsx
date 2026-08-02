@@ -60,7 +60,31 @@ function IconaImpostazioni({ className }: { className?: string }) {
   )
 }
 
-export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
+// Badge numerico rosso (stessa semantica "a LED" già riservata agli stati
+// urgenti/bloccanti in tutta l'app — coerente con l'uso di rosso per i
+// satelliti scaduti). Nascosto del tutto se il conteggio è 0, non un badge
+// con "0" visibile.
+function BadgeConteggio({ conteggio }: { conteggio: number }) {
+  if (conteggio <= 0) return null
+  return (
+    <span className="ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+      {conteggio}
+    </span>
+  )
+}
+
+export function AppNav({
+  isLoggedIn,
+  appuntamentiScaduti = 0,
+}: {
+  isLoggedIn: boolean
+  // Conteggio appuntamenti scaduti (data passata, mai conclusi) su tutti i
+  // Lavori dell'artigiano — calcolato server-side in app/layout.tsx
+  // (RPC appuntamenti_scaduti_count, migration 0027) e passato qui solo per
+  // il rendering. Il badge è agganciato alla voce "Dashboard": cliccarlo
+  // porta già lì, nessun elenco/dropdown dedicato in questo sprint.
+  appuntamentiScaduti?: number
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
@@ -124,6 +148,7 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
                 }`}
               >
                 {voce.label}
+                {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
               </Link>
             )
           })}
@@ -192,6 +217,7 @@ export function AppNav({ isLoggedIn }: { isLoggedIn: boolean }) {
                     }`}
                   >
                     {voce.label}
+                    {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
                   </Link>
                 </li>
               )

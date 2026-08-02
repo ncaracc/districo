@@ -320,6 +320,7 @@ export type Database = {
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
       lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
+      appuntamenti_scaduti_count: { Args: Record<string, never>; Returns: number }
       lavoro_satellite_stato_effettivo: {
         Args: { p_lavoro_id: string }
         Returns: { satellite_id: string; stato_effettivo: string | null }[]

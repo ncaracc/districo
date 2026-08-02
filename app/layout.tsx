@@ -27,13 +27,19 @@ export default async function RootLayout({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Badge "appuntamenti scaduti": solo per utenti autenticati — la RPC ha
+  // EXECUTE revocato da anon (0027), chiamarla da anonimo fallirebbe.
+  const { data: appuntamentiScaduti } = user
+    ? await supabase.rpc('appuntamenti_scaduti_count')
+    : { data: 0 }
+
   return (
     <html
       lang="en"
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <AppNav isLoggedIn={!!user} />
+        <AppNav isLoggedIn={!!user} appuntamentiScaduti={appuntamentiScaduti ?? 0} />
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
         <SiteFooter />
       </body>
