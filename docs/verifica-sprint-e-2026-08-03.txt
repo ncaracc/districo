@@ -1,0 +1,324 @@
+Districo — Verifica preliminare Sprint E (Dashboard: nuovi KPI, filtro
+stati, colonna Avanzamento, responsive tabella e modali)
+Data: 2026-08-03
+Branch: feature/sprint-e-dashboard (creato da main, allineato dopo
+Sprint D, rimozione trigger accettazione, fix Preventivo/Valore del 2/8)
+
+Nessuna modifica al codice o al database in questa fase — solo lettura
+del codice sorgente attuale, delle migration esistenti, e una verifica
+visiva end-to-end (Supabase locale, porte offset +1000, build di
+produzione + Playwright, viewport mobile 375px, ambiente smontato a
+fine test) per le Verifiche 4 e 5. Nessun dato reale di produzione
+consultato in questo giro (a differenza delle verifiche Sprint C/D):
+questa verifica riguarda solo codice/schema/rendering, non volumi dati.
+
+=============================================================
+VERIFICA 1 — KPI attuali vs nuovi richiesti
+=============================================================
+
+I 4 KPI attuali (migration 0018_kpi_durate_e_target.sql, funzione SQL
+kpi_durate(), righe 147-227; wrapper lib/lavori/kpi.ts;
+components/kpi-durate-dashboard.tsx e kpi-durate-neutro.tsx) restano
+esattamente quelli descritti in CLAUDE.md e non sono mai stati
+ridefiniti da nessuna migration successiva alla 0018, nonostante il
+modello sottostante di Preventivo/Progetto sia cambiato profondamente
+(revisione satelliti 1/8, Sprint C 2/8): la funzione continua a
+compilare e restituire dati sensati solo perché usa colonne
+(data_presentazione, data_inizio, completato_at, prima_accettazione_at)
+che sono sopravvissute al refactor con significato leggermente diverso
+ma compatibile (vedi sotto).
+
+--- Dati/colonne per i 4 NUOVI KPI richiesti ---
+
+1) "Totale lavori in corso"
+   Disponibile subito: lavoro.stato (colonna esistente, nessuna
+   modifica necessaria). Nessun dato mancante.
+   APERTO — definizione di "in corso" da confermare: lavori_dashboard()
+   (supabase/migrations/0033_valore_preventivo_sempre_visibile.sql,
+   riga 130: `where l.stato in ('opportunita', 'accettato')`) tratta
+   opportunita+accettato come lo stesso insieme "attivo" mostrato in
+   Dashboard. "Lavori in corso" potrebbe voler dire (a) lo stesso
+   insieme, o (b) solo stato='accettato' (un'opportunità non ancora
+   accettata non è ancora "un lavoro in corso" in senso stretto). Nessun
+   impedimento tecnico in nessuno dei due casi — solo una scelta di
+   significato da confermare prima di scrivere la query.
+
+2) "Importo complessivo dei lavori accettati"
+   Disponibile: lavoro_satellite.valore_complessivo (colonna esistente,
+   nullable) + lavoro.stato. La stessa logica di "riga rilevante" appena
+   introdotta nel fix del 2/8 (migration 0033, `not exists (select 1
+   from lavoro_satellite pr where pr.revisione_di = ls2.id)`) è
+   riusabile identica per individuare la riga Preventivo corrente di
+   ogni Lavoro. Nessuna migrazione necessaria.
+   APERTO — due ambiguità da confermare:
+   (a) "lavori accettati" = solo stato attuale 'accettato', o anche
+       'completato' (che è comunque passato per 'accettato')? Cambia il
+       filtro WHERE ma non il resto della query.
+   (b) valore_complessivo può essere NULL su un Lavoro già accettato (il
+       campo non è obbligatorio, nessun asterisco nel form Preventivo —
+       vedi convenzione asterisco in CLAUDE.md): la somma li ignora
+       implicitamente (sum() salta i NULL) ma non ho contato quanti
+       lavori accettati reali abbiano oggi un valore nullo — se la
+       proporzione fosse alta l'importo "complessivo" risulterebbe
+       silenziosamente incompleto. Verifica sui dati reali di produzione
+       consigliata prima di implementare (fuori scope di questo giro,
+       solo codice).
+
+3) "Tempo medio per realizzare un preventivo" (chiusura Briefing →
+   completamento Preventivo, rolling 12 mesi)
+   Questo è l'unico dei 4 KPI SENZA una colonna pronta all'uso — è
+   concettualmente diverso dal vecchio "Tempo di preventivazione"
+   (data_creazione → data_presentazione dello stesso satellite
+   Preventivo, riga 169 di 0018), che non coinvolge affatto il Briefing.
+   Per il nuovo KPI servono due timestamp, nessuno dei due esiste già
+   con la semantica esatta richiesta:
+
+   - "Chiusura Briefing": il Briefing è un lavoro_satellite
+     tipo='appuntamento'/tipo_appuntamento='briefing'. Non esiste una
+     colonna "data_conclusione" dedicata. L'unico proxy disponibile è
+     data_ultimo_cambio_stato, aggiornata dal trigger
+     set_satellite_data_ultimo_cambio_stato() (ultima definizione in
+     supabase/migrations/0030_campione_indipendente.sql, righe 47-60)
+     ogni volta che il campo concluso cambia valore. Due limiti da
+     conoscere prima di usarla: (i) riflette l'ULTIMO cambio di
+     concluso, non il primo — se un Briefing viene segnato concluso,
+     poi (per errore) riaperto e richiuso, il timestamp scivola in
+     avanti senza modo di recuperare la data originale; (ii) dallo
+     Sprint "fondamenta" (2/8) il Briefing è ripetibile (più istanze
+     sullo stesso Lavoro) — se un Lavoro ne ha più di uno, quale
+     "chiusura" si usa? La più vecchia? La più recente? Nessuna
+     decisione precedente in CLAUDE.md copre questo caso, perché prima
+     del 2/8 il Briefing era sempre un singleton.
+
+   - "Completamento Preventivo": nessuna colonna cattura esplicitamente
+     "quando la decisione è stata presa", solo il momento dell'ULTIMO
+     cambio (stessa colonna data_ultimo_cambio_stato sulla riga
+     Preventivo, che oggi si aggiorna sia su preventivo_accettato sia su
+     preventivo_rifiutato — righe 52-53 di 0030). Alternativa più
+     stabile già esistente: lavoro.prima_accettazione_at (immutabile,
+     valorizzata una sola volta alla prima accettazione, mai
+     sovrascritta nemmeno dal fix di oggi che permette annullamento/
+     ri-accettazione) — ma copre SOLO il caso accettato, non rifiutato:
+     un Preventivo rifiutato non ha alcun timestamp immutabile
+     equivalente (lavoro.stato='rifiutato' non ha un'analoga colonna
+     "prima_rifiutato_at"). Se il KPI deve includere anche i preventivi
+     rifiutati nel calcolo, serve probabilmente una nuova colonna
+     dedicata (es. lavoro_satellite.data_decisione_preventivo,
+     valorizzata una sola volta alla prima decisione qualunque essa sia
+     — stesso pattern già in uso per data_presentazione/
+     prima_accettazione_at).
+
+   APERTO — riepilogo delle decisioni da prendere prima di implementare:
+   (a) quale Briefing usare se ce n'è più di uno sullo stesso Lavoro;
+   (b) se includere anche i preventivi rifiutati nel calcolo o solo
+       quelli accettati;
+   (c) se serve una nuova colonna dedicata "data decisione preventivo"
+       (raccomandato, evita l'ambiguità del punto precedente e il rischio
+       di skew se un flag viene toggled più volte) o se è accettabile
+       usare i proxy esistenti con le limitazioni sopra descritte.
+   (d) "negli ultimi 12 mesi rolling" — su quale data ancorare la
+       finestra (data del Briefing? data di completamento Preventivo?
+       oggi già kpi_durate() usa la data dell'evento misurato stesso
+       come ancora, es. riga 177 `ls.data_presentazione >= now() - ...`
+       — stesso pattern riusabile qui).
+
+4) "Tempo medio per completare un lavoro" (apertura lavoro →
+   completato_at)
+   Disponibile subito, entrambe le colonne già esistenti: lavoro.
+   data_lavoro (date, "data di apertura" — migration
+   0015_lavoro_data_apertura.sql, editabile dall'utente nel form Lavoro,
+   già mostrata in UI come "Aperto il" dal redesign del 31/7) e lavoro.
+   completato_at (timestamptz, migration 0018, valorizzata da
+   segnaLavoroStato() e azzerata da riapriLavoro() se il lavoro esce da
+   completato). Nessuna colonna mancante, nessuna migrazione necessaria.
+   Nota tecnica minore: data_lavoro è un date (giorno, editabile),
+   completato_at un timestamptz — il confronto va fatto castando
+   completato_at::date - data_lavoro (o equivalente), stesso genere di
+   cast già usato altrove nel progetto per date miste. Rolling 12 mesi:
+   stesso pattern esistente (ancora su completato_at, righe 220-221 di
+   0018) riusabile identico.
+
+--- Considerazioni trasversali ---
+
+- I 4 KPI attuali sono tutti calcolati con lo stesso pattern (media in
+  giorni + contatore "campione" per distinguere "nessun dato" da "media
+  reale", vedi lib/lavori/kpi.ts righe 17-27) — i 2 nuovi KPI "totale
+  lavori in corso" e "importo complessivo" sono invece conteggi/somme
+  puntuali sullo stato ATTUALE, non medie storiche finestrate: non
+  hanno bisogno di kpi_finestra_mesi né del pattern "campione=0 ->
+  neutro" (non ha senso un "dato insufficiente" per un conteggio che può
+  legittimamente essere zero). Solo i KPI 3 e 4 sono rolling-window come
+  gli attuali. Utile deciderlo esplicitamente prima di disegnare la
+  UI/funzione SQL, perché richiede due rendering diversi nella stessa
+  riga di card (2 card "conteggio semplice" + 2 card "media con
+  semaforo vs target", oppure uniformare tutte e 4 a un unico stile).
+- Nessuna decisione trovata in CLAUDE.md su se i nuovi KPI 3/4 debbano
+  avere un semaforo vs target (come gli attuali, tramite
+  artigiano.target_*_giorni) o essere solo informativi. I target
+  esistenti (target_preventivo_giorni, target_progetto_giorni,
+  target_produzione_giorni, target_montaggio_giorni) sono nominati per i
+  VECCHI 4 KPI — se i nuovi KPI restano solo 2 con semaforo (3 e 4),
+  probabilmente 2 di queste 4 colonne target diventano orfane (o vanno
+  rinominate/riusate) e le altre 2 rimosse, ma è una scelta di prodotto,
+  non la documento come decisa.
+- L'intera funzione kpi_durate() (0018) e i componenti
+  kpi-durate-dashboard.tsx/kpi-durate-neutro.tsx andrebbero
+  probabilmente sostituiti (non estesi) dato che i 4 KPI vecchi escono
+  di scena per essere rimpiazzati, non affiancati — da confermare che
+  sia davvero una sostituzione 1:1 e non un ampliamento a 8 KPI totali
+  (il prompt dice "al loro posto", quindi presumo sostituzione, ma lo
+  scrivo esplicitamente per essere sicuro prima di eliminare codice).
+
+=============================================================
+VERIFICA 2 — Filtro dashboard/Conclusi per stato
+=============================================================
+
+Dashboard (app/(app)/lavori/page.tsx, riga 81: `supabase.rpc
+('lavori_dashboard')`) mostra SOLO un sottoinsieme, non tutti gli stati
+mescolati: lavori_dashboard() filtra esplicitamente `where l.stato in
+('opportunita', 'accettato')` (riga 130 di
+0033_valore_preventivo_sempre_visibile.sql, invariato dalla 0011
+originale) — 'rifiutato' e 'completato' non compaiono mai in Dashboard,
+comportamento esistente e voluto fin dallo Sprint 3 (20/7).
+
+"Conclusi" (app/(app)/statistiche/page.tsx, righe 13-17) esiste già,
+completamente funzionante: query diretta (non tramite RPC)
+`.from('lavoro')...in('stato', ['completato', 'rifiutato'])`, ordinata
+per data_lavoro decrescente. Mostra ENTRAMBI gli stati insieme in
+un'unica lista, distinti solo da un badge per riga (STATO_LABEL,
+righe 5-8: "Rifiutato"/"Completato") — NON esiste un filtro/tab per
+vedere solo uno dei due stati alla volta, è sempre la lista completa
+mescolata con l'etichetta a indicare quale sia quale. Nessuna azione
+necessaria se questo è il comportamento voluto; se serve un filtro
+dedicato (tab "Solo completati"/"Solo rifiutati" o un <select>), è un
+lavoro nuovo, non un fix di qualcosa di rotto.
+
+=============================================================
+VERIFICA 3 — Colonna Avanzamento, formato attuale
+=============================================================
+
+Componente: RiepilogoSatelliti, definito inline in
+app/(app)/lavori/page.tsx (righe 20-54) — non un file a parte.
+Rendering attuale confermato via screenshot (v4-dashboard-mobile-
+scrolled.png, vedi Verifica 4): pallino colorato (`h-2 w-2 rounded-full`,
+riga 36/42/48) seguito dal numero come testo adiacente nello stesso
+`<span className="flex items-center gap-1">` — ESATTAMENTE "pallino +
+numero a fianco", non "numero dentro il pallino".
+
+Costo stimato per "numero dentro il pallino": basso. Modifica
+localizzata a RiepilogoSatelliti (righe 32-53), nessun impatto su
+lavori_dashboard() (i dati rossi/gialli/verdi restano identici, cambia
+solo il markup) e nessuna migrazione. Serve sostituire lo span pallino
+(oggi `h-2 w-2` vuoto) con un badge dimensionato al testo, es. `h-5 w-5
+rounded-full flex items-center justify-center text-[10px] text-white
+font-medium`, con lo sfondo colorato al posto del pallino separato.
+Unico punto da verificare in fase di implementazione: leggibilità con
+numeri a 2 cifre (oggi capitano già, es. "12" rossi visti in
+CLAUDE.md — un cerchio a dimensione fissa con 2 cifre può risultare
+stretto, da testare visivamente prima di considerarlo chiuso).
+
+=============================================================
+VERIFICA 4 — Layout responsive tabella dashboard
+=============================================================
+
+Verificato dal vivo (Supabase locale + build di produzione + Playwright,
+viewport 375×812, Lavoro di test con Preventivo accettato €4.500 e
+9 attività). Screenshot: v4-dashboard-mobile.png (stato iniziale) e
+v4-dashboard-mobile-scrolled.png (scrollata manualmente).
+
+Risultato: NON è il bug della modale Acquisto (nessun overflow a
+livello di PAGINA — document.documentElement.scrollWidth === clientWidth
+== 375, confermato via script), ma la tabella stessa è avvolta in un
+contenitore `overflow-x-auto` (app/(app)/lavori/page.tsx, riga 143) che
+scrolla AL SUO INTERNO: a 375px il contenitore è largo 341px (client)
+ma il contenuto è largo 582px (scroll) — 241px di scroll interno
+nascosto. Nella vista iniziale (senza scroll manuale) si vedono SOLO le
+colonne Cliente e Descrizione (quest'ultima troncata); Stato,
+Avanzamento, Valore ed elimina restano fuori dalla porzione visibile e
+richiedono all'utente di scoprire che la tabella è scrollabile
+orizzontalmente — nessun indizio visivo (scrollbar nativa non sempre
+visibile su mobile, nessuna ombra/freccia che segnali contenuto
+nascosto).
+
+Questo è tecnicamente "responsive" nel senso stretto (nessun overflow
+di pagina, nessun testo tagliato in modo permanente, tutto raggiungibile
+scrollando) ma probabilmente non nel senso inteso dalla richiesta: 6
+colonne (Cliente/Descrizione/Stato/Avanzamento/Valore/elimina) non
+stanno in 375px e la tabella-con-scroll-orizzontale-nascosto è
+esattamente il pattern che la richiesta sembrava voler escludere per
+analogia col vecchio bug di Acquisto (diverso bug, stesso sintomo
+percepito: "contenuto importante fuori vista senza preavviso"). Non lo
+classifico come "rotto" nel senso letterale (nessun overflow di
+PAGINA, diversamente dal bug Acquisto originale, che sfondava l'intera
+pagina) — lo segnalo come probabile causa del "così com'è non va bene"
+implicito nella richiesta di verificarlo.
+
+Possibili direzioni (nessuna decisa, solo elencate per il prossimo
+prompt): (a) card impilate invece di tabella sotto un certo breakpoint
+(pattern già in uso altrove nell'app? verificare — Clienti/Fornitori
+usano comunque `<table>` con colonne nascoste via `hidden md:table-cell`,
+non card, potrebbe essere il pattern preferito qui); (b) nascondere
+colonne meno critiche su mobile (es. Descrizione o Valore) invece di
+scrollare; (c) indicatore visivo esplicito di scroll disponibile
+(gradient/ombra sul bordo destro del contenitore).
+
+=============================================================
+VERIFICA 5 — Altre modali, controllo visivo bug di layout
+=============================================================
+
+Stesso ambiente della Verifica 4, viewport 375×812. Lavoro di test con
+un'istanza di ciascuno dei 9 tipi/sottotipi (Briefing ×2 — uno auto-
+creato dal trigger crea_satelliti_iniziali, uno inserito a mano, per
+verificare anche il caso "ripetibile" — Verifica misure, Montaggio,
+Progetto, Preventivo, Campionatura, Acquisto, Costruzione, Noleggio).
+Per ciascuno: click sulla matita (form di modifica, il caso con più
+contenuto/campi) → screenshot → controllo
+document.documentElement.scrollWidth vs clientWidth E il bounding box
+del contenitore modale stesso.
+
+Risultato: NESSUN overflow orizzontale rilevato in nessuna delle 9
+modali (scrollWidth === clientWidth === 375 in tutti i casi, modale
+sempre esattamente 375×812 di bounding box). Ispezione visiva degli
+screenshot conferma inoltre che il contenuto è leggibile e ben
+impaginato in tutti i casi, incluso il campo Descrizione a testo lungo
+di Campionatura (va a capo correttamente) e il form Noleggio con i due
+campi data "Da"/"A" affiancati (stanno nella larghezza disponibile).
+Acquisto (già corretto in un giro precedente) confermato ancora pulito.
+
+Nessun bug di layout trovato su queste 9 modali — a differenza della
+tabella Dashboard (Verifica 4), qui non serve alcun intervento.
+
+=============================================================
+RIEPILOGO — cosa servirebbe fare (nessuna azione presa, solo elenco)
+=============================================================
+
+1. KPI — serve una serie di decisioni di prodotto prima di scrivere
+   query/UI (vedi Verifica 1 per il dettaglio): definizione di "in
+   corso", scope di "lavori accettati" (solo stato attuale o anche
+   completato), quale Briefing usare se ce n'è più di uno, se includere
+   i preventivi rifiutati nel KPI 3, se serve una nuova colonna
+   "data decisione preventivo" (raccomandato), come ancorare le finestre
+   rolling, se i 2 KPI "conteggio semplice" hanno senso rendere con lo
+   stesso stile a card/semaforo degli altri 2. KPI 4 è l'unico già
+   pronto all'uso con le colonne esistenti senza alcuna ambiguità.
+
+2. Filtro Dashboard/Conclusi — entrambi già funzionanti come oggi
+   descritti; nessuna azione se il comportamento attuale (Dashboard =
+   opportunita+accettato, Conclusi = completato+rifiutato mescolati con
+   badge) è quello voluto. Un eventuale filtro dedicato su Conclusi è
+   lavoro nuovo, non un fix.
+
+3. Colonna Avanzamento — cambio di markup a basso costo, nessuna
+   migrazione, localizzato a RiepilogoSatelliti in
+   app/(app)/lavori/page.tsx.
+
+4. Tabella Dashboard mobile — non è il bug di Acquisto (nessun overflow
+   di pagina) ma un problema reale di scoperta: 4 delle 6 colonne sono
+   fuori vista di default a 375px senza alcun indizio visivo. Serve una
+   decisione di design (card vs colonne nascoste vs indicatore di
+   scroll) prima di implementare.
+
+5. Altre 9 modali — nessuna azione, tutte pulite.
+
+Nessuna implementazione eseguita in questa fase, come da istruzioni.
+In attesa del prompt successivo per procedere.
