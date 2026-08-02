@@ -96,10 +96,7 @@ export function SatelliteOrdine({
       {righe.length > 0 && (
         <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
           {righe.map((r) => (
-            <li key={r.id}>
-              {r.descrizione}
-              {r.colore_finitura ? ` — ${r.colore_finitura}` : ''} × {r.quantita}
-            </li>
+            <li key={r.id}>{r.descrizione}</li>
           ))}
         </ul>
       )}

@@ -9,8 +9,8 @@ function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
 }
 
-type RigaBozza = { descrizione: string; coloreFinitura: string; quantita: string }
-const RIGA_VUOTA: RigaBozza = { descrizione: '', coloreFinitura: '', quantita: '1' }
+type RigaBozza = { articolo: string }
+const RIGA_VUOTA: RigaBozza = { articolo: '' }
 
 type SedeSelezionata = { id: string; label: string }
 
@@ -75,13 +75,7 @@ export function SatelliteNuovoOrdine({
       fornitoreSedeId: sede?.id ?? null,
       acquistoCategoria: categoria || null,
       valoreComplessivo: valore ? Number(valore) : null,
-      righe: righe
-        .filter((r) => r.descrizione.trim())
-        .map((r) => ({
-          descrizione: r.descrizione.trim(),
-          coloreFinitura: r.coloreFinitura.trim() || null,
-          quantita: Number(r.quantita) || 0,
-        })),
+      righe: righe.filter((r) => r.articolo.trim()).map((r) => ({ descrizione: r.articolo.trim() })),
     })
 
     setLoading(false)
@@ -166,23 +160,10 @@ export function SatelliteNuovoOrdine({
           {righe.map((riga, i) => (
             <div key={i} className="flex gap-2">
               <input
-                value={riga.descrizione}
-                onChange={(e) => aggiornaRiga(i, { descrizione: e.target.value })}
-                placeholder="Descrizione"
-                className={inputClass()}
-              />
-              <input
-                value={riga.coloreFinitura}
-                onChange={(e) => aggiornaRiga(i, { coloreFinitura: e.target.value })}
-                placeholder="Colore/finitura"
-                className={`${inputClass()} w-32 shrink-0`}
-              />
-              <input
-                type="number"
-                step="0.001"
-                value={riga.quantita}
-                onChange={(e) => aggiornaRiga(i, { quantita: e.target.value })}
-                className={`${inputClass()} w-20 shrink-0`}
+                value={riga.articolo}
+                onChange={(e) => aggiornaRiga(i, { articolo: e.target.value })}
+                placeholder="Es. truciolare nobilitato bianco W10100 sp. 25 – 2 pannelli"
+                className={`${inputClass()} min-w-0 flex-1`}
               />
               {righe.length > 1 && (
                 <button

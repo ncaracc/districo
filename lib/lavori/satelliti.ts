@@ -340,13 +340,20 @@ export async function aggiornaCampione(
 // testo libero facoltativo (dalle preferenze dell'artigiano, vedi
 // lib/acquisti/categorie.ts). Più istanze sullo stesso Lavoro sono ammesse
 // (più ordini successivi), nessun vincolo di unicità nello schema.
+// Righe: un solo campo di testo libero per riga ("Articolo", fix modale
+// Acquisto 2026-08-02, vedi CLAUDE.md) — l'artigiano scrive materiale/
+// codice/spessore/quantità tutto insieme in linguaggio naturale, coerente
+// col documento di revisione. colore_finitura/quantita restano a schema
+// (nessuna migration: quantita ha un check quantita > 0, non nullable) ma
+// non sono più raccolti da UI — scritti con un default fisso (null/1) per
+// soddisfare il vincolo, senza alcun significato residuo.
 export async function creaOrdine(
   lavoroId: string,
   fields: {
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
     valoreComplessivo: number | null
-    righe: { descrizione: string; coloreFinitura: string | null; quantita: number }[]
+    righe: { descrizione: string }[]
   },
 ): Promise<CreazioneResult> {
   const supabase = await createClient()
@@ -372,14 +379,14 @@ export async function creaOrdine(
     return { ok: false, error: 'Errore nella creazione, riprova' }
   }
 
-  const righe = fields.righe.filter((r) => r.descrizione.trim() && r.quantita > 0)
+  const righe = fields.righe.filter((r) => r.descrizione.trim())
   if (righe.length > 0) {
     const { error: righeErr } = await supabase.from('lavoro_satellite_articolo').insert(
       righe.map((r) => ({
         satellite_id: data.id,
-        descrizione: r.descrizione,
-        colore_finitura: r.coloreFinitura,
-        quantita: r.quantita,
+        descrizione: r.descrizione.trim(),
+        colore_finitura: null,
+        quantita: 1,
       })),
     )
 
