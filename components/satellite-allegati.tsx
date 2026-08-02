@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { caricaAllegatiSatellite, eliminaAllegatoSatellite } from '@/lib/lavori/allegati'
+import { AllegatoModale } from '@/components/allegato-modale'
+import { IconaGraffetta } from '@/components/icons'
 import type { SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 function formattaDataAllegato(iso: string): string {
@@ -21,33 +23,29 @@ export function SatelliteAllegati({
   allegati: SatelliteAllegato[]
   isOwner: boolean
   // Solo il flusso Appuntamento (Briefing/Verifica misure/Montaggio) la
-  // richiede in questo sprint — Preventivo/Progetto/Campione restano
-  // invariati, stesso pattern da replicare nello Sprint C (vedi CLAUDE.md).
+  // richiede per ora — Preventivo/Progetto/Campione restano sul vecchio
+  // flusso inline (nessuna etichetta), stesso pattern da estendere nello
+  // Sprint C riusando AllegatoModale così com'è (vedi CLAUDE.md).
   richiedeEtichetta?: boolean
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
-  const [etichetta, setEtichetta] = useState('')
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
+  const [modaleAperta, setModaleAperta] = useState(false)
 
+  // Vecchio flusso inline, invariato: usato solo quando richiedeEtichetta è
+  // false (Preventivo/Progetto/Campione, fuori scope in questo sprint).
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files
     if (!files || files.length === 0) return
-
-    if (richiedeEtichetta && !etichetta.trim()) {
-      setErrore("L'etichetta è obbligatoria: descrivi il contenuto del file prima di caricarlo")
-      if (inputRef.current) inputRef.current.value = ''
-      return
-    }
 
     setLoading(true)
     setErrore(null)
 
     const formData = new FormData()
     for (const f of Array.from(files)) formData.append('file', f)
-    if (richiedeEtichetta) formData.append('etichetta', etichetta.trim())
 
     try {
       const result = await caricaAllegatiSatellite(satelliteId, lavoroId, formData)
@@ -56,7 +54,6 @@ export function SatelliteAllegati({
         return
       }
       if (inputRef.current) inputRef.current.value = ''
-      setEtichetta('')
       router.refresh()
     } catch (err) {
       // La Server Action può lanciare (non solo restituire ok:false) se supera
@@ -66,6 +63,34 @@ export function SatelliteAllegati({
       // produzione, vedi CLAUDE.md).
       console.error('Upload allegato fallito', err)
       setErrore('Errore nel caricamento del file. Riprova con un file più piccolo o un formato diverso.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Nuovo flusso a modale (Sprint "allegati modale"): un solo file + etichetta
+  // per conferma. Ritorna true/false così AllegatoModale sa se chiudersi da
+  // sola o restare aperta con l'errore mostrato.
+  async function handleCaricaConEtichetta(file: File, etichettaCompilata: string): Promise<boolean> {
+    setLoading(true)
+    setErrore(null)
+
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('etichetta', etichettaCompilata)
+
+    try {
+      const result = await caricaAllegatiSatellite(satelliteId, lavoroId, formData)
+      if (!result.ok) {
+        setErrore(result.error)
+        return false
+      }
+      router.refresh()
+      return true
+    } catch (err) {
+      console.error('Upload allegato fallito', err)
+      setErrore('Errore nel caricamento del file. Riprova con un file più piccolo o un formato diverso.')
+      return false
     } finally {
       setLoading(false)
     }
@@ -110,18 +135,32 @@ export function SatelliteAllegati({
         </ul>
       )}
 
-      {isOwner && (
+      {isOwner && richiedeEtichetta && (
+        <>
+          <button
+            type="button"
+            onClick={() => setModaleAperta(true)}
+            aria-label="Allega file"
+            title="Allega file"
+            className="mt-1.5 inline-flex items-center rounded-lg p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-colors"
+          >
+            <IconaGraffetta className="h-4 w-4" />
+          </button>
+          <AllegatoModale
+            aperta={modaleAperta}
+            onChiudi={() => {
+              setModaleAperta(false)
+              setErrore(null)
+            }}
+            onConferma={handleCaricaConEtichetta}
+            loading={loading}
+            errore={errore}
+          />
+        </>
+      )}
+
+      {isOwner && !richiedeEtichetta && (
         <div className="mt-1 space-y-1">
-          {richiedeEtichetta && (
-            <input
-              type="text"
-              value={etichetta}
-              onChange={(e) => setEtichetta(e.target.value)}
-              placeholder="Etichetta allegato (es. Foto ingresso cucina) *"
-              disabled={loading}
-              className="w-full rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors"
-            />
-          )}
           <label className="inline-block cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
             {loading ? 'Caricamento…' : '+ Allega file'}
             <input
