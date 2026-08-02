@@ -7,9 +7,9 @@ import { IconaCestino, IconaMatita } from '@/components/icons'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
   creaAppuntamento,
+  creaCampione,
   creaCostruzione,
   creaNoleggio,
-  creaNuovaSerieCampione,
   creaPreventivo,
   creaProgetto,
   eliminaSatellite,
@@ -46,10 +46,6 @@ export type RigaSatellite = {
   contenutoLettura: ReactNode
 }
 
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
-
 // Tabella riepilogativa delle attività nel dettaglio Lavoro, al posto del
 // vecchio box discorsivo "Satelliti ancora da completare: ...". Il click sul
 // nome e la matita montano nella stessa modale lo stesso componente
@@ -72,11 +68,13 @@ function inputClass() {
 // direttamente la stessa modale di dettaglio della riga corrispondente,
 // appena questa compare tra le righe dopo il refresh — stesso principio già
 // in uso per le altre righe, nessuna modale "di compilazione" dedicata.
-// Due eccezioni deliberate (vedi CLAUDE.md per la motivazione): Campionatura
-// chiede prima il nome della serie (obbligatorio a schema, non rinominabile
-// oggi); Acquisto apre invece il form di creazione già esistente
-// (SatelliteNuovoOrdine) perché il dettaglio di un Acquisto non permette di
-// impostare fornitore/categoria/righe/valore dopo la creazione.
+// Campionatura seguiva questo stesso pattern generico fino al 1/8, poi ha
+// chiesto per un periodo il nome della serie prima di creare (rimosso nel
+// Sprint D produzione del 2/8, vedi CLAUDE.md: ogni Campionatura è tornata
+// un'istanza indipendente senza raggruppamento). Unica eccezione rimasta:
+// Acquisto apre il form di creazione già esistente (SatelliteNuovoOrdine)
+// perché il dettaglio di un Acquisto non permette di impostare
+// fornitore/categoria/righe/valore dopo la creazione.
 export function LavoroSatelliteTabella({
   righe,
   lavoroId,
@@ -109,9 +107,6 @@ export function LavoroSatelliteTabella({
 
   const [mostraAggiungi, setMostraAggiungi] = useState(false)
   const [formAcquistoAperto, setFormAcquistoAperto] = useState(false)
-  // null = elenco tipologie; stringa (anche vuota) = form nome-serie aperto,
-  // in attesa di digitazione.
-  const [serieInInserimento, setSerieInInserimento] = useState<string | null>(null)
   const [creandoChiave, setCreandoChiave] = useState<ChiaveAttivita | null>(null)
   const [erroreAggiungi, setErroreAggiungi] = useState<string | null>(null)
 
@@ -137,7 +132,6 @@ export function LavoroSatelliteTabella({
   function chiudiAggiungi() {
     setMostraAggiungi(false)
     setFormAcquistoAperto(false)
-    setSerieInInserimento(null)
     setErroreAggiungi(null)
   }
 
@@ -184,7 +178,7 @@ export function LavoroSatelliteTabella({
         creaEApri(chiave, () => creaNoleggio(lavoroId))
         return
       case 'campionatura':
-        setSerieInInserimento('')
+        creaEApri(chiave, () => creaCampione(lavoroId))
         return
       case 'acquisto':
         setFormAcquistoAperto(true)
@@ -294,40 +288,6 @@ export function LavoroSatelliteTabella({
             }}
             onAnnulla={chiudiAggiungi}
           />
-        ) : serieInInserimento !== null ? (
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="nuova-serie-campionatura" className="mb-1 block text-sm font-medium text-gray-700">
-                Nome della serie
-              </label>
-              <input
-                id="nuova-serie-campionatura"
-                value={serieInInserimento}
-                onChange={(e) => setSerieInInserimento(e.target.value)}
-                placeholder="Es. Campionatura maniglie"
-                className={inputClass()}
-              />
-            </div>
-            {erroreAggiungi && <p className="text-xs text-red-600">{erroreAggiungi}</p>}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => creaEApri('campionatura', () => creaNuovaSerieCampione(lavoroId, serieInInserimento))}
-                disabled={creandoChiave !== null || !serieInInserimento.trim()}
-                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                {creandoChiave === 'campionatura' ? 'Creazione…' : 'Crea'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSerieInInserimento(null)}
-                disabled={creandoChiave !== null}
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Annulla
-              </button>
-            </div>
-          </div>
         ) : (
           <div className="space-y-1">
             {erroreAggiungi && <p className="mb-2 text-xs text-red-600">{erroreAggiungi}</p>}

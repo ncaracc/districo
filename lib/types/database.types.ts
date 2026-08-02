@@ -274,6 +274,7 @@ export type Database = {
           data_presentazione: string | null
           preventivo_accettato: boolean; preventivo_rifiutato: boolean
           progetto_accettato: boolean
+          campione_consegnato: boolean; campione_data_consegna: string | null
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
@@ -297,6 +298,7 @@ export type Database = {
           data_presentazione?: string | null
           preventivo_accettato?: boolean; preventivo_rifiutato?: boolean
           progetto_accettato?: boolean
+          campione_consegnato?: boolean; campione_data_consegna?: string | null
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

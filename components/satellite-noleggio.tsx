@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaNoleggio } from '@/lib/lavori/satelliti'
+import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import type { Satellite } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
 
@@ -15,32 +16,63 @@ function aDateLocal(iso: string | null): string {
   return iso.slice(0, 10)
 }
 
+type SedeSelezionata = { id: string; label: string }
+
+// La "compagnia" di noleggio è un Fornitore a tutti gli effetti (emette
+// fattura, va in contabilità), non un campo testo libero — stesso pattern di
+// ricerca già in uso in SatelliteNuovoOrdine per Acquisto, riusa la colonna
+// fornitore_sede_id già esistente (Sprint D, produzione, 2/8, vedi
+// CLAUDE.md). A differenza di Acquisto, qui il fornitore resta modificabile
+// anche dopo la creazione (nessun form di creazione dedicato per Noleggio).
 export function SatelliteNoleggio({
   satellite,
+  fornitoreSedeLabel,
   lavoroId,
   isOwner,
 }: {
   satellite: Satellite
+  fornitoreSedeLabel: string | null
   lavoroId: string
   isOwner: boolean
 }) {
   const router = useRouter()
+  const [sede, setSede] = useState<SedeSelezionata | null>(
+    satellite.fornitore_sede_id && fornitoreSedeLabel ? { id: satellite.fornitore_sede_id, label: fornitoreSedeLabel } : null,
+  )
+  const [query, setQuery] = useState('')
+  const [risultati, setRisultati] = useState<SedeSelezionata[]>([])
   const [dataDa, setDataDa] = useState(aDateLocal(satellite.data_da))
   const [dataA, setDataA] = useState(aDateLocal(satellite.data_a))
   const [costo, setCosto] = useState(satellite.costo != null ? String(satellite.costo) : '')
+  const [note, setNote] = useState(satellite.descrizione_libera ?? '')
   const [prenotazioneEffettuata, setPrenotazioneEffettuata] = useState(satellite.prenotazione_effettuata)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
   const verde = prenotazioneEffettuata
 
+  useEffect(() => {
+    if (!query.trim()) return
+    const timeout = setTimeout(async () => {
+      setRisultati(await cercaFornitoreSedi(query))
+    }, 300)
+    return () => clearTimeout(timeout)
+  }, [query])
+
+  function handleQueryChange(value: string) {
+    setQuery(value)
+    if (!value.trim()) setRisultati([])
+  }
+
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
     const result = await aggiornaNoleggio(satellite.id, lavoroId, {
+      fornitoreSedeId: sede?.id ?? null,
       dataDa: dataDa || null,
       dataA: dataA || null,
       costo: costo ? Number(costo) : null,
+      note: note.trim() || null,
       prenotazioneEffettuata,
     })
     setLoading(false)
@@ -57,6 +89,50 @@ export function SatelliteNoleggio({
 
       {isOwner ? (
         <div className="space-y-3">
+          <div>
+            <label htmlFor="noleggio-fornitore" className="mb-1 block text-xs font-medium text-gray-700">
+              Compagnia (fornitore)
+            </label>
+            {sede ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                <p className="text-sm text-gray-700">{sede.label}</p>
+                <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
+                  Cambia
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  id="noleggio-fornitore"
+                  type="search"
+                  value={query}
+                  onChange={(e) => handleQueryChange(e.target.value)}
+                  placeholder="Cerca per ragione sociale o sede..."
+                  className={inputClass()}
+                />
+                {risultati.length > 0 && (
+                  <ul className="mt-1 divide-y divide-gray-200 rounded-lg border border-gray-200">
+                    {risultati.map((r) => (
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSede(r)
+                            setQuery('')
+                            setRisultati([])
+                          }}
+                          className="block w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors"
+                        >
+                          {r.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label htmlFor="noleggio-da" className="mb-1 block text-xs font-medium text-gray-700">
@@ -86,6 +162,13 @@ export function SatelliteNoleggio({
             />
           </div>
 
+          <div>
+            <label htmlFor="noleggio-note" className="mb-1 block text-xs font-medium text-gray-700">
+              Note
+            </label>
+            <textarea id="noleggio-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass()} />
+          </div>
+
           <label className="flex items-center gap-2 text-sm text-gray-700">
             <input
               type="checkbox"
@@ -108,6 +191,7 @@ export function SatelliteNoleggio({
         </div>
       ) : (
         <div className="space-y-1 text-sm text-gray-700">
+          {fornitoreSedeLabel && <p>{fornitoreSedeLabel}</p>}
           {(satellite.data_da || satellite.data_a) && (
             <p>
               {satellite.data_da ? new Date(satellite.data_da).toLocaleDateString('it-IT') : '—'} →{' '}
@@ -115,6 +199,7 @@ export function SatelliteNoleggio({
             </p>
           )}
           {satellite.costo != null && <p>{formattaValuta(satellite.costo)}</p>}
+          {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
         </div>
       )}
     </div>

@@ -6,9 +6,9 @@ import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroInfo } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
-import { RevisionabileChain } from '@/components/satellite-revisionabile'
 import { SatellitePreventivo } from '@/components/satellite-preventivo'
 import { SatelliteProgetto } from '@/components/satellite-progetto'
+import { SatelliteCampione } from '@/components/satellite-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
@@ -19,17 +19,16 @@ import {
   costruisciCatena,
   coloreAcquisti,
   coloreAppuntamento,
+  coloreCampione,
   coloreCostruzione,
   colorePreventivo,
   coloreProgetto,
-  coloreRevisionabile,
   labelStatoAcquisti,
   labelStatoAppuntamento,
+  labelStatoCampione,
   labelStatoNoleggio,
   labelStatoPreventivo,
   labelStatoProgetto,
-  labelStatoRevisionabile,
-  raggruppaPerSerie,
   satelliteTipoLabelBreve,
   satellitiBloccantiMontaggio,
   type Satellite,
@@ -97,7 +96,9 @@ export default async function LavoroDettaglioPage({
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const progettoSatelliti = satelliti.filter((s) => s.tipo === 'progetto')
   const preventivoSatelliti = satelliti.filter((s) => s.tipo === 'preventivo')
-  const campioneSatelliti = satelliti.filter((s) => s.tipo === 'campione')
+  const campioneSatelliti = satelliti
+    .filter((s) => s.tipo === 'campione')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
 
   const appuntamentiVerificaMisure = satelliti
     .filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'verifica_misure')
@@ -115,7 +116,11 @@ export default async function LavoroDettaglioPage({
     .filter((s) => s.tipo === 'noleggio')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
 
-  const fornitoreSedeIds = [...new Set(acquistiSatelliti.map((s) => s.fornitore_sede_id).filter((v): v is string => !!v))]
+  const fornitoreSedeIds = [
+    ...new Set(
+      [...acquistiSatelliti, ...noleggioSatelliti].map((s) => s.fornitore_sede_id).filter((v): v is string => !!v),
+    ),
+  ]
   const { data: fornitoreSedi } =
     fornitoreSedeIds.length > 0
       ? await supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta').in('id', fornitoreSedeIds)
@@ -236,44 +241,26 @@ export default async function LavoroDettaglioPage({
     })
   }
 
-  for (const g of raggruppaPerSerie(campioneSatelliti)) {
-    const catena = [...costruisciCatena(g.satelliti)].reverse()
-    const corrente = catena[0]
-    const statoEff = statoEffettivoById[corrente.id] ?? corrente.stato ?? ''
+  // Ogni riga è un'istanza indipendente (Sprint D, produzione, 2/8, vedi
+  // CLAUDE.md): niente più raggruppamento per serie/revisione_di — una riga
+  // per satellite, stesso pattern di numerazione già in uso per
+  // Costruzione/Noleggio/Briefing quando ce n'è più di una.
+  campioneSatelliti.forEach((s, i) => {
+    const nome = campioneSatelliti.length > 1 ? `Campionatura ${i + 1}` : 'Campionatura'
     righeTabella.push({
-      satelliteId: corrente.id,
-      nome: `Campionatura (${g.serie})`,
-      colore: coloreRevisionabile('campione', statoEff),
-      statoLabel: labelStatoRevisionabile('campione', statoEff),
+      satelliteId: s.id,
+      nome,
+      colore: coloreCampione(s.descrizione, s.campione_consegnato),
+      statoLabel: labelStatoCampione(s.descrizione, s.campione_consegnato),
       posizione: POSIZIONE_ATTIVITA.campionatura,
       contenutoModifica: (
-        <RevisionabileChain
-          tipo="campione"
-          titolo={g.serie}
-          catena={catena}
-          statoEffettivoById={statoEffettivoById}
-          allegatiById={allegatiById}
-          isOwner={isOwnerEffettivo}
-          lavoroId={lavoro.id}
-          mostraDescrizione
-          storicoConStatoReale
-        />
+        <SatelliteCampione satellite={s} allegati={allegatiById[s.id] ?? []} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
       contenutoLettura: (
-        <RevisionabileChain
-          tipo="campione"
-          titolo={g.serie}
-          catena={catena}
-          statoEffettivoById={statoEffettivoById}
-          allegatiById={allegatiById}
-          isOwner={false}
-          lavoroId={lavoro.id}
-          mostraDescrizione
-          storicoConStatoReale
-        />
+        <SatelliteCampione satellite={s} allegati={allegatiById[s.id] ?? []} isOwner={false} lavoroId={lavoro.id} />
       ),
     })
-  }
+  })
 
   appuntamentiVerificaMisure.forEach((a, i) => {
     const nome = appuntamentiVerificaMisure.length > 1 ? `Verifica misure ${i + 1}` : 'Verifica misure'
@@ -358,8 +345,22 @@ export default async function LavoroDettaglioPage({
       colore: s.prenotazione_effettuata ? 'green' : 'red',
       statoLabel: labelStatoNoleggio(s.prenotazione_effettuata),
       posizione: POSIZIONE_ATTIVITA.noleggio,
-      contenutoModifica: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
-      contenutoLettura: <SatelliteNoleggio satellite={s} lavoroId={lavoro.id} isOwner={false} />,
+      contenutoModifica: (
+        <SatelliteNoleggio
+          satellite={s}
+          fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          lavoroId={lavoro.id}
+          isOwner={isOwnerEffettivo}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteNoleggio
+          satellite={s}
+          fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          lavoroId={lavoro.id}
+          isOwner={false}
+        />
+      ),
     })
   })
 

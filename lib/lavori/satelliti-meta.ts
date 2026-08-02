@@ -15,28 +15,6 @@ export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string>
   montaggio: 'Montaggio',
 }
 
-// Preventivo non fa più parte di questo gruppo dalla revisione satelliti del
-// 1/8 (modello a due flag booleani, vedi colorePreventivo/labelStatoPreventivo/
-// azioniPossibiliPreventivo più sotto). Progetto non ne fa più parte dallo
-// Sprint C (documenti) del 2/8: modello a singolo flag progetto_accettato +
-// semaforo derivato dagli allegati caricati, vedi coloreProgetto/
-// labelStatoProgetto più sotto — non più il vecchio stato a 5 valori. Resta
-// solo Campione sul vecchio modello: il tipo è ridotto a un solo membro
-// (invece di rimuovere l'astrazione, per non escludere un cambio analogo per
-// Campione in un prossimo sprint) — i rami `tipo === 'progetto'` nelle
-// funzioni sotto restano temporaneamente come codice morto innocuo.
-export type TipoRevisionabile = 'campione'
-
-export type StatoRevisionabile =
-  | 'in_preparazione'
-  | 'presentato'
-  | 'necessaria_revisione'
-  | 'accettato'
-  | 'non_necessario'
-  | 'consegnato'
-  | 'necessario_nuovo_campione'
-  | 'approvato'
-
 export type Satellite = {
   id: string
   lavoro_id: string
@@ -63,6 +41,8 @@ export type Satellite = {
   preventivo_accettato: boolean
   preventivo_rifiutato: boolean
   progetto_accettato: boolean
+  campione_consegnato: boolean
+  campione_data_consegna: string | null
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -92,148 +72,6 @@ export const DOT_COLOR: Record<ColoreSemaforo, string> = {
   green: 'bg-green-500',
 }
 
-// --- Progetto ---
-// (Preventivo usava lo stesso modello fino alla revisione satelliti del 1/8:
-// ora ha due flag booleani indipendenti, vedi colorePreventivo più sotto.)
-export const STATI_PROGETTO = [
-  'in_preparazione',
-  'presentato',
-  'necessaria_revisione',
-  'accettato',
-  'non_necessario',
-] as const
-
-export const STATO_PROGETTO_LABEL: Record<string, string> = {
-  in_preparazione: 'In preparazione',
-  presentato: 'Presentato',
-  necessaria_revisione: 'Necessaria revisione',
-  accettato: 'Accettato',
-  non_necessario: 'Non necessario',
-}
-
-// --- Campione ---
-export const STATI_CAMPIONE = [
-  'in_preparazione',
-  'consegnato',
-  'necessario_nuovo_campione',
-  'approvato',
-  'non_necessario',
-] as const
-
-export const STATO_CAMPIONE_LABEL: Record<string, string> = {
-  in_preparazione: 'In preparazione',
-  consegnato: 'Consegnato',
-  necessario_nuovo_campione: 'Necessario nuovo campione',
-  approvato: 'Approvato',
-  non_necessario: 'Non necessario',
-}
-
-export function labelStatoRevisionabile(tipo: TipoRevisionabile, stato: string): string {
-  return tipo === 'campione' ? STATO_CAMPIONE_LABEL[stato] ?? stato : STATO_PROGETTO_LABEL[stato] ?? stato
-}
-
-// necessaria_revisione/necessario_nuovo_campione sono un rifiuto esplicito del
-// cliente (richiede un nuovo tentativo), non una semplice attesa di risposta
-// come presentato/consegnato — trattati come rosso, non giallo, per tutti i
-// tipi revisionabili (coerenza tra preventivo/progetto/campione).
-export function coloreRevisionabile(tipo: TipoRevisionabile, stato: string): ColoreSemaforo {
-  if (stato === 'in_preparazione') return 'red'
-  if (tipo === 'campione') {
-    if (stato === 'approvato' || stato === 'non_necessario') return 'green'
-    if (stato === 'necessario_nuovo_campione') return 'red'
-    return 'yellow' // consegnato
-  }
-  if (stato === 'accettato' || stato === 'non_necessario') return 'green'
-  if (stato === 'necessaria_revisione') return 'red'
-  return 'yellow' // presentato
-}
-
-// Stato che, se impostato, genera automaticamente una nuova revisione collegata.
-export function generaNuovaRevisione(tipo: TipoRevisionabile, nuovoStato: string): boolean {
-  return tipo === 'campione' ? nuovoStato === 'necessario_nuovo_campione' : nuovoStato === 'necessaria_revisione'
-}
-
-type AzionePossibile = {
-  stato: StatoRevisionabile
-  label: string
-  variante: 'primary' | 'warn' | 'muted'
-  // Messaggio di conferma nativa da mostrare prima di eseguire l'azione — solo
-  // per le transizioni di correzione (es. annullare un'accettazione), non per
-  // il normale avanzamento in avanti, per prevenire un click accidentale che
-  // annullerebbe un'accettazione già registrata.
-  conferma?: string
-}
-
-// Prossime transizioni manuali disponibili dallo stato attuale (solo sulla revisione
-// corrente/leaf di una catena: le revisioni superate non hanno azioni).
-export function azioniPossibiliRevisionabile(tipo: TipoRevisionabile, statoAttuale: string): AzionePossibile[] {
-  if (tipo === 'campione') {
-    switch (statoAttuale) {
-      case 'in_preparazione':
-        return [
-          { stato: 'consegnato', label: 'Segna come consegnato', variante: 'primary' },
-          { stato: 'non_necessario', label: 'Segna come non necessario', variante: 'muted' },
-        ]
-      case 'consegnato':
-        return [
-          { stato: 'necessario_nuovo_campione', label: 'Richiedi nuovo campione', variante: 'warn' },
-          { stato: 'approvato', label: 'Segna come approvato', variante: 'primary' },
-        ]
-      case 'non_necessario':
-        // Correzione di un "non necessario" impostato per errore, stesso
-        // principio di "Annulla accettazione": richiede conferma esplicita.
-        return [
-          {
-            stato: 'in_preparazione',
-            label: 'Annulla non necessario',
-            variante: 'muted',
-            conferma: 'Annullare "non necessario"? Il satellite tornerà allo stato "In preparazione".',
-          },
-        ]
-      default:
-        return []
-    }
-  }
-
-  switch (statoAttuale) {
-    case 'in_preparazione':
-      return [
-        { stato: 'presentato', label: 'Segna come presentato', variante: 'primary' },
-        { stato: 'non_necessario', label: 'Segna come non necessario', variante: 'muted' },
-      ]
-    case 'presentato':
-      return [
-        { stato: 'necessaria_revisione', label: 'Richiedi nuova revisione', variante: 'warn' },
-        { stato: 'accettato', label: 'Segna come accettato', variante: 'primary' },
-      ]
-    case 'accettato':
-      // Correzione di un'accettazione impostata per errore (click accidentale),
-      // non un avanzamento — richiede conferma esplicita, a differenza delle
-      // altre transizioni. Non disponibile per Campione (non richiesto).
-      return [
-        {
-          stato: 'presentato',
-          label: 'Annulla accettazione',
-          variante: 'muted',
-          conferma: 'Annullare l\'accettazione? Il satellite tornerà allo stato "Presentato".',
-        },
-      ]
-    case 'non_necessario':
-      // Stessa correzione di "Annulla accettazione", per il ramo alternativo
-      // di stato verde (non_necessario invece di accettato).
-      return [
-        {
-          stato: 'in_preparazione',
-          label: 'Annulla non necessario',
-          variante: 'muted',
-          conferma: 'Annullare "non necessario"? Il satellite tornerà allo stato "In preparazione".',
-        },
-      ]
-    default:
-      return []
-  }
-}
-
 // --- Preventivo ---
 // Modello a due flag booleani indipendenti (preventivo_accettato/
 // preventivo_rifiutato), non più il vecchio stato a 5 valori condiviso con
@@ -257,8 +95,9 @@ export function labelStatoPreventivo(accettato: boolean, rifiutato: boolean, val
 
 // --- Progetto ---
 // Sprint C (documenti) 2026-08-02: singolo flag booleano progetto_accettato,
-// non più il vecchio stato a 5 valori condiviso con Campione (vedi
-// TipoRevisionabile più sopra). Semaforo derivato dagli allegati caricati
+// non più il vecchio stato a 5 valori condiviso con Campione (che a sua
+// volta ha lasciato quel modello nel Sprint D produzione del 2/8, vedi
+// coloreCampione più sotto). Semaforo derivato dagli allegati caricati
 // invece che da transizioni manuali — stessa priorità di colorePreventivo
 // (accettato sempre verde, indipendentemente dagli allegati).
 export function coloreProgetto(accettato: boolean, haAllegati: boolean): ColoreSemaforo {
@@ -273,8 +112,32 @@ export function labelStatoProgetto(accettato: boolean, haAllegati: boolean): str
   return 'In attesa'
 }
 
+// --- Campione ---
+// Sprint D (produzione) 2026-08-02: ogni riga è un'istanza indipendente, non
+// più un gruppo di revisioni raggruppate per "serie" (vedi CLAUDE.md). Se una
+// campionatura "non va bene" se ne crea una nuova scollegata, non una
+// revisione — nessun uso di revisione_di per le nuove righe. Semaforo
+// derivato da descrizione/campione_consegnato invece del vecchio stato a 5
+// valori condiviso con Progetto (STATI_CAMPIONE/STATO_CAMPIONE_LABEL,
+// rimossi insieme al resto dell'apparato "revisionabile" — Preventivo/
+// Progetto ne erano già usciti l'1/8 e il 2/8, Campione era rimasto l'unico
+// tipo ancora su quel modello).
+export function coloreCampione(descrizione: string | null, consegnato: boolean): ColoreSemaforo {
+  if (consegnato) return 'green'
+  if (!descrizione || !descrizione.trim()) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoCampione(descrizione: string | null, consegnato: boolean): string {
+  if (consegnato) return 'Consegnato'
+  if (!descrizione || !descrizione.trim()) return 'Descrizione da inserire'
+  return 'In attesa'
+}
+
 // Ricostruisce la catena di revisioni (root -> ultima) a partire da un insieme piatto
-// di satelliti che condividono la stessa catena (stesso tipo, o stessa serie per campione).
+// di satelliti che condividono la stessa catena — usata oggi solo dal Preventivo, per
+// mostrare eventuali catene storiche precedenti alla revisione satelliti dell'1/8
+// (nessuna nuova riga preventivo genera più revisione_di da allora).
 export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
   const root = satelliti.find((s) => !s.revisione_di)
   if (!root) return []
@@ -347,10 +210,11 @@ export function azioniPossibiliCostruzione(statoAttuale: string): { stato: strin
 // server-side in completaLavoro() prima di accettare la transizione a
 // "completato"), serve solo a derivare QUALI satelliti risultano bloccanti,
 // per mostrare un messaggio "cosa manca" nella UI. Stessi criteri: revisioni
-// superate (non l'ultima della catena) escluse, stato effettivo per
-// progetto/campione già risolto dal chiamante tramite
-// lavoro_satellite_stato_effettivo() (il Preventivo non ne fa più parte dalla
-// revisione satelliti del 1/8: usa preventivo_accettato direttamente). Gli
+// superate (non l'ultima della catena) escluse; preventivo/progetto/campione
+// controllati direttamente sui rispettivi flag (nessuno dei tre usa più il
+// vecchio stato testuale dal Sprint D del 2/8 — statoEffettivoById resta un
+// parametro per acquisti/costruzione, che non hanno mai avuto catene di
+// revisione ma condividono lo stesso fallback `?? s.stato`). Gli
 // appuntamenti contano come qualunque altro satellite (verde solo se
 // concluso=true — non_necessario rimosso, stesso trattamento per noleggio
 // con prenotazione_effettuata).
@@ -365,11 +229,10 @@ export function satellitiBloccantiMontaggio(
 
     if (s.tipo === 'preventivo') return !s.preventivo_accettato
     if (s.tipo === 'progetto') return !s.progetto_accettato
+    if (s.tipo === 'campione') return !s.campione_consegnato
 
     const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
     switch (s.tipo) {
-      case 'campione':
-        return stato !== 'approvato' && stato !== 'non_necessario'
       case 'acquisti':
         return stato !== 'ricevuto'
       case 'costruzione':
@@ -454,15 +317,4 @@ export function labelStatoAppuntamento(concluso: boolean, dataAppuntamento: stri
 
 export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
   return prenotazioneEffettuata ? 'Prenotato' : 'Da prenotare'
-}
-
-export function raggruppaPerSerie(satelliti: Satellite[]): { serie: string; satelliti: Satellite[] }[] {
-  const gruppi = new Map<string, Satellite[]>()
-  for (const s of satelliti) {
-    const chiave = s.serie ?? '—'
-    const lista = gruppi.get(chiave) ?? []
-    lista.push(s)
-    gruppi.set(chiave, lista)
-  }
-  return Array.from(gruppi.entries()).map(([serie, satelliti]) => ({ serie, satelliti }))
 }

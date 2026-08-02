@@ -7,13 +7,7 @@
 // cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import {
-  generaNuovaRevisione,
-  type SottotipoAppuntamento,
-  type StatoAcquisti,
-  type StatoRevisionabile,
-  type TipoRevisionabile,
-} from '@/lib/lavori/satelliti-meta'
+import { type SottotipoAppuntamento, type StatoAcquisti } from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -121,68 +115,6 @@ export async function impostaProgettoAccettato(satelliteId: string, lavoroId: st
   if (error) {
     console.error('impostaProgettoAccettato: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
-  }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  revalidatePath('/lavori')
-  return { ok: true }
-}
-
-// Imposta lo stato di un satellite "revisionabile" (solo Campione dallo
-// Sprint C del 2/8 — Preventivo dal 1/8, Progetto dal 2/8 hanno lasciato
-// questo modello, vedi impostaPreventivoDecisione/impostaProgettoAccettato
-// più sotto). Se il nuovo stato è quello che richiede una nuova revisione
-// (necessario_nuovo_campione), crea prima la nuova riga collegata via
-// revisione_di (stato iniziale in_preparazione, stessa serie), poi aggiorna
-// la riga corrente — se l'aggiornamento fallisse, la nuova riga appena creata
-// viene rimossa (stesso principio di rollback già in uso in creaLavoro/creaSatellite).
-export async function impostaStatoRevisionabile(
-  satelliteId: string,
-  lavoroId: string,
-  tipo: TipoRevisionabile,
-  nuovoStato: StatoRevisionabile,
-  serie: string | null,
-): Promise<AzioneResult> {
-  const supabase = await createClient()
-
-  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
-  if (bloccato) return bloccato
-
-  if (generaNuovaRevisione(tipo, nuovoStato)) {
-    const { data: nuova, error: insErr } = await supabase
-      .from('lavoro_satellite')
-      .insert({
-        lavoro_id: lavoroId,
-        tipo,
-        stato: 'in_preparazione',
-        revisione_di: satelliteId,
-        serie: tipo === 'campione' ? serie : null,
-      })
-      .select('id')
-      .single()
-
-    if (insErr || !nuova) {
-      console.error('impostaStatoRevisionabile: creazione nuova revisione fallita', insErr)
-      return { ok: false, error: 'Errore nella creazione della nuova revisione, riprova' }
-    }
-
-    const { error: updErr } = await supabase
-      .from('lavoro_satellite')
-      .update({ stato: nuovoStato })
-      .eq('id', satelliteId)
-
-    if (updErr) {
-      console.error('impostaStatoRevisionabile: aggiornamento stato precedente fallito', updErr)
-      await supabase.from('lavoro_satellite').delete().eq('id', nuova.id)
-      return { ok: false, error: 'Errore nel salvataggio, riprova' }
-    }
-  } else {
-    const { error } = await supabase.from('lavoro_satellite').update({ stato: nuovoStato }).eq('id', satelliteId)
-
-    if (error) {
-      console.error('impostaStatoRevisionabile: aggiornamento stato fallito', error)
-      return { ok: false, error: 'Errore nel salvataggio, riprova' }
-    }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
@@ -324,56 +256,82 @@ export async function impostaPreventivoDecisione(
   return { ok: true }
 }
 
-export async function aggiornaDescrizioneCampione(
-  satelliteId: string,
-  lavoroId: string,
-  descrizione: string | null,
-): Promise<AzioneResult> {
+// --- Campione ---
+// Sprint D (produzione) 2026-08-02: ogni riga è un'istanza indipendente
+// (vedi CLAUDE.md) — creazione senza alcun parametro, come
+// creaProgetto()/creaCostruzione()/creaNoleggio() (parte sempre dai default
+// a schema: descrizione/campione_consegnato/note tutti vuoti, compilabili
+// dopo l'apertura della modale).
+export async function creaCampione(lavoroId: string): Promise<CreazioneResult> {
   const supabase = await createClient()
-
-  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
-  if (bloccato) return bloccato
-
-  const { error } = await supabase
-    .from('lavoro_satellite')
-    .update({ descrizione })
-    .eq('id', satelliteId)
-
-  if (error) {
-    console.error('aggiornaDescrizioneCampione: update fallito', error)
-    return { ok: false, error: 'Errore nel salvataggio, riprova' }
-  }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  revalidatePath('/lavori')
-  return { ok: true }
-}
-
-export async function creaNuovaSerieCampione(lavoroId: string, serie: string): Promise<CreazioneResult> {
-  const supabase = await createClient()
-  const nomeSerie = serie.trim()
-
-  if (!nomeSerie) {
-    return { ok: false, error: 'Il nome della serie è obbligatorio' }
-  }
 
   const bloccato = await assertLavoroModificabile(supabase, lavoroId)
   if (bloccato) return bloccato
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
-    .insert({ lavoro_id: lavoroId, tipo: 'campione', stato: 'in_preparazione', serie: nomeSerie })
+    .insert({ lavoro_id: lavoroId, tipo: 'campione' })
     .select('id')
     .single()
 
   if (error) {
-    console.error('creaNuovaSerieCampione: insert fallito', error)
-    return { ok: false, error: 'Errore nella creazione della serie, riprova' }
+    console.error('creaCampione: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
   revalidatePath('/lavori')
   return { ok: true, id: data.id }
+}
+
+// campione_data_consegna: valorizzata a now() solo alla transizione
+// false->true di campione_consegnato, azzerata alla transizione inversa —
+// letto lo stato attuale prima di scrivere (stesso pattern "leggi poi
+// scrivi" già in uso per data_presentazione/prima_accettazione_at), per non
+// perdere/falsare la data se il flag viene semplicemente ri-salvato invariato.
+export async function aggiornaCampione(
+  satelliteId: string,
+  lavoroId: string,
+  fields: { descrizione: string | null; consegnato: boolean; note: string | null },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { data: attuale } = await supabase
+    .from('lavoro_satellite')
+    .select('campione_consegnato')
+    .eq('id', satelliteId)
+    .maybeSingle()
+
+  const update: {
+    descrizione: string | null
+    descrizione_libera: string | null
+    campione_consegnato: boolean
+    campione_data_consegna?: string | null
+  } = {
+    descrizione: fields.descrizione,
+    descrizione_libera: fields.note,
+    campione_consegnato: fields.consegnato,
+  }
+
+  if (fields.consegnato && !attuale?.campione_consegnato) {
+    update.campione_data_consegna = new Date().toISOString()
+  } else if (!fields.consegnato && attuale?.campione_consegnato) {
+    update.campione_data_consegna = null
+  }
+
+  const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
+
+  if (error) {
+    console.error('aggiornaCampione: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
 }
 
 // --- Acquisti ---
@@ -606,13 +564,21 @@ export async function creaNoleggio(lavoroId: string): Promise<CreazioneResult> {
   return { ok: true, id: data.id }
 }
 
+// fornitoreSedeId: la "compagnia" di noleggio è un Fornitore a tutti gli
+// effetti (emette fattura, va in contabilità), non un campo testo libero —
+// riusa la stessa colonna fornitore_sede_id già in uso per Acquisto, invece
+// di introdurre un nuovo campo "compagnia" (Sprint D, produzione, 2/8, vedi
+// CLAUDE.md). note: riusa descrizione_libera, colonna già condivisa con
+// Costruzione per lo stesso scopo.
 export async function aggiornaNoleggio(
   satelliteId: string,
   lavoroId: string,
   fields: {
+    fornitoreSedeId: string | null
     dataDa: string | null
     dataA: string | null
     costo: number | null
+    note: string | null
     prenotazioneEffettuata: boolean
   },
 ): Promise<AzioneResult> {
@@ -624,9 +590,11 @@ export async function aggiornaNoleggio(
   const { error } = await supabase
     .from('lavoro_satellite')
     .update({
+      fornitore_sede_id: fields.fornitoreSedeId,
       data_da: fields.dataDa,
       data_a: fields.dataA,
       costo: fields.costo,
+      descrizione_libera: fields.note,
       prenotazione_effettuata: fields.prenotazioneEffettuata,
     })
     .eq('id', satelliteId)
