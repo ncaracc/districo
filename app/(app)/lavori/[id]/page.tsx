@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LavoroSegnaCompletato } from '@/components/lavoro-segna-completato'
 import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroInfo } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
@@ -30,7 +29,6 @@ import {
   labelStatoPreventivo,
   labelStatoProgetto,
   satelliteTipoLabelBreve,
-  satellitiBloccantiMontaggio,
   type Satellite,
   type SatelliteAllegato,
   type SatelliteArticolo,
@@ -54,13 +52,10 @@ export default async function LavoroDettaglioPage({
 
   if (!lavoro) notFound()
 
-  const [{ data: isOwner }, { data: satellitiGrezzi }, { data: statoEffettivoGrezzo }, { data: pronto }] =
-    await Promise.all([
-      supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
-      supabase.from('lavoro_satellite').select('*').eq('lavoro_id', id),
-      supabase.rpc('lavoro_satellite_stato_effettivo', { p_lavoro_id: id }),
-      supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: id }),
-    ])
+  const [{ data: isOwner }, { data: satellitiGrezzi }] = await Promise.all([
+    supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
+    supabase.from('lavoro_satellite').select('*').eq('lavoro_id', id),
+  ])
 
   const satelliti: Satellite[] = satellitiGrezzi ?? []
   const satelliteIds = satelliti.map((s) => s.id)
@@ -84,11 +79,6 @@ export default async function LavoroDettaglioPage({
   const righePerSatellite: Record<string, SatelliteArticolo[]> = {}
   for (const r of righe) {
     ;(righePerSatellite[r.satellite_id] ??= []).push(r)
-  }
-
-  const statoEffettivoById: Record<string, string> = {}
-  for (const s of statoEffettivoGrezzo ?? []) {
-    if (s.stato_effettivo) statoEffettivoById[s.satellite_id] = s.stato_effettivo
   }
 
   const briefingSatelliti = satelliti
@@ -455,16 +445,6 @@ export default async function LavoroDettaglioPage({
         preventivoEsiste={preventivoEsiste}
         categorieAcquisto={categorieAcquisto ?? []}
       />
-
-      {lavoro.stato === 'accettato' && isOwner && (
-        <div className="mt-6 space-y-3">
-          <LavoroSegnaCompletato
-            lavoroId={lavoro.id}
-            pronto={!!pronto}
-            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
-          />
-        </div>
-      )}
     </div>
   )
 }

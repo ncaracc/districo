@@ -199,52 +199,6 @@ export function azioniPossibiliCostruzione(statoAttuale: string): { stato: strin
   return []
 }
 
-// --- Gate "pronto per il montaggio" — versione informativa lato client ---
-//
-// Mirror in JS della stessa logica SQL di lavoro_pronto_per_montaggio()
-// (migration 0012/0013/0017/0022): non ricalcola il booleano (quello resta
-// l'unica fonte di verità, riusato così com'è sia in UI sia — soprattutto —
-// server-side in completaLavoro() prima di accettare la transizione a
-// "completato"), serve solo a derivare QUALI satelliti risultano bloccanti,
-// per mostrare un messaggio "cosa manca" nella UI. Stessi criteri: revisioni
-// superate (non l'ultima della catena) escluse; preventivo/progetto/campione
-// controllati direttamente sui rispettivi flag (nessuno dei tre usa più il
-// vecchio stato testuale dal Sprint D del 2/8 — statoEffettivoById resta un
-// parametro per acquisti/costruzione, che non hanno mai avuto catene di
-// revisione ma condividono lo stesso fallback `?? s.stato`). Gli
-// appuntamenti contano come qualunque altro satellite (verde solo se
-// concluso=true — non_necessario rimosso, stesso trattamento per noleggio
-// con prenotazione_effettuata). Acquisti bloccante finché non ordinato
-// (revisione 2026-08-03, vedi CLAUDE.md) — non serve più righePerSatellite,
-// il flag booleano basta da solo.
-export function satellitiBloccantiMontaggio(
-  satelliti: Satellite[],
-  statoEffettivoById: Record<string, string>,
-): Satellite[] {
-  const superati = new Set(satelliti.filter((s) => s.revisione_di).map((s) => s.revisione_di as string))
-
-  return satelliti.filter((s) => {
-    if (superati.has(s.id)) return false
-
-    if (s.tipo === 'preventivo') return !s.preventivo_accettato
-    if (s.tipo === 'progetto') return !s.progetto_accettato
-    if (s.tipo === 'campione') return !s.campione_consegnato
-    if (s.tipo === 'acquisti') return !s.ordinato
-
-    const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
-    switch (s.tipo) {
-      case 'costruzione':
-        return stato !== 'completata'
-      case 'noleggio':
-        return !s.prenotazione_effettuata
-      case 'appuntamento':
-        return !s.concluso
-      default:
-        return false
-    }
-  })
-}
-
 const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   appuntamento: 'Appuntamento',
   preventivo: 'Preventivo',

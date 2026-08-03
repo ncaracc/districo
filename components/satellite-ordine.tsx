@@ -22,9 +22,10 @@ type RigaBozza = { descrizione: string }
 // testuali con transizioni manuali è sostituito da un solo flag booleano
 // `ordinato`. Finché ordinato=false l'intero Acquisto è modificabile qui
 // (fornitore/categoria/referenze/valore, prima possibile solo al momento
-// della creazione). "Segna come ordinato"/"Annulla ordinato" è un toggle
-// reversibile senza conferma finché l'ordine non è stato inviato via mail —
-// solo l'invio è il commit definitivo, mai reversibile via app.
+// della creazione). `ordinato` è rappresentato come checkbox (non bottoni
+// d'azione, corretto lo stesso giorno: uno stato reversibile non dovrebbe
+// somigliare a un'azione che "accade") — nessuna conferma nativa finché
+// l'ordine non è stato inviato via mail, l'unico commit definitivo.
 export function SatelliteOrdine({
   satellite,
   righe,
@@ -87,27 +88,18 @@ export function SatelliteOrdine({
   // Attivare salva prima i campi correnti (il form è ancora "sporco" a
   // questo punto), disattivare no: a ordinato=true il form non è renderizzato,
   // non c'è nulla da salvare.
-  async function handleSegnaOrdinato() {
-    if (!sede || campiCorrenti().righe.length === 0) return
-
+  async function handleToggleOrdinato(checked: boolean) {
     setLoading(true)
     setErrore(null)
-    const salvato = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
-    if (!salvato.ok) {
-      setLoading(false)
-      setErrore(salvato.error)
-      return
+    if (checked) {
+      const salvato = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
+      if (!salvato.ok) {
+        setLoading(false)
+        setErrore(salvato.error)
+        return
+      }
     }
-    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, true)
-    setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
-  }
-
-  async function handleAnnullaOrdinato() {
-    setLoading(true)
-    setErrore(null)
-    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, false)
+    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, checked)
     setLoading(false)
     if (!result.ok) setErrore(result.error)
     else router.refresh()
@@ -285,7 +277,7 @@ export function SatelliteOrdine({
       )}
 
       {editabile && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={handleSalva}
@@ -294,35 +286,31 @@ export function SatelliteOrdine({
           >
             {loading ? 'Salvataggio…' : 'Salva'}
           </button>
-          <button
-            type="button"
-            onClick={handleSegnaOrdinato}
-            disabled={loading || !sede || campiCorrenti().righe.length === 0}
-            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Salvataggio…' : 'Segna come ordinato'}
-          </button>
         </div>
       )}
 
-      {isOwner && satellite.ordinato && !satellite.data_invio_ordine && !invioAperto && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleAnnullaOrdinato}
-            disabled={loading}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Salvataggio…' : 'Annulla ordinato'}
-          </button>
-          <button
-            type="button"
-            onClick={apriInvio}
-            disabled={loading}
-            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            Invia ordine
-          </button>
+      {isOwner && !satellite.data_invio_ordine && (
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-1.5 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={satellite.ordinato}
+              disabled={loading || (!satellite.ordinato && (!sede || campiCorrenti().righe.length === 0))}
+              onChange={(e) => handleToggleOrdinato(e.target.checked)}
+              className="accent-primary"
+            />
+            Ordinato
+          </label>
+          {satellite.ordinato && !invioAperto && (
+            <button
+              type="button"
+              onClick={apriInvio}
+              disabled={loading}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              Invia ordine
+            </button>
+          )}
         </div>
       )}
 

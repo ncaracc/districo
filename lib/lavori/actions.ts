@@ -119,44 +119,6 @@ export async function aggiornaLavoro(
   return { ok: true }
 }
 
-// "Segna lavoro completato": bloccata se lavoro_pronto_per_montaggio()
-// risulta falso, cioè se un qualsiasi satellite bloccante (preventivo,
-// acquisti, costruzione, noleggio, oltre a progetto/campione) non è ancora
-// verde. Il controllo è qui lato server (non solo il bottone disabilitato in
-// UI) perché è un vincolo reale, non solo un suggerimento — riusa la stessa
-// funzione SQL già esistente, nessuna nuova logica di gate.
-//
-// Le transizioni opportunità -> accettato/rifiutato NON passano più da qui
-// dalla revisione satelliti del 1/8 (vedi CLAUDE.md): sono derivate
-// automaticamente dal satellite Preventivo (impostaPreventivoDecisione in
-// lib/lavori/satelliti.ts), unica via per far avanzare un Lavoro da
-// 'opportunita'.
-export async function completaLavoro(lavoroId: string): Promise<AzioneResult> {
-  const supabase = await createClient()
-
-  const { data: pronto } = await supabase.rpc('lavoro_pronto_per_montaggio', { p_lavoro_id: lavoroId })
-  if (!pronto) {
-    return {
-      ok: false,
-      error: 'Non tutti i satelliti bloccanti sono completi: il lavoro non può ancora essere segnato come completato.',
-    }
-  }
-
-  const { error } = await supabase
-    .from('lavoro')
-    .update({ stato: 'completato', completato_at: new Date().toISOString() })
-    .eq('id', lavoroId)
-
-  if (error) {
-    console.error('completaLavoro: update fallito', error)
-    return { ok: false, error: 'Errore, riprova' }
-  }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  revalidatePath('/lavori')
-  return { ok: true }
-}
-
 // Eliminazione definitiva e a cascata di un Lavoro: righe DB (lavoro,
 // lavoro_artigiani, satelliti/allegati/righe collegate, allegato generale,
 // attivita/fasi/pagamenti — tutte già "on delete cascade" su lavoro_id dalla
