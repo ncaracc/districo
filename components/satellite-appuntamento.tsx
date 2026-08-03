@@ -22,14 +22,18 @@ function aDatetimeLocal(iso: string | null): string {
 // vedi CLAUDE.md — applicato qui prima, sugli altri tipi in un intervento
 // successivo): il pallino di stato si è spostato nell'header del Modal
 // generico (insieme al titolo, vedi lavoro-satelliti-tabella.tsx), eliminando
-// la riga che qui lo ripeteva. Al suo posto, una riga fissa con lo switch di
-// vista Generale/Allegati a sinistra e la checkbox "Concluso" a destra
-// (sempre visibile, non cambia con la vista) — il contenuto sotto (Data/
-// Descrizione oppure lista+upload allegati) è l'unica parte che cambia.
-// "Salva" resta visibile in entrambe le viste: upload/eliminazione allegati
-// sono già auto-salvanti (chiamano la Server Action direttamente), ma
-// "Concluso" è nella riga fissa quindi resta modificabile — e da salvare —
-// anche mentre si guarda la vista Allegati.
+// la riga che qui lo ripeteva. Sotto, una riga a due elementi che cambia
+// contenuto con la vista corrente (corretto lo stesso giorno: la prima
+// versione teneva "Concluso" fisso lì sempre e infilava un secondo link
+// "← Generale" più sotto, nel corpo — una riga a sé stante non richiesta):
+// vista Generale → sinistra "Allegati (n)" (switch a vista Allegati), destra
+// "Concluso"; vista Allegati → sinistra "Generale" (torna indietro), destra
+// "+ Aggiungi allegato" (apre lo stesso flusso di upload a modale di sempre,
+// solo spostato qui). "Salva" resta visibile in entrambe le viste: upload/
+// eliminazione allegati sono già auto-salvanti, ma "Concluso" — pur non
+// visibile mentre si guarda la vista Allegati — resta comunque nello stato
+// locale del form, quindi "Salva" da lì lo persiste comunque se cambiato
+// prima di passare a quella vista.
 export function SatelliteAppuntamento({
   satellite,
   lavoroId,
@@ -73,48 +77,52 @@ export function SatelliteAppuntamento({
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <button
-          type="button"
-          onClick={() => setVista(vista === 'generale' ? 'allegati' : 'generale')}
-          className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
-        >
-          <IconaGraffetta className="h-4 w-4" />
-          Allegati ({allegati.length})
-        </button>
-        {isOwner && (
-          <label className="flex items-center gap-1.5 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={concluso}
-              onChange={(e) => setConcluso(e.target.checked)}
-              className="accent-primary"
-            />
-            Concluso
-          </label>
+        {vista === 'generale' ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setVista('allegati')}
+              className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
+            >
+              <IconaGraffetta className="h-4 w-4" />
+              Allegati ({allegati.length})
+            </button>
+            {isOwner && (
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={concluso}
+                  onChange={(e) => setConcluso(e.target.checked)}
+                  className="accent-primary"
+                />
+                Concluso
+              </label>
+            )}
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setVista('generale')}
+              className="text-sm font-medium text-gray-700 hover:text-gray-900"
+            >
+              Generale
+            </button>
+            {isOwner && (
+              <AllegatoTrigger
+                satelliteId={satellite.id}
+                lavoroId={lavoroId}
+                isOwner={isOwner}
+                richiedeEtichetta
+                label="+ Aggiungi allegato"
+              />
+            )}
+          </>
         )}
       </div>
 
       {vista === 'allegati' ? (
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={() => setVista('generale')}
-            className="text-xs font-medium text-gray-600 hover:text-gray-900"
-          >
-            ← Generale
-          </button>
-          {isOwner && (
-            <AllegatoTrigger
-              satelliteId={satellite.id}
-              lavoroId={lavoroId}
-              isOwner={isOwner}
-              richiedeEtichetta
-              iconClassName="h-6 w-6"
-              bottoneClassName="py-3 px-2"
-            />
-          )}
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-        </div>
+        <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
       ) : isOwner ? (
         <div className="space-y-3">
           <div>

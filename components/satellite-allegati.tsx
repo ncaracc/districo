@@ -96,6 +96,11 @@ export function AllegatoTrigger({
   // riusare questo stesso trigger con richiedeEtichetta=true.
   iconClassName = 'h-4 w-4',
   bottoneClassName = 'p-1.5',
+  // Se presente, il bottone mostra anche del testo accanto all'icona (es.
+  // "+ Aggiungi allegato" nella riga Generale/Allegati del modale
+  // Appuntamento, 2026-08-04) invece della sola icona — default assente,
+  // nessun cambiamento per gli usi icon-only esistenti.
+  label,
 }: {
   satelliteId: string
   lavoroId: string
@@ -103,6 +108,7 @@ export function AllegatoTrigger({
   richiedeEtichetta?: boolean
   iconClassName?: string
   bottoneClassName?: string
+  label?: string
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -179,11 +185,14 @@ export function AllegatoTrigger({
         <button
           type="button"
           onClick={() => setModaleAperta(true)}
-          aria-label="Allega file"
-          title="Allega file"
-          className={`inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900`}
+          aria-label={label ?? 'Allega file'}
+          title={label ?? 'Allega file'}
+          className={`inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
+            label ? 'gap-1.5 text-sm font-medium' : ''
+          }`}
         >
           <IconaGraffetta className={iconClassName} />
+          {label}
         </button>
         <AllegatoModale
           aperta={modaleAperta}
