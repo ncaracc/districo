@@ -14,7 +14,6 @@ import { SatelliteNoleggio } from '@/components/satellite-noleggio'
 import { SatelliteChiusura } from '@/components/satellite-chiusura'
 import { POSIZIONE_ATTIVITA } from '@/lib/lavori/attivita-ordine'
 import {
-  SOTTOTIPO_APPUNTAMENTO_LABEL,
   STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
   coloreAcquisti,
@@ -173,11 +172,11 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(s.concluso, s.data_appuntamento),
       statoLabel: labelStatoAppuntamento(s.concluso, s.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.briefing,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteAppuntamento
           satellite={s}
           lavoroId={lavoro.id}
-          titolo={nome}
           allegati={allegatiById[s.id] ?? []}
           isOwner={isOwnerEffettivo}
         />
@@ -186,7 +185,6 @@ export default async function LavoroDettaglioPage({
         <SatelliteAppuntamento
           satellite={s}
           lavoroId={lavoro.id}
-          titolo={nome}
           allegati={allegatiById[s.id] ?? []}
           isOwner={false}
         />
@@ -278,11 +276,11 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
       statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.verifica_misure,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
-          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={isOwnerEffettivo}
         />
@@ -291,7 +289,6 @@ export default async function LavoroDettaglioPage({
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
-          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'verifica_misure']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={false}
         />
@@ -384,11 +381,11 @@ export default async function LavoroDettaglioPage({
       colore: coloreAppuntamento(a.concluso, a.data_appuntamento),
       statoLabel: labelStatoAppuntamento(a.concluso, a.data_appuntamento),
       posizione: POSIZIONE_ATTIVITA.montaggio,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
-          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={isOwnerEffettivo}
         />
@@ -397,7 +394,6 @@ export default async function LavoroDettaglioPage({
         <SatelliteAppuntamento
           satellite={a}
           lavoroId={lavoro.id}
-          titolo={SOTTOTIPO_APPUNTAMENTO_LABEL[a.tipo_appuntamento ?? 'montaggio']}
           allegati={allegatiById[a.id] ?? []}
           isOwner={false}
         />

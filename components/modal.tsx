@@ -18,7 +18,12 @@ export function Modal({
 }: {
   aperto: boolean
   onChiudi: () => void
-  titolo?: string
+  // ReactNode (non solo string) da 2026-08-04: alcune righe compongono qui
+  // pallino di stato + nome sulla stessa riga (vedi lavoro-satelliti-tabella.tsx,
+  // RigaSatellite.titoloConPallino) invece di ripeterlo anche dentro il
+  // componente satellite — nessun cambiamento per chi passa una semplice
+  // stringa, un ReactNode include già string.
+  titolo?: React.ReactNode
   children: React.ReactNode
 }) {
   useEffect(() => {

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
-import { coloreAppuntamento, DOT_COLOR } from '@/lib/lavori/satelliti-meta'
+import { IconaGraffetta } from '@/components/icons'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 function inputClass() {
@@ -18,20 +18,31 @@ function aDatetimeLocal(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// Template di riferimento per il restyling dei modali satellite (2026-08-04,
+// vedi CLAUDE.md — applicato qui prima, sugli altri tipi in un intervento
+// successivo): il pallino di stato si è spostato nell'header del Modal
+// generico (insieme al titolo, vedi lavoro-satelliti-tabella.tsx), eliminando
+// la riga che qui lo ripeteva. Al suo posto, una riga fissa con lo switch di
+// vista Generale/Allegati a sinistra e la checkbox "Concluso" a destra
+// (sempre visibile, non cambia con la vista) — il contenuto sotto (Data/
+// Descrizione oppure lista+upload allegati) è l'unica parte che cambia.
+// "Salva" resta visibile in entrambe le viste: upload/eliminazione allegati
+// sono già auto-salvanti (chiamano la Server Action direttamente), ma
+// "Concluso" è nella riga fissa quindi resta modificabile — e da salvare —
+// anche mentre si guarda la vista Allegati.
 export function SatelliteAppuntamento({
   satellite,
   lavoroId,
-  titolo,
   allegati,
   isOwner,
 }: {
   satellite: Satellite
   lavoroId: string
-  titolo: string
   allegati: SatelliteAllegato[]
   isOwner: boolean
 }) {
   const router = useRouter()
+  const [vista, setVista] = useState<'generale' | 'allegati'>('generale')
   const [data, setData] = useState(aDatetimeLocal(satellite.data_appuntamento))
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
@@ -59,20 +70,17 @@ export function SatelliteAppuntamento({
     router.refresh()
   }
 
-  // Riflette dal vivo le modifiche non ancora salvate nel form (data/concluso),
-  // stessa logica di coloreAppuntamento() usata per la riga in tabella.
-  const colore = coloreAppuntamento(concluso, data ? new Date(data).toISOString() : null)
-
   return (
     <div className="rounded-lg border border-gray-200 p-4">
-      {/* Pallino+nome a sinistra, "Concluso" (solo per chi può modificare)
-          all'estrema destra della stessa riga — restyling 2026-08-02, vedi
-          CLAUDE.md: prima era un campo separato più in basso nel form. */}
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-          {titolo}
-        </p>
+        <button
+          type="button"
+          onClick={() => setVista(vista === 'generale' ? 'allegati' : 'generale')}
+          className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
+        >
+          <IconaGraffetta className="h-4 w-4" />
+          Allegati ({allegati.length})
+        </button>
         {isOwner && (
           <label className="flex items-center gap-1.5 text-sm text-gray-700">
             <input
@@ -86,7 +94,28 @@ export function SatelliteAppuntamento({
         )}
       </div>
 
-      {isOwner ? (
+      {vista === 'allegati' ? (
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setVista('generale')}
+            className="text-xs font-medium text-gray-600 hover:text-gray-900"
+          >
+            ← Generale
+          </button>
+          {isOwner && (
+            <AllegatoTrigger
+              satelliteId={satellite.id}
+              lavoroId={lavoroId}
+              isOwner={isOwner}
+              richiedeEtichetta
+              iconClassName="h-6 w-6"
+              bottoneClassName="py-3 px-2"
+            />
+          )}
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+        </div>
+      ) : isOwner ? (
         <div className="space-y-3">
           <div>
             <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
@@ -105,7 +134,6 @@ export function SatelliteAppuntamento({
             <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
               Descrizione
             </label>
-            {/* rows 4 -> 8: piu spazio per note lunghe, restyling 2026-08-02 */}
             <textarea
               id={`app-descrizione-${satellite.id}`}
               rows={8}
@@ -114,23 +142,18 @@ export function SatelliteAppuntamento({
               className={inputClass()}
             />
           </div>
+        </div>
+      ) : (
+        <div className="space-y-1 text-sm text-gray-700">
+          {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
+          {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
+        </div>
+      )}
 
-          {/* Fermaglio spostato qui (era il posto del checkbox "Concluso",
-              ora in alto) e ingrandito con più padding verticale — resta lo
-              stesso AllegatoTrigger/AllegatoModale di feature/allegati-modale,
-              solo dimensione/posizione cambiate. */}
-          <AllegatoTrigger
-            satelliteId={satellite.id}
-            lavoroId={lavoroId}
-            isOwner={isOwner}
-            richiedeEtichetta
-            iconClassName="h-6 w-6"
-            bottoneClassName="py-3 px-2"
-          />
-
-          {errore && <p className="text-xs text-red-600">{errore}</p>}
-
-          <div>
+      {isOwner && (
+        <>
+          {errore && <p className="mt-3 text-xs text-red-600">{errore}</p>}
+          <div className="mt-3">
             <button
               type="button"
               onClick={handleSalva}
@@ -141,15 +164,7 @@ export function SatelliteAppuntamento({
             </button>
             {salvato && <p className="mt-1 text-xs text-gray-500">Salvato</p>}
           </div>
-
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-        </div>
-      ) : (
-        <div className="space-y-1 text-sm text-gray-700">
-          {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
-          {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-        </div>
+        </>
       )}
     </div>
   )

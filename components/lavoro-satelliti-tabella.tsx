@@ -28,6 +28,15 @@ export type RigaSatellite = {
   nome: string
   colore: ColoreSemaforo
   statoLabel: string
+  // Template di riferimento (2026-08-04, vedi CLAUDE.md, per ora solo
+  // sull'attività Appuntamento — Briefing/Verifica misure/Montaggio, stesso
+  // componente condiviso): quando true, il titolo passato al Modal include
+  // il pallino di stato accanto al nome ("🟠 Briefing"), eliminando la riga
+  // duplicata che il componente satellite renderizzava al proprio interno.
+  // Opt-in per riga (non un default globale) apposta: applicarlo a ogni
+  // satellite senza anche rimuovere l'intestazione interna degli altri tipi
+  // (fuori scope in questo giro) produrrebbe un doppio pallino lì.
+  titoloConPallino?: boolean
   // Due varianti pre-costruite server-side invece di una sola con un
   // successivo tentativo di override client-side dell'isOwner via
   // cloneElement (fix UX 2026-08-02 -> bug scoperto nello Sprint C, 2/8):
@@ -119,6 +128,14 @@ export function LavoroSatelliteTabella({
   // ciascuna, incluso il caso ospite/Lavoro completato dove sono identiche):
   // qui si sceglie solo quale mostrare, nessun override a runtime.
   const contenutoDaMostrare = rigaAperta && (apertaInSolaLettura ? rigaAperta.contenutoLettura : rigaAperta.contenutoModifica)
+  const titoloModale = rigaAperta?.titoloConPallino ? (
+    <span className="flex items-center gap-2">
+      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[rigaAperta.colore]}`} />
+      {rigaAperta.nome}
+    </span>
+  ) : (
+    rigaAperta?.nome
+  )
 
   async function handleElimina(riga: RigaSatellite) {
     if (!confirm('Eliminare definitivamente questa attività? L\'azione non è reversibile.')) return
@@ -316,7 +333,7 @@ export function LavoroSatelliteTabella({
         )}
       </Modal>
 
-      <Modal aperto={!!rigaAperta} onChiudi={() => setApertoSatelliteId(null)} titolo={rigaAperta?.nome}>
+      <Modal aperto={!!rigaAperta} onChiudi={() => setApertoSatelliteId(null)} titolo={titoloModale}>
         {contenutoDaMostrare}
       </Modal>
     </div>
