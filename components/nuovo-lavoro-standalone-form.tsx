@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { cercaClienti, creaCliente } from '@/lib/clienti/actions'
 import { creaLavoro } from '@/lib/lavori/actions'
+import { Combobox } from '@/components/combobox'
 
 function inputClass(hasError = false) {
   return `w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
@@ -30,10 +31,6 @@ export function NuovoLavoroStandaloneForm({
   const clienteBloccato = !!clienteIniziale
   const [creaClienteAperto, setCreaClienteAperto] = useState(false)
 
-  const [query, setQuery] = useState('')
-  const [risultati, setRisultati] = useState<{ id: string; nome: string }[]>([])
-  const [cercando, setCercando] = useState(false)
-
   const [nomeNuovoCliente, setNomeNuovoCliente] = useState('')
   const [erroreNuovoCliente, setErroreNuovoCliente] = useState<string | null>(null)
   const [loadingNuovoCliente, setLoadingNuovoCliente] = useState(false)
@@ -42,27 +39,6 @@ export function NuovoLavoroStandaloneForm({
   const [descrizione, setDescrizione] = useState('')
   const [erroreLavoro, setErroreLavoro] = useState<string | null>(null)
   const [loadingLavoro, setLoadingLavoro] = useState(false)
-
-  useEffect(() => {
-    if (!query.trim()) return
-
-    const timeout = setTimeout(async () => {
-      const r = await cercaClienti(query)
-      setRisultati(r)
-      setCercando(false)
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [query])
-
-  function handleQueryChange(value: string) {
-    setQuery(value)
-    if (!value.trim()) {
-      setRisultati([])
-      setCercando(false)
-    } else {
-      setCercando(true)
-    }
-  }
 
   async function handleCreaCliente(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -121,39 +97,13 @@ export function NuovoLavoroStandaloneForm({
           <label htmlFor="cerca-cliente" className="block text-sm font-medium text-gray-700 mb-1">
             Cliente
           </label>
-          <input
+          <Combobox
             id="cerca-cliente"
-            type="search"
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
             placeholder="Cerca per nome..."
-            className={inputClass()}
+            fetchOptions={async (q) => (await cercaClienti(q)).map((c) => ({ id: c.id, label: c.nome }))}
+            onSelect={(o) => setCliente({ id: o.id, nome: o.label })}
           />
         </div>
-
-        {query.trim() && (
-          <div>
-            {cercando ? (
-              <p className="text-sm text-gray-500">Ricerca in corso…</p>
-            ) : risultati.length > 0 ? (
-              <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-                {risultati.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => setCliente({ id: c.id, nome: c.nome })}
-                      className="block w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors"
-                    >
-                      {c.nome}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-gray-500">Nessun cliente trovato.</p>
-            )}
-          </div>
-        )}
 
         {!creaClienteAperto ? (
           <button

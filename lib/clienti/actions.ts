@@ -34,17 +34,16 @@ export async function creaCliente(fields: ClienteFields): Promise<ClienteResult>
   return { ok: true, id: data.id }
 }
 
+// Con query vuota restituisce l'elenco completo dei clienti dell'artigiano
+// (RLS "cliente: solo proprietario" già scoping, ordinato alfabeticamente),
+// usato dal Combobox per la tendina mostrata al focus prima di digitare.
 export async function cercaClienti(query: string): Promise<{ id: string; nome: string }[]> {
   const q = query.trim()
-  if (!q) return []
 
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('cliente')
-    .select('id, nome')
-    .ilike('nome', `%${q}%`)
-    .order('nome')
-    .limit(10)
+  let builder = supabase.from('cliente').select('id, nome').order('nome')
+  builder = q ? builder.ilike('nome', `%${q}%`).limit(20) : builder.limit(200)
+  const { data } = await builder
 
   return data ?? []
 }

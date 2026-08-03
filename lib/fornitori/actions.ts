@@ -205,5 +205,6 @@ export async function cercaFornitoreSedi(query: string): Promise<{ id: string; l
       label: `${ragioneSocialePerId.get(s.fornitore_id) ?? '—'} — ${s.nome}${s.citta ? ` (${s.citta})` : ''}`,
     }))
     .filter((s) => !q || s.label.toLowerCase().includes(q))
+    .sort((a, b) => a.label.localeCompare(b.label))
     .slice(0, 20)
 }
