@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaNoleggio } from '@/lib/lavori/satelliti'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import type { Satellite } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { Combobox } from '@/components/combobox'
 
 function inputClass() {
   return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
@@ -39,8 +40,6 @@ export function SatelliteNoleggio({
   const [sede, setSede] = useState<SedeSelezionata | null>(
     satellite.fornitore_sede_id && fornitoreSedeLabel ? { id: satellite.fornitore_sede_id, label: fornitoreSedeLabel } : null,
   )
-  const [query, setQuery] = useState('')
-  const [risultati, setRisultati] = useState<SedeSelezionata[]>([])
   const [dataDa, setDataDa] = useState(aDateLocal(satellite.data_da))
   const [dataA, setDataA] = useState(aDateLocal(satellite.data_a))
   const [costo, setCosto] = useState(satellite.costo != null ? String(satellite.costo) : '')
@@ -50,19 +49,6 @@ export function SatelliteNoleggio({
   const [errore, setErrore] = useState<string | null>(null)
 
   const verde = prenotazioneEffettuata
-
-  useEffect(() => {
-    if (!query.trim()) return
-    const timeout = setTimeout(async () => {
-      setRisultati(await cercaFornitoreSedi(query))
-    }, 300)
-    return () => clearTimeout(timeout)
-  }, [query])
-
-  function handleQueryChange(value: string) {
-    setQuery(value)
-    if (!value.trim()) setRisultati([])
-  }
 
   async function handleSalva() {
     setLoading(true)
@@ -101,35 +87,12 @@ export function SatelliteNoleggio({
                 </button>
               </div>
             ) : (
-              <>
-                <input
-                  id="noleggio-fornitore"
-                  type="search"
-                  value={query}
-                  onChange={(e) => handleQueryChange(e.target.value)}
-                  placeholder="Cerca per ragione sociale o sede..."
-                  className={inputClass()}
-                />
-                {risultati.length > 0 && (
-                  <ul className="mt-1 divide-y divide-gray-200 rounded-lg border border-gray-200">
-                    {risultati.map((r) => (
-                      <li key={r.id}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSede(r)
-                            setQuery('')
-                            setRisultati([])
-                          }}
-                          className="block w-full px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors"
-                        >
-                          {r.label}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </>
+              <Combobox
+                id="noleggio-fornitore"
+                placeholder="Cerca per ragione sociale o sede..."
+                fetchOptions={cercaFornitoreSedi}
+                onSelect={setSede}
+              />
             )}
           </div>
 
