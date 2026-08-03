@@ -7,7 +7,7 @@
 // cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { type SottotipoAppuntamento, type StatoAcquisti } from '@/lib/lavori/satelliti-meta'
+import { type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -367,7 +367,6 @@ export async function creaOrdine(
     .insert({
       lavoro_id: lavoroId,
       tipo: 'acquisti',
-      stato: 'da_acquistare',
       fornitore_sede_id: fields.fornitoreSedeId,
       acquisto_categoria: fields.acquistoCategoria,
       valore_complessivo: fields.valoreComplessivo,
@@ -403,16 +402,111 @@ export async function creaOrdine(
   return { ok: true, id: data.id }
 }
 
-export async function avanzaStatoOrdine(satelliteId: string, lavoroId: string, nuovoStato: StatoAcquisti): Promise<AzioneResult> {
+// Modifica fornitore/categoria/valore/righe di un Acquisto — possibile solo
+// finché ordinato=false (revisione 2026-08-03, vedi CLAUDE.md): oltre al
+// gate generico "Lavoro modificabile", questo tipo ha un secondo lock
+// specifico — bloccato mentre ordinato=true, ma quel flag stesso è
+// reversibile finché l'ordine non è stato inviato via mail (vedi
+// impostaOrdinatoAcquisto più sotto): per tornare a modificare basta
+// disattivare "ordinato", nessun bisogno di eliminare/ricreare l'Acquisto.
+// Verificato qui leggendo lo stato reale a DB, non un valore passato dal
+// client. Righe sostituite per intero (delete + insert), stesso pattern già
+// in uso per la creazione — più semplice che calcolare un diff, e il volume
+// per Acquisto è sempre piccolo.
+export async function aggiornaOrdine(
+  satelliteId: string,
+  lavoroId: string,
+  fields: {
+    fornitoreSedeId: string | null
+    acquistoCategoria: string | null
+    valoreComplessivo: number | null
+    righe: { descrizione: string }[]
+  },
+): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
-  const { error } = await supabase.from('lavoro_satellite').update({ stato: nuovoStato }).eq('id', satelliteId)
+  const { data: satellite } = await supabase.from('lavoro_satellite').select('ordinato').eq('id', satelliteId).maybeSingle()
+  if (satellite?.ordinato) return { ok: false, error: 'Acquisto ordinato: disattiva il flag "ordinato" prima di modificare' }
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({
+      fornitore_sede_id: fields.fornitoreSedeId,
+      acquisto_categoria: fields.acquistoCategoria,
+      valore_complessivo: fields.valoreComplessivo,
+    })
+    .eq('id', satelliteId)
 
   if (error) {
-    console.error('avanzaStatoOrdine: update fallito', error)
+    console.error('aggiornaOrdine: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  const { error: eliminaRigheErr } = await supabase.from('lavoro_satellite_articolo').delete().eq('satellite_id', satelliteId)
+  if (eliminaRigheErr) {
+    console.error('aggiornaOrdine: eliminazione righe precedenti fallita', eliminaRigheErr)
+    return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
+  }
+
+  const righe = fields.righe.filter((r) => r.descrizione.trim())
+  if (righe.length > 0) {
+    const { error: righeErr } = await supabase.from('lavoro_satellite_articolo').insert(
+      righe.map((r) => ({
+        satellite_id: satelliteId,
+        descrizione: r.descrizione.trim(),
+        colore_finitura: null,
+        quantita: 1,
+      })),
+    )
+    if (righeErr) {
+      console.error('aggiornaOrdine: insert righe fallito', righeErr)
+      return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
+    }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Toggle reversibile (corretto il 2026-08-03, vedi CLAUDE.md — la prima
+// versione lo trattava come commit definitivo, mai reversibile: sbagliato,
+// l'unico evento davvero irreversibile è l'invio mail, non questo flag).
+// Attivare richiede fornitore selezionato e almeno una referenza già
+// salvata — validato qui leggendo lo stato reale a DB, non fidandosi del
+// form lato client. Disattivare non ha alcun requisito. Una volta inviato
+// l'ordine (data_invio_ordine valorizzato), il flag non è più toccabile in
+// nessuna delle due direzioni: quello sì è il commit definitivo.
+export async function impostaOrdinatoAcquisto(satelliteId: string, lavoroId: string, ordinato: boolean): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const [{ data: satellite }, { count: numeroRighe }] = await Promise.all([
+    supabase
+      .from('lavoro_satellite')
+      .select('fornitore_sede_id, ordinato, data_invio_ordine')
+      .eq('id', satelliteId)
+      .maybeSingle(),
+    supabase.from('lavoro_satellite_articolo').select('id', { count: 'exact', head: true }).eq('satellite_id', satelliteId),
+  ])
+
+  if (!satellite) return { ok: false, error: 'Acquisto non trovato' }
+  if (satellite.ordinato === ordinato) return { ok: true }
+  if (satellite.data_invio_ordine) return { ok: false, error: 'Ordine già inviato: non più modificabile' }
+  if (ordinato) {
+    if (!satellite.fornitore_sede_id) return { ok: false, error: 'Seleziona un fornitore prima di confermare l\'ordine' }
+    if (!numeroRighe) return { ok: false, error: 'Aggiungi almeno una referenza prima di confermare l\'ordine' }
+  }
+
+  const { error } = await supabase.from('lavoro_satellite').update({ ordinato }).eq('id', satelliteId)
+
+  if (error) {
+    console.error('impostaOrdinatoAcquisto: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 

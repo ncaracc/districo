@@ -294,11 +294,13 @@ export default async function LavoroDettaglioPage({
   acquistiSatelliti.forEach((s, i) => {
     const base = satelliteTipoLabelBreve(s)
     const nome = acquistiSatelliti.length > 1 ? `${base} ${i + 1}` : base
+    const haFornitore = !!s.fornitore_sede_id
+    const haRighe = (righePerSatellite[s.id] ?? []).length > 0
     righeTabella.push({
       satelliteId: s.id,
       nome,
-      colore: coloreAcquisti(s.stato ?? '', (righePerSatellite[s.id] ?? []).length > 0),
-      statoLabel: labelStatoAcquisti(s.stato ?? ''),
+      colore: coloreAcquisti(s.ordinato, haFornitore, haRighe),
+      statoLabel: labelStatoAcquisti(s.ordinato, haFornitore, haRighe),
       posizione: POSIZIONE_ATTIVITA.acquisto,
       contenutoModifica: (
         <SatelliteOrdine
@@ -306,6 +308,7 @@ export default async function LavoroDettaglioPage({
           righe={righePerSatellite[s.id] ?? []}
           allegati={allegatiById[s.id] ?? []}
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          categorie={categorieAcquisto ?? []}
           lavoroId={lavoro.id}
           isOwner={isOwnerEffettivo}
         />
@@ -316,6 +319,7 @@ export default async function LavoroDettaglioPage({
           righe={righePerSatellite[s.id] ?? []}
           allegati={allegatiById[s.id] ?? []}
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          categorie={categorieAcquisto ?? []}
           lavoroId={lavoro.id}
           isOwner={false}
         />
@@ -463,7 +467,7 @@ export default async function LavoroDettaglioPage({
           <LavoroSegnaCompletato
             lavoroId={lavoro.id}
             pronto={!!pronto}
-            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById, righePerSatellite).map(satelliteTipoLabelBreve)}
+            mancanti={satellitiBloccantiMontaggio(satelliti, statoEffettivoById).map(satelliteTipoLabelBreve)}
           />
         </div>
       )}

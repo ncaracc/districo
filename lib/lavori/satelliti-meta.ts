@@ -43,6 +43,7 @@ export type Satellite = {
   progetto_accettato: boolean
   campione_consegnato: boolean
   campione_data_consegna: string | null
+  ordinato: boolean
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -159,38 +160,24 @@ export function costruisciCatena(satelliti: Satellite[]): Satellite[] {
 // dentro Acquisti (acquisto_categoria, testo definito dall'artigiano nelle
 // proprie preferenze — vedi categoria_acquisto/lib/acquisti/categorie.ts),
 // non più un tipo satellite a sé.
-export type StatoAcquisti = 'da_acquistare' | 'acquistato' | 'ricevuto'
-
-export const STATO_ACQUISTI_LABEL: Record<StatoAcquisti, string> = {
-  da_acquistare: 'Da acquistare',
-  acquistato: 'Acquistato',
-  ricevuto: 'Ricevuto',
-}
-
-export function labelStatoAcquisti(stato: string): string {
-  return STATO_ACQUISTI_LABEL[stato as StatoAcquisti] ?? stato
-}
-
-// Sprint D (produzione) 2026-08-02: il semaforo segue il documento di
-// revisione invece del vecchio stato testuale (vedi CLAUDE.md) — i 3 valori
-// di stato e le relative transizioni/bottoni restano invariati (solo il
-// colore derivato da essi cambia). Priorità esplicita: nessuna riga
-// valorizzata in lavoro_satellite_articolo è rosso a prescindere dallo stato
-// (anche se stato fosse già 'acquistato'/'ricevuto', caso limite raggiungibile
-// perché avanzaStatoOrdine() non richiede righe presenti); altrimenti verde
-// se stato è 'acquistato' o 'ricevuto' (entrambi contano come "ordinato" —
-// la distinzione fine resta nel dato/UI, non condiziona più il colore);
-// altrimenti giallo (righe presenti, ancora 'da_acquistare').
-export function coloreAcquisti(stato: string, haRigheValorizzate: boolean): ColoreSemaforo {
-  if (!haRigheValorizzate) return 'red'
-  if (stato === 'acquistato' || stato === 'ricevuto') return 'green'
+// Revisione 2026-08-03 (vedi CLAUDE.md): sostituito il vecchio stato a 3
+// valori testuali (da_acquistare/acquistato/ricevuto) con un solo flag
+// booleano `ordinato`, commit definitivo mai reversibile via app — nessun
+// concetto di "merce ricevuta". Rosso finché manca fornitore o non esiste
+// ancora nessuna referenza (lavoro_satellite_articolo); giallo quando
+// entrambi presenti e non ancora ordinato (tutto modificabile); verde solo a
+// ordinato=true, priorità massima (a quel punto il record è comunque di
+// sola lettura, indipendentemente da fornitore/righe).
+export function coloreAcquisti(ordinato: boolean, haFornitore: boolean, haRighe: boolean): ColoreSemaforo {
+  if (ordinato) return 'green'
+  if (!haFornitore || !haRighe) return 'red'
   return 'yellow'
 }
 
-export function azioniPossibiliAcquisti(statoAttuale: string): { stato: StatoAcquisti; label: string }[] {
-  if (statoAttuale === 'da_acquistare') return [{ stato: 'acquistato', label: 'Segna come acquistato' }]
-  if (statoAttuale === 'acquistato') return [{ stato: 'ricevuto', label: 'Segna come ricevuto' }]
-  return []
+export function labelStatoAcquisti(ordinato: boolean, haFornitore: boolean, haRighe: boolean): string {
+  if (ordinato) return 'Ordinato'
+  if (!haFornitore || !haRighe) return 'Da completare'
+  return 'In preparazione'
 }
 
 // --- Costruzione ---
@@ -227,15 +214,12 @@ export function azioniPossibiliCostruzione(statoAttuale: string): { stato: strin
 // revisione ma condividono lo stesso fallback `?? s.stato`). Gli
 // appuntamenti contano come qualunque altro satellite (verde solo se
 // concluso=true — non_necessario rimosso, stesso trattamento per noleggio
-// con prenotazione_effettuata). Acquisti bloccante se non verde secondo
-// coloreAcquisti() (Sprint D, produzione, 2/8): nessuna riga valorizzata
-// blocca a prescindere dallo stato, altrimenti blocca finché lo stato non è
-// 'acquistato'/'ricevuto' — richiede righePerSatellite (non serviva prima
-// del cambio di modello, quando bastava lo stato).
+// con prenotazione_effettuata). Acquisti bloccante finché non ordinato
+// (revisione 2026-08-03, vedi CLAUDE.md) — non serve più righePerSatellite,
+// il flag booleano basta da solo.
 export function satellitiBloccantiMontaggio(
   satelliti: Satellite[],
   statoEffettivoById: Record<string, string>,
-  righePerSatellite: Record<string, SatelliteArticolo[]>,
 ): Satellite[] {
   const superati = new Set(satelliti.filter((s) => s.revisione_di).map((s) => s.revisione_di as string))
 
@@ -245,10 +229,7 @@ export function satellitiBloccantiMontaggio(
     if (s.tipo === 'preventivo') return !s.preventivo_accettato
     if (s.tipo === 'progetto') return !s.progetto_accettato
     if (s.tipo === 'campione') return !s.campione_consegnato
-    if (s.tipo === 'acquisti') {
-      const haRighe = (righePerSatellite[s.id]?.length ?? 0) > 0
-      return coloreAcquisti(s.stato ?? '', haRighe) !== 'green'
-    }
+    if (s.tipo === 'acquisti') return !s.ordinato
 
     const stato = statoEffettivoById[s.id] ?? s.stato ?? ''
     switch (s.tipo) {

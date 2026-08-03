@@ -275,6 +275,10 @@ export type Database = {
           preventivo_accettato: boolean; preventivo_rifiutato: boolean
           progetto_accettato: boolean
           campione_consegnato: boolean; campione_data_consegna: string | null
+          // Sostituisce lo stato testuale (da_acquistare/acquistato/ricevuto) per
+          // tipo='acquisti' dalla revisione 2026-08-03 (vedi CLAUDE.md): commit
+          // definitivo impostato manualmente, mai reversibile via app.
+          ordinato: boolean
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
@@ -299,6 +303,7 @@ export type Database = {
           preventivo_accettato?: boolean; preventivo_rifiutato?: boolean
           progetto_accettato?: boolean
           campione_consegnato?: boolean; campione_data_consegna?: string | null
+          ordinato?: boolean
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

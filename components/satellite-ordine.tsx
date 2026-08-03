@@ -3,26 +3,34 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { avanzaStatoOrdine } from '@/lib/lavori/satelliti'
+import { aggiornaOrdine, impostaOrdinatoAcquisto } from '@/lib/lavori/satelliti'
+import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-email'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { Combobox } from '@/components/combobox'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
-import {
-  DOT_COLOR,
-  azioniPossibiliAcquisti,
-  coloreAcquisti,
-  labelStatoAcquisti,
-  type Satellite,
-  type SatelliteAllegato,
-  type SatelliteArticolo,
-  type StatoAcquisti,
-} from '@/lib/lavori/satelliti-meta'
+import { DOT_COLOR, coloreAcquisti, labelStatoAcquisti, type Satellite, type SatelliteAllegato, type SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 
+function inputClass() {
+  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
+}
+
+type SedeSelezionata = { id: string; label: string }
+type RigaBozza = { descrizione: string }
+
+// Revisione 2026-08-03 (vedi CLAUDE.md): il vecchio stato a 3 valori
+// testuali con transizioni manuali è sostituito da un solo flag booleano
+// `ordinato`. Finché ordinato=false l'intero Acquisto è modificabile qui
+// (fornitore/categoria/referenze/valore, prima possibile solo al momento
+// della creazione). "Segna come ordinato"/"Annulla ordinato" è un toggle
+// reversibile senza conferma finché l'ordine non è stato inviato via mail —
+// solo l'invio è il commit definitivo, mai reversibile via app.
 export function SatelliteOrdine({
   satellite,
   righe,
   allegati,
   fornitoreSedeLabel,
+  categorie,
   lavoroId,
   isOwner,
 }: {
@@ -30,6 +38,7 @@ export function SatelliteOrdine({
   righe: SatelliteArticolo[]
   allegati: SatelliteAllegato[]
   fornitoreSedeLabel: string | null
+  categorie: { id: string; nome: string }[]
   lavoroId: string
   isOwner: boolean
 }) {
@@ -37,15 +46,68 @@ export function SatelliteOrdine({
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
+  const [sede, setSede] = useState<SedeSelezionata | null>(
+    satellite.fornitore_sede_id && fornitoreSedeLabel ? { id: satellite.fornitore_sede_id, label: fornitoreSedeLabel } : null,
+  )
+  const [categoria, setCategoria] = useState(satellite.acquisto_categoria ?? '')
+  const [valore, setValore] = useState(satellite.valore_complessivo != null ? String(satellite.valore_complessivo) : '')
+  const [righeBozza, setRigheBozza] = useState<RigaBozza[]>(
+    righe.length > 0 ? righe.map((r) => ({ descrizione: r.descrizione })) : [{ descrizione: '' }],
+  )
+
   const [invioAperto, setInvioAperto] = useState(false)
   const [contatti, setContatti] = useState<{ id: string; label: string }[] | null>(null)
   const [contattoScelto, setContattoScelto] = useState('')
   const [richiedeConfigurazione, setRichiedeConfigurazione] = useState(false)
 
-  async function avanza(nuovoStato: StatoAcquisti) {
+  function aggiornaRiga(i: number, descrizione: string) {
+    setRigheBozza((r) => r.map((riga, idx) => (idx === i ? { descrizione } : riga)))
+  }
+
+  function campiCorrenti() {
+    return {
+      fornitoreSedeId: sede?.id ?? null,
+      acquistoCategoria: categoria || null,
+      valoreComplessivo: valore ? Number(valore) : null,
+      righe: righeBozza.filter((r) => r.descrizione.trim()).map((r) => ({ descrizione: r.descrizione.trim() })),
+    }
+  }
+
+  async function handleSalva() {
     setLoading(true)
     setErrore(null)
-    const result = await avanzaStatoOrdine(satellite.id, lavoroId, nuovoStato)
+    const result = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
+    setLoading(false)
+    if (!result.ok) setErrore(result.error)
+    else router.refresh()
+  }
+
+  // Toggle reversibile finché l'ordine non è stato inviato via mail (vedi
+  // CLAUDE.md) — nessuna conferma nativa, non è un'azione distruttiva.
+  // Attivare salva prima i campi correnti (il form è ancora "sporco" a
+  // questo punto), disattivare no: a ordinato=true il form non è renderizzato,
+  // non c'è nulla da salvare.
+  async function handleSegnaOrdinato() {
+    if (!sede || campiCorrenti().righe.length === 0) return
+
+    setLoading(true)
+    setErrore(null)
+    const salvato = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
+    if (!salvato.ok) {
+      setLoading(false)
+      setErrore(salvato.error)
+      return
+    }
+    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, true)
+    setLoading(false)
+    if (!result.ok) setErrore(result.error)
+    else router.refresh()
+  }
+
+  async function handleAnnullaOrdinato() {
+    setLoading(true)
+    setErrore(null)
+    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, false)
     setLoading(false)
     if (!result.ok) setErrore(result.error)
     else router.refresh()
@@ -77,32 +139,120 @@ export function SatelliteOrdine({
     router.refresh()
   }
 
-  const azioni = azioniPossibiliAcquisti(satellite.stato ?? '')
+  const haFornitore = !!satellite.fornitore_sede_id
+  const haRighe = righe.length > 0
+  const colore = coloreAcquisti(satellite.ordinato, haFornitore, haRighe)
+  const editabile = isOwner && !satellite.ordinato
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreAcquisti(satellite.stato ?? '', righe.length > 0)]}`} />
-          {fornitoreSedeLabel ?? 'Nessun fornitore'}
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
+          {editabile ? 'Acquisto' : fornitoreSedeLabel ?? 'Nessun fornitore'}
         </p>
-        <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.stato ?? '')}</span>
+        <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.ordinato, haFornitore, haRighe)}</span>
       </div>
 
-      <p className="mb-1 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
+      <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
 
-      {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
+      {editabile ? (
+        <div className="mb-3 space-y-3">
+          <div>
+            <label htmlFor="ordine-fornitore" className="mb-1 block text-xs font-medium text-gray-700">
+              Fornitore
+            </label>
+            {sede ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                <p className="text-sm text-gray-700">{sede.label}</p>
+                <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
+                  Cambia
+                </button>
+              </div>
+            ) : (
+              <Combobox
+                id="ordine-fornitore"
+                placeholder="Cerca per ragione sociale o sede..."
+                fetchOptions={cercaFornitoreSedi}
+                onSelect={setSede}
+              />
+            )}
+          </div>
 
-      {righe.length > 0 && (
-        <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
-          {righe.map((r) => (
-            <li key={r.id}>{r.descrizione}</li>
-          ))}
-        </ul>
-      )}
+          <div>
+            <label htmlFor="ordine-categoria" className="mb-1 block text-xs font-medium text-gray-700">
+              Categoria
+            </label>
+            <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
+              <option value="">— Nessuna —</option>
+              {categorie.map((c) => (
+                <option key={c.id} value={c.nome}>
+                  {c.nome}
+                </option>
+              ))}
+            </select>
+          </div>
 
-      {satellite.valore_complessivo != null && (
-        <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-gray-700">Referenze</span>
+            <div className="space-y-2">
+              {righeBozza.map((riga, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    value={riga.descrizione}
+                    onChange={(e) => aggiornaRiga(i, e.target.value)}
+                    placeholder="Es. truciolare nobilitato bianco W10100 sp. 25 – 2 pannelli"
+                    className={`${inputClass()} min-w-0 flex-1`}
+                  />
+                  {righeBozza.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setRigheBozza((r) => r.filter((_, idx) => idx !== i))}
+                      className="shrink-0 text-xs text-gray-400 hover:text-red-600"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setRigheBozza((r) => [...r, { descrizione: '' }])}
+              className="mt-2 text-xs font-medium text-gray-600 hover:text-gray-900"
+            >
+              + Aggiungi referenza
+            </button>
+          </div>
+
+          <div>
+            <label htmlFor="ordine-valore" className="mb-1 block text-xs font-medium text-gray-700">
+              Valore complessivo
+            </label>
+            <input
+              id="ordine-valore"
+              type="number"
+              step="0.01"
+              value={valore}
+              onChange={(e) => setValore(e.target.value)}
+              className={inputClass()}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
+          {righe.length > 0 && (
+            <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
+              {righe.map((r) => (
+                <li key={r.id}>{r.descrizione}</li>
+              ))}
+            </ul>
+          )}
+          {satellite.valore_complessivo != null && (
+            <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
+          )}
+        </>
       )}
 
       {satellite.data_invio_ordine && (
@@ -134,30 +284,45 @@ export function SatelliteOrdine({
         </p>
       )}
 
-      {isOwner && (
+      {editabile && (
         <div className="flex flex-wrap items-center gap-2">
-          {azioni.map((a) => (
-            <button
-              key={a.stato}
-              type="button"
-              onClick={() => avanza(a.stato)}
-              disabled={loading}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Salvataggio…' : a.label}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={handleSalva}
+            disabled={loading}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Salvataggio…' : 'Salva'}
+          </button>
+          <button
+            type="button"
+            onClick={handleSegnaOrdinato}
+            disabled={loading || !sede || campiCorrenti().righe.length === 0}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Salvataggio…' : 'Segna come ordinato'}
+          </button>
+        </div>
+      )}
 
-          {satellite.fornitore_sede_id && !invioAperto && (
-            <button
-              type="button"
-              onClick={apriInvio}
-              disabled={loading}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              Invia ordine
-            </button>
-          )}
+      {isOwner && satellite.ordinato && !satellite.data_invio_ordine && !invioAperto && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleAnnullaOrdinato}
+            disabled={loading}
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Salvataggio…' : 'Annulla ordinato'}
+          </button>
+          <button
+            type="button"
+            onClick={apriInvio}
+            disabled={loading}
+            className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+          >
+            Invia ordine
+          </button>
         </div>
       )}
 
