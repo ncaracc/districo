@@ -114,7 +114,8 @@ export function SatelliteAppuntamento({
                 lavoroId={lavoroId}
                 isOwner={isOwner}
                 richiedeEtichetta
-                label="+ Aggiungi allegato"
+                iconClassName="h-5 w-5"
+                iconaConBadge
               />
             )}
           </>

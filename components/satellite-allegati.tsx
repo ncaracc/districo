@@ -16,10 +16,29 @@ function formattaDataAllegato(iso: string): string {
 // sotto — fix UX 2026-08-02, restyling form Appuntamento: layout a tre
 // colonne (nome/etichetta a sinistra, data al centro, cestino a destra)
 // al posto della vecchia riga "Allegato · data · Elimina" con link/testo
-// appiccicati, facili da toccare per errore su mobile. Ogni riga è una
-// griglia a colonne fisse (1fr per il nome, auto per data e cestino):
-// la data resta sempre centrata nella sua colonna indipendentemente dalla
-// lunghezza del nome, a differenza di un semplice flex con justify-between.
+// appiccicati, facili da toccare per errore su mobile. Corretto il 2026-08-04:
+// la colonna data era `auto` (larga esattamente quanto il testo), quindi
+// `text-center` al suo interno non aveva alcun effetto visibile — la data
+// finiva semplicemente accostata al cestino, non centrata nella riga.
+// `grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]` con le due colonne esterne
+// entrambe uguali centra davvero la colonna data (`auto`, sempre larga solo
+// quanto il testo) rispetto alla riga intera, indipendentemente da quanto
+// sono lunghi nome e cestino — stesso principio geometrico di un header con
+// titolo centrato tra due elementi di larghezza diversa. `minmax(0,1fr)` e
+// non il solo `1fr`: la keyword `1fr` in una grid-template-columns equivale
+// a `minmax(auto,1fr)`, quindi la colonna del nome non si sarebbe mai
+// ristretta sotto la larghezza naturale del testo (nessun troncamento
+// effettivo) anche con `min-w-0` sull'elemento — il minimo va forzato a 0
+// sulla colonna stessa, non basta sull'elemento al suo interno. **Secondo
+// bug distinto scoperto nello stesso giro**: aggiungere `justify-self-start`
+// al link del nome (pensando servisse per allinearlo a sinistra) lo fa
+// dimensionare al proprio contenuto invece di riempire la cella della
+// griglia (il default per un grid item è `stretch`, già allineato a
+// sinistra essendo testo) — l'elemento tornava largo quanto il testo intero
+// (es. 318px anche dentro una cella da 160px), vanificando `truncate`
+// perché non c'era più nulla da tagliare. Rimosso: nessuna classe
+// `justify-self-*` necessaria sul nome, solo su data (`text-center`, resta
+// dentro una colonna `auto`) e cestino (`justify-self-end`).
 export function AllegatoLista({
   allegati,
   lavoroId,
@@ -48,13 +67,13 @@ export function AllegatoLista({
       {allegati.map((a) => (
         <li
           key={a.id}
-          className="grid grid-cols-[1fr_auto_auto] items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-gray-50"
+          className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-gray-50"
         >
           <a
             href={`/api/allegati/satellite/${a.id}`}
             target="_blank"
             rel="noreferrer"
-            className="truncate text-xs text-gray-600 underline hover:text-gray-900"
+            className="min-w-0 truncate text-xs text-gray-600 underline hover:text-gray-900"
           >
             {a.etichetta}
           </a>
@@ -96,11 +115,13 @@ export function AllegatoTrigger({
   // riusare questo stesso trigger con richiedeEtichetta=true.
   iconClassName = 'h-4 w-4',
   bottoneClassName = 'p-1.5',
-  // Se presente, il bottone mostra anche del testo accanto all'icona (es.
-  // "+ Aggiungi allegato" nella riga Generale/Allegati del modale
-  // Appuntamento, 2026-08-04) invece della sola icona — default assente,
-  // nessun cambiamento per gli usi icon-only esistenti.
-  label,
+  // Se true, il bottone mostra un badge "+" sovrapposto all'icona fermaglio
+  // invece di un testo accanto (riga Generale/Allegati del modale
+  // Appuntamento, 2026-08-04 — corretto lo stesso giorno: la prima versione
+  // usava un prop `label` per testo affiancato, sostituito perché la
+  // richiesta era "solo icona, nessuna scritta"). Default assente, nessun
+  // cambiamento per gli usi icon-only esistenti.
+  iconaConBadge = false,
 }: {
   satelliteId: string
   lavoroId: string
@@ -108,7 +129,7 @@ export function AllegatoTrigger({
   richiedeEtichetta?: boolean
   iconClassName?: string
   bottoneClassName?: string
-  label?: string
+  iconaConBadge?: boolean
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -185,14 +206,19 @@ export function AllegatoTrigger({
         <button
           type="button"
           onClick={() => setModaleAperta(true)}
-          aria-label={label ?? 'Allega file'}
-          title={label ?? 'Allega file'}
-          className={`inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 ${
-            label ? 'gap-1.5 text-sm font-medium' : ''
-          }`}
+          aria-label={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
+          title={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
+          className={`relative inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900`}
         >
           <IconaGraffetta className={iconClassName} />
-          {label}
+          {iconaConBadge && (
+            <span
+              aria-hidden="true"
+              className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-white"
+            >
+              +
+            </span>
+          )}
         </button>
         <AllegatoModale
           aperta={modaleAperta}
