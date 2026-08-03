@@ -8,6 +8,7 @@ import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
   creaAppuntamento,
   creaCampione,
+  creaChiusura,
   creaCostruzione,
   creaNoleggio,
   creaPreventivo,
@@ -82,6 +83,7 @@ export function LavoroSatelliteTabella({
   completato,
   progettoEsiste,
   preventivoEsiste,
+  chiusuraEsiste,
   categorieAcquisto,
 }: {
   righe: RigaSatellite[]
@@ -95,6 +97,7 @@ export function LavoroSatelliteTabella({
   completato: boolean
   progettoEsiste: boolean
   preventivoEsiste: boolean
+  chiusuraEsiste: boolean
   categorieAcquisto: { id: string; nome: string }[]
 }) {
   const router = useRouter()
@@ -180,14 +183,21 @@ export function LavoroSatelliteTabella({
       case 'campionatura':
         creaEApri(chiave, () => creaCampione(lavoroId))
         return
+      case 'chiusura':
+        creaEApri(chiave, () => creaChiusura(lavoroId))
+        return
       case 'acquisto':
         setFormAcquistoAperto(true)
     }
   }
 
-  // Ripetibili sempre proposte; le due non ripetibili (progetto/preventivo)
-  // solo se non esistono già per questo Lavoro.
-  const esistente: Partial<Record<ChiaveAttivita, boolean>> = { progetto: progettoEsiste, preventivo: preventivoEsiste }
+  // Ripetibili sempre proposte; le tre non ripetibili (progetto/preventivo/
+  // chiusura) solo se non esistono già per questo Lavoro.
+  const esistente: Partial<Record<ChiaveAttivita, boolean>> = {
+    progetto: progettoEsiste,
+    preventivo: preventivoEsiste,
+    chiusura: chiusuraEsiste,
+  }
   const opzioni = ORDINE_ATTIVITA.filter((chiave) => RIPETIBILE_ATTIVITA[chiave] || !esistente[chiave])
 
   return (

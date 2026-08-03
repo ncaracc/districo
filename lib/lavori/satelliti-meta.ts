@@ -6,6 +6,9 @@ export type TipoSatellite =
   | 'campione'
   | 'costruzione'
   | 'noleggio'
+  | 'chiusura'
+
+export type Acconto = { etichetta: string; data: string | null; importo: number }
 
 export type SottotipoAppuntamento = 'briefing' | 'verifica_misure' | 'montaggio'
 
@@ -44,6 +47,9 @@ export type Satellite = {
   campione_consegnato: boolean
   campione_data_consegna: string | null
   ordinato: boolean
+  chiusura_conclusa: boolean
+  chiusura_data: string | null
+  chiusura_acconti: Acconto[]
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -207,6 +213,7 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   campione: 'Campionatura',
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
+  chiusura: 'Chiusura Lavoro',
 }
 
 // Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
@@ -269,4 +276,12 @@ export function labelStatoAppuntamento(concluso: boolean, dataAppuntamento: stri
 
 export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
   return prenotazioneEffettuata ? 'Prenotato' : 'Da prenotare'
+}
+
+// Chiusura Lavoro (2026-08-03, vedi CLAUDE.md): semaforo binario come
+// Noleggio, nessun giallo. Verde = chiusura_conclusa=true, l'unico
+// meccanismo che porta lavoro.stato a 'completato' (impostaChiusuraConclusa,
+// lib/lavori/satelliti.ts).
+export function labelStatoChiusura(concluso: boolean): string {
+  return concluso ? 'Concluso' : 'Da chiudere'
 }

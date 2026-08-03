@@ -11,6 +11,7 @@ import { SatelliteCampione } from '@/components/satellite-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
+import { SatelliteChiusura } from '@/components/satellite-chiusura'
 import { POSIZIONE_ATTIVITA } from '@/lib/lavori/attivita-ordine'
 import {
   SOTTOTIPO_APPUNTAMENTO_LABEL,
@@ -25,6 +26,7 @@ import {
   labelStatoAcquisti,
   labelStatoAppuntamento,
   labelStatoCampione,
+  labelStatoChiusura,
   labelStatoNoleggio,
   labelStatoPreventivo,
   labelStatoProgetto,
@@ -105,6 +107,16 @@ export default async function LavoroDettaglioPage({
   const noleggioSatelliti = satelliti
     .filter((s) => s.tipo === 'noleggio')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
+  const chiusuraSatelliti = satelliti.filter((s) => s.tipo === 'chiusura')
+
+  // Riepilogo costi sostenuti (Chiusura Lavoro, vedi CLAUDE.md): solo Acquisti
+  // già ordinato=true e Noleggi già prenotazione_effettuata=true — le voci
+  // non confermate non entrano nel riepilogo.
+  const costiSostenuti = satelliti.reduce((somma, s) => {
+    if (s.tipo === 'acquisti' && s.ordinato) return somma + (s.valore_complessivo ?? 0)
+    if (s.tipo === 'noleggio' && s.prenotazione_effettuata) return somma + (s.costo ?? 0)
+    return somma
+  }, 0)
 
   const fornitoreSedeIds = [
     ...new Set(
@@ -213,20 +225,26 @@ export default async function LavoroDettaglioPage({
     })
   }
 
-  if (preventivoSatelliti.length > 0) {
-    const catena = [...costruisciCatena(preventivoSatelliti)].reverse()
-    const corrente = catena[0]
+  // Preventivo "rilevante" (corrente, non superato da una revisione più
+  // recente) — hoisted qui perché serve anche a Chiusura Lavoro più sotto
+  // ("Valore (preventivo)", vedi CLAUDE.md), stessa logica già usata dal
+  // fix Valore Dashboard (0033) e dal KPI 2 (0034).
+  const preventivoCatena = preventivoSatelliti.length > 0 ? [...costruisciCatena(preventivoSatelliti)].reverse() : []
+  const preventivoCorrente = preventivoCatena[0] ?? null
+  const valorePreventivo = preventivoCorrente?.valore_complessivo ?? null
+
+  if (preventivoCorrente) {
     righeTabella.push({
-      satelliteId: corrente.id,
+      satelliteId: preventivoCorrente.id,
       nome: 'Preventivo',
-      colore: colorePreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
-      statoLabel: labelStatoPreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo),
+      colore: colorePreventivo(preventivoCorrente.preventivo_accettato, preventivoCorrente.preventivo_rifiutato, preventivoCorrente.valore_complessivo),
+      statoLabel: labelStatoPreventivo(preventivoCorrente.preventivo_accettato, preventivoCorrente.preventivo_rifiutato, preventivoCorrente.valore_complessivo),
       posizione: POSIZIONE_ATTIVITA.preventivo,
       contenutoModifica: (
-        <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
+        <SatellitePreventivo catena={preventivoCatena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
       contenutoLettura: (
-        <SatellitePreventivo catena={catena} allegatiById={allegatiById} isOwner={false} lavoroId={lavoro.id} />
+        <SatellitePreventivo catena={preventivoCatena} allegatiById={allegatiById} isOwner={false} lavoroId={lavoro.id} />
       ),
     })
   }
@@ -387,10 +405,40 @@ export default async function LavoroDettaglioPage({
     })
   })
 
+  if (chiusuraSatelliti.length > 0) {
+    const s = chiusuraSatelliti[0]
+    righeTabella.push({
+      satelliteId: s.id,
+      nome: 'Chiusura Lavoro',
+      colore: s.chiusura_conclusa ? 'green' : 'red',
+      statoLabel: labelStatoChiusura(s.chiusura_conclusa),
+      posizione: POSIZIONE_ATTIVITA.chiusura,
+      contenutoModifica: (
+        <SatelliteChiusura
+          satellite={s}
+          lavoroId={lavoro.id}
+          isOwner={isOwnerEffettivo}
+          valorePreventivo={valorePreventivo}
+          costiSostenuti={costiSostenuti}
+        />
+      ),
+      contenutoLettura: (
+        <SatelliteChiusura
+          satellite={s}
+          lavoroId={lavoro.id}
+          isOwner={false}
+          valorePreventivo={valorePreventivo}
+          costiSostenuti={costiSostenuti}
+        />
+      ),
+    })
+  }
+
   righeTabella.sort((a, b) => a.posizione - b.posizione)
 
   const progettoEsiste = progettoSatelliti.length > 0
   const preventivoEsiste = preventivoSatelliti.length > 0
+  const chiusuraEsiste = chiusuraSatelliti.length > 0
 
   return (
     <div>
@@ -443,6 +491,7 @@ export default async function LavoroDettaglioPage({
         completato={completato}
         progettoEsiste={progettoEsiste}
         preventivoEsiste={preventivoEsiste}
+        chiusuraEsiste={chiusuraEsiste}
         categorieAcquisto={categorieAcquisto ?? []}
       />
     </div>

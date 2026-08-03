@@ -249,7 +249,7 @@ export type Database = {
       lavoro_satellite: {
         Row: {
           id: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura'
           // Per tipo='preventivo' (dal 1/8) e tipo='progetto' (dal 2/8) questa
           // colonna è legacy: non più letta/scritta dall'app, sostituita da
           // preventivo_accettato/preventivo_rifiutato e progetto_accettato.
@@ -279,11 +279,17 @@ export type Database = {
           // tipo='acquisti' dalla revisione 2026-08-03 (vedi CLAUDE.md): commit
           // definitivo impostato manualmente, mai reversibile via app.
           ordinato: boolean
+          // Chiusura Lavoro (2026-08-03, vedi CLAUDE.md): chiusura_conclusa=true è
+          // il nuovo (e unico) meccanismo che porta lavoro.stato a 'completato'.
+          // chiusura_acconti: righe libere non normalizzate (nessuna tabella
+          // Pagamento separata), etichetta/data/importo per riga.
+          chiusura_conclusa: boolean; chiusura_data: string | null
+          chiusura_acconti: { etichetta: string; data: string | null; importo: number }[]
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
           id?: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura'
           stato?: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
@@ -304,6 +310,8 @@ export type Database = {
           progetto_accettato?: boolean
           campione_consegnato?: boolean; campione_data_consegna?: string | null
           ordinato?: boolean
+          chiusura_conclusa?: boolean; chiusura_data?: string | null
+          chiusura_acconti?: { etichetta: string; data: string | null; importo: number }[]
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

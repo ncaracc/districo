@@ -16,6 +16,7 @@ export type ChiaveAttivita =
   | 'costruzione'
   | 'noleggio'
   | 'montaggio'
+  | 'chiusura'
 
 export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
   'briefing',
@@ -27,6 +28,7 @@ export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
   'costruzione',
   'noleggio',
   'montaggio',
+  'chiusura',
 ]
 
 export const POSIZIONE_ATTIVITA: Record<ChiaveAttivita, number> = Object.fromEntries(
@@ -43,11 +45,14 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
   montaggio: 'Montaggio',
+  chiusura: 'Chiusura Lavoro',
 }
 
-// Progetto e Preventivo sono le uniche due non ripetibili: al più un'istanza
+// Progetto, Preventivo e Chiusura sono le non ripetibili: al più un'istanza
 // per Lavoro, quindi compaiono in "Aggiungi attività" solo se non esistono
-// già. Tutte le altre sono ripetibili — sempre proposte, indipendentemente da
+// già (Chiusura aggiunta il 3/8, auto-creata come Preventivo — l'opzione
+// resta comunque per i Lavori vecchi creati prima di questa modifica).
+// Tutte le altre sono ripetibili — sempre proposte, indipendentemente da
 // quante istanze esistano già.
 export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   briefing: true,
@@ -59,4 +64,5 @@ export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   costruzione: true,
   noleggio: true,
   montaggio: true,
+  chiusura: false,
 }

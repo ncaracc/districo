@@ -7,7 +7,7 @@
 // cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
+import { type Acconto, type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -704,6 +704,123 @@ export async function aggiornaNoleggio(
   if (error) {
     console.error('aggiornaNoleggio: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// --- Chiusura Lavoro ---
+// Auto-creata insieme a Briefing/Preventivo dalla migration 0037 (vedi
+// CLAUDE.md): questa funzione resta comunque necessaria come fallback
+// manuale per i Lavori creati prima di questa modifica, che ne sono privi
+// (stesso principio già seguito per creaProgetto()/creaPreventivo()).
+export async function creaChiusura(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'chiusura' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaChiusura: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
+// Data/riepilogo acconti — nessun effetto su lavoro.stato, solo dati.
+export async function aggiornaChiusura(
+  satelliteId: string,
+  lavoroId: string,
+  fields: { data: string | null; acconti: Acconto[] },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({ chiusura_data: fields.data, chiusura_acconti: fields.acconti })
+    .eq('id', satelliteId)
+
+  if (error) {
+    console.error('aggiornaChiusura: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// Il semaforo verde di questa attività è il nuovo (e unico) meccanismo che
+// porta lavoro.stato a 'completato' (vedi CLAUDE.md — sostituisce il vecchio
+// bottone manuale "Segna lavoro completato", rimosso il 3/8). Richiede che
+// il Lavoro sia già 'accettato': senza questo controllo, essendo Chiusura
+// auto-creata fin dalla nascita del Lavoro (come Briefing/Preventivo), si
+// potrebbe altrimenti concludere un Lavoro ancora 'opportunita', saltando a
+// piè pari l'accettazione guidata dal Preventivo — non esplicitamente
+// richiesto ma verificato necessario prima di scrivere questa funzione.
+// chiusura_data valorizzata di default a now() alla prima transizione a
+// concluso (stesso pattern "leggi poi scrivi" già in uso per
+// campione_data_consegna), mai sovrascritta se già impostata — resta
+// comunque modificabile in seguito tramite aggiornaChiusura(). Bloccata
+// insieme a tutto il resto (fornitore/righe/ecc.) non appena lavoro.stato
+// diventa 'completato': assertSatelliteModificabile lo garantisce già,
+// nessuna funzione simmetrica "riapri" qui — l'unico sblocco resta
+// "Riapri lavoro" sulla tabella lavoro (invariato, agnostico a come il
+// Lavoro sia diventato completato).
+export async function impostaChiusuraConclusa(satelliteId: string, lavoroId: string, concluso: boolean): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  if (concluso) {
+    const { data: lavoro } = await supabase.from('lavoro').select('stato').eq('id', lavoroId).maybeSingle()
+    if (lavoro?.stato !== 'accettato') {
+      return { ok: false, error: 'Il lavoro deve essere accettato (tramite il Preventivo) prima di poter essere chiuso' }
+    }
+  }
+
+  const { data: attuale } = await supabase
+    .from('lavoro_satellite')
+    .select('chiusura_data')
+    .eq('id', satelliteId)
+    .maybeSingle()
+
+  const update: { chiusura_conclusa: boolean; chiusura_data?: string } = { chiusura_conclusa: concluso }
+  if (concluso && !attuale?.chiusura_data) update.chiusura_data = new Date().toISOString()
+
+  const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
+
+  if (error) {
+    console.error('impostaChiusuraConclusa: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  const { error: lavoroErr } = await supabase
+    .from('lavoro')
+    .update({
+      stato: concluso ? 'completato' : 'accettato',
+      completato_at: concluso ? new Date().toISOString() : null,
+    })
+    .eq('id', lavoroId)
+
+  if (lavoroErr) {
+    console.error('impostaChiusuraConclusa: update lavoro fallito', lavoroErr)
+    return { ok: false, error: "Chiusura salvata, ma errore nell'aggiornamento dello stato del lavoro" }
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
