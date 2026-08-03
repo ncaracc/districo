@@ -30,12 +30,7 @@ export function LavoroSegnaCompletato({
   }
 
   return (
-    <div
-      className={`rounded-lg border px-4 py-3 ${pronto ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}
-    >
-      <p className={`mb-2 text-sm font-medium ${pronto ? 'text-green-800' : 'text-gray-800'}`}>
-        {pronto ? 'Pronto per il montaggio' : 'Non ancora pronto per il montaggio'}
-      </p>
+    <div>
       {!pronto && mancanti.length > 0 && (
         <p className="mb-2 text-xs text-gray-600">
           Attività ancora da completare: {mancanti.join(', ')}

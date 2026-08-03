@@ -434,12 +434,6 @@ export default async function LavoroDettaglioPage({
         />
       </div>
 
-      {lavoro.stato === 'opportunita' && preventivoSatelliti.length === 0 && (
-        <div className="mb-8">
-          <p className="text-sm text-gray-500">In attesa di preventivo.</p>
-        </div>
-      )}
-
       {lavoro.stato === 'opportunita' && preventivoSatelliti.length > 0 && !isOwner && (
         <div className="mb-8">
           <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
