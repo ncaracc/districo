@@ -113,7 +113,17 @@ export function Modal({
       <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
         <div className="fixed inset-0 bg-black/40" onClick={richiediChiusura} aria-hidden="true" />
 
-        <div className="relative flex h-[92vh] w-full flex-col overflow-hidden bg-white sm:h-auto sm:max-h-[85vh] sm:w-full sm:max-w-lg sm:rounded-2xl">
+        {/* max-h, non h-: stesso principio già in uso da sempre su desktop
+            (sm:max-h-[85vh]), esteso a mobile durante lo Sprint UI-2 (bottone
+            Salva flottante, vedi CLAUDE.md) — con un'altezza fissa, un form
+            corto (es. Appuntamento: Data+Descrizione) lasciava un vuoto sotto
+            la barra Salva invece di restarle incollata (sticky non "aggancia"
+            nulla se il contenuto non arriva a richiedere scroll). Con max-h
+            la Modal si dimensiona sul contenuto fino al tetto del 92%
+            viewport (ancora "full-screen" per un form lungo, come da intento
+            originale del 31/7 — "comodo per scrivere note lunghe" — semplicemente
+            non più forzato anche quando il contenuto è breve). */}
+        <div className="relative flex max-h-[92vh] w-full flex-col overflow-hidden bg-white sm:max-h-[85vh] sm:w-full sm:max-w-lg sm:rounded-2xl">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">{titolo}</p>
             <button
