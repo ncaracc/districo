@@ -11,10 +11,7 @@ import {
   type Satellite,
   type SatelliteAllegato,
 } from '@/lib/lavori/satelliti-meta'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
+import { inputClass } from '@/lib/input-class'
 
 // Ogni Campionatura è un'istanza indipendente dal Sprint D (produzione)
 // 2026-08-02 (vedi CLAUDE.md): niente più raggruppamento per serie né catena

@@ -3,12 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaCredenzialiSmtp, testaCredenzialiSmtp } from '@/lib/profilo/actions'
+import { inputClass } from '@/lib/input-class'
 
 type Sicurezza = 'ssl' | 'starttls' | 'nessuna'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
 
 type Preset = {
   id: string

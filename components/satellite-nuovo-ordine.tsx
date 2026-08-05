@@ -5,10 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import { creaOrdine } from '@/lib/lavori/satelliti'
 import { Combobox } from '@/components/combobox'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
+import { inputClass } from '@/lib/input-class'
 
 type RigaBozza = { articolo: string }
 const RIGA_VUOTA: RigaBozza = { articolo: '' }

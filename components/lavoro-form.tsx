@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaLavoro } from '@/lib/lavori/actions'
 import { PAESI, trovaPaese } from '@/lib/paesi'
+import { inputClass } from '@/lib/input-class'
 
 type Fields = {
   titolo: string
@@ -15,10 +16,6 @@ type Fields = {
   citta: string
   siglaProvincia: string
   nazione: string
-}
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
 }
 
 export function LavoroForm({

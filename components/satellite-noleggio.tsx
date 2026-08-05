@@ -7,10 +7,7 @@ import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import type { Satellite } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { Combobox } from '@/components/combobox'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
+import { inputClass } from '@/lib/input-class'
 
 function aDateLocal(iso: string | null): string {
   if (!iso) return ''

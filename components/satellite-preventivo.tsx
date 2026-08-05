@@ -6,10 +6,7 @@ import { aggiornaValorePreventivo, impostaPreventivoDecisione } from '@/lib/lavo
 import { SatelliteAllegati } from '@/components/satellite-allegati'
 import { DOT_COLOR, colorePreventivo, labelStatoPreventivo, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
+import { inputClass } from '@/lib/input-class'
 
 // Preventivo non fa più parte del gruppo "revisionabile" (progetto/campione)
 // dalla revisione satelliti del 1/8: usa un modello a due flag booleani

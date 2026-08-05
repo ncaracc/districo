@@ -1,12 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { inputClass } from '@/lib/input-class'
 
 export type ComboboxOption = { id: string; label: string }
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
 
 // Combobox generico riusato da selezione Cliente (creazione Lavoro) e
 // selezione Fornitore (Acquisti): al focus con campo vuoto mostra subito

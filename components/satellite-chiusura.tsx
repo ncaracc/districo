@@ -5,22 +5,7 @@ import { useRouter } from 'next/navigation'
 import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satelliti'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { DOT_COLOR, labelStatoChiusura, type Acconto, type Satellite } from '@/lib/lavori/satelliti-meta'
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
-
-// Senza `w-full`: le due classi di larghezza (`w-full` di inputClass() e un
-// `w-32`/`w-24` aggiunto in coda) hanno la stessa specificità CSS — quale
-// vince dipende dall'ordine con cui Tailwind le genera nel foglio di stile
-// compilato, non dall'ordine nella stringa className, quindi non è
-// affidabile combinarle (bug scoperto in fase di verifica: il campo
-// etichetta risultava largo pochi pixel perché `w-full` vinceva su tutti e
-// tre i campi della riga acconto, non solo sul suo). Usata solo per i campi
-// a larghezza fissa della riga acconto (data/importo).
-function inputClassFisso() {
-  return 'rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
-}
+import { inputClass, inputClassFisso } from '@/lib/input-class'
 
 function aDateLocal(iso: string | null): string {
   if (!iso) return ''

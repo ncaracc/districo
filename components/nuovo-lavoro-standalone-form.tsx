@@ -5,14 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cercaClienti, creaCliente } from '@/lib/clienti/actions'
 import { creaLavoro } from '@/lib/lavori/actions'
 import { Combobox } from '@/components/combobox'
-
-function inputClass(hasError = false) {
-  return `w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-    hasError
-      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-      : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
-  }`
-}
+import { inputClass } from '@/lib/input-class'
 
 type ClienteSelezionato = { id: string; nome: string }
 

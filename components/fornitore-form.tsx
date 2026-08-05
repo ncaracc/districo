@@ -3,17 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { creaFornitore, aggiornaFornitore } from '@/lib/fornitori/actions'
+import { inputClass } from '@/lib/input-class'
 
 type Fields = { ragioneSociale: string; partitaIva: string }
 type Errors = Partial<Record<keyof Fields, string>> & { form?: string }
-
-function inputClass(hasError: boolean) {
-  return `w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-    hasError
-      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-      : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
-  }`
-}
 
 export function FornitoreForm({
   fornitoreId,

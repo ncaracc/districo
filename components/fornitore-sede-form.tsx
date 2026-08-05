@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { creaSede, aggiornaSede } from '@/lib/fornitori/actions'
 import { PAESI, PAESE_DEFAULT, trovaPaese } from '@/lib/paesi'
+import { inputClass } from '@/lib/input-class'
 
 type Fields = {
   nome: string
@@ -23,10 +24,6 @@ const CAMPI_VUOTI: Fields = {
   citta: '',
   siglaProvincia: '',
   nazione: PAESE_DEFAULT,
-}
-
-function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
 }
 
 export function FornitoreSedeForm({
