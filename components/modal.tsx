@@ -43,11 +43,19 @@ export function useProteggiChiusuraModal(dirty: boolean, onTentativoChiusura: ()
 }
 
 // Modale generica riusata per la vista/modifica di un satellite (vedi
-// lavoro-satelliti-tabella.tsx): su mobile occupa tutto lo schermo (comodo
-// per scrivere note lunghe con la tastiera aperta), su desktop è centrata e
-// più stretta. Monta i figli così come sono — non introduce una modalità
-// "sola lettura" propria, il componente satellite esistente resta l'unica
-// fonte di verità su editabile/sola lettura in base al ruolo.
+// lavoro-satelliti-tabella.tsx): centrata verticalmente sia su mobile sia su
+// desktop (fix 2026-08-06, vedi CLAUDE.md — prima del fix, su mobile restava
+// ancorata al fondo schermo come un bottom-sheet, comportamento preesistente
+// dal 31/7 mai notato finché la Modal aveva sempre altezza fissa; con
+// max-h-[92vh] introdotto dallo Sprint UI-2 un form corto rendeva quel
+// bottom-sheet visibile per la prima volta, con un vuoto sopra — l'utente ha
+// confermato di preferire il centraggio uniforme, non di voler ripristinare
+// il vecchio comportamento). Su mobile può comunque arrivare quasi a schermo
+// intero per un form lungo (tetto 92vh, comodo per scrivere note lunghe con
+// la tastiera aperta), su desktop resta più stretta (max-w-lg). Monta i
+// figli così come sono — non introduce una modalità "sola lettura" propria,
+// il componente satellite esistente resta l'unica fonte di verità su
+// editabile/sola lettura in base al ruolo.
 export function Modal({
   aperto,
   onChiudi,
@@ -110,7 +118,7 @@ export function Modal({
     <ModalContesto.Provider
       value={{ onChiudi, registraGuardia: (guardia) => { guardiaRef.current = guardia } }}
     >
-      <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
         <div className="fixed inset-0 bg-black/40" onClick={richiediChiusura} aria-hidden="true" />
 
         {/* max-h, non h-: stesso principio già in uso da sempre su desktop

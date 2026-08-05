@@ -20,6 +20,17 @@
 // sprint (il body scrollabile di Modal, la card `p-4` di Cliente/Fornitore
 // in modifica, `<main>` px-4 per Cliente/Fornitore in creazione) usa la
 // stessa unità di padding (`4` = 1rem) in tutto il progetto.
+//
+// **Il margine negativo vive su un wrapper normale, non sull'elemento
+// sticky stesso** (fix 2026-08-06, vedi CLAUDE.md): un `margin-bottom`
+// negativo su un elemento `position: sticky` non cancella il padding
+// dell'antenato scrollabile allo stesso modo di un elemento normale —
+// verificato empiricamente forzando `position: static` sull'elemento in
+// devtools: il gap di 16px sotto la barra spariva. Bug sottile, non
+// documentato in modo ovvio nelle specifiche CSS correnti: separare
+// margine (wrapper esterno, `position` di default) e sticky (elemento
+// interno, senza margini propri) lo risolve, indipendentemente dal
+// meccanismo esatto del browser.
 export function SalvaFlottante({
   visibile,
   salvando,
@@ -43,16 +54,18 @@ export function SalvaFlottante({
   if (!visibile) return null
 
   return (
-    <div className={`sticky bottom-0 -mx-4 -mb-4 mt-4 border-t border-gray-200 bg-white px-4 py-3 ${arrotondamento}`}>
-      {errore && <p className="mb-2 text-xs text-red-600">{errore}</p>}
-      <button
-        type={onSalva ? 'button' : 'submit'}
-        onClick={onSalva}
-        disabled={salvando}
-        className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-      >
-        {salvando ? testoSalvando : testoSalva}
-      </button>
+    <div className="-mx-4 -mb-4 mt-4">
+      <div className={`sticky bottom-0 border-t border-gray-200 bg-white px-4 py-3 ${arrotondamento}`}>
+        {errore && <p className="mb-2 text-xs text-red-600">{errore}</p>}
+        <button
+          type={onSalva ? 'button' : 'submit'}
+          onClick={onSalva}
+          disabled={salvando}
+          className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+        >
+          {salvando ? testoSalvando : testoSalva}
+        </button>
+      </div>
     </div>
   )
 }
