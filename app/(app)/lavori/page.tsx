@@ -144,7 +144,7 @@ export default async function LavoriPage() {
                         {STATO_LABEL[l.stato] ?? l.stato}
                       </span>
                     </div>
-                    <p className="mt-1 flex items-center gap-1.5 font-medium text-gray-900">
+                    <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-gray-900">
                       {l.titolo}
                       {l.ha_appuntamento_scaduto && (
                         <span title="Appuntamento scaduto" aria-label="Appuntamento scaduto" className="shrink-0">
