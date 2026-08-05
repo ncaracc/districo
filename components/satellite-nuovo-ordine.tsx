@@ -6,6 +6,9 @@ import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import { creaOrdine } from '@/lib/lavori/satelliti'
 import { Combobox } from '@/components/combobox'
 import { inputClass } from '@/lib/input-class'
+import { useDirtyForm } from '@/lib/use-dirty-form'
+import { useProteggiChiusuraModal } from '@/components/modal'
+import { DialogConferma } from '@/components/dialog-conferma'
 
 type RigaBozza = { articolo: string }
 const RIGA_VUOTA: RigaBozza = { articolo: '' }
@@ -44,6 +47,32 @@ export function SatelliteNuovoOrdine({
   const [righe, setRighe] = useState<RigaBozza[]>([{ ...RIGA_VUOTA }])
   const [errore, setErrore] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Sprint UI-2 (vedi CLAUDE.md): questo è l'unico form con coppia Crea/
+  // Annulla in tutto il progetto (verificato esplicitamente prima di
+  // procedere) — non riceve il pattern floating-save+dirty-state completo
+  // (nessun "salvataggio in background" da segnalare, il salvataggio vero è
+  // il submit "Crea"), solo la conferma su Annulla/chiusura se il form ha
+  // già dati compilati, riusando useDirtyForm contro una baseline vuota e lo
+  // stesso DialogConferma degli altri satelliti ma a 2 sole opzioni.
+  const dirty = useDirtyForm({
+    fornitoreSedeId: sede?.id ?? null,
+    acquistoCategoria: categoria || null,
+    valoreComplessivo: valore || null,
+    righe: righe.filter((r) => r.articolo.trim()).map((r) => r.articolo.trim()),
+  }).dirty
+  const [confermaChiusuraAperta, setConfermaChiusuraAperta] = useState(false)
+  // Il valore di ritorno (il "vero" onChiudi del Modal ospitante) non serve
+  // qui: la chiusura reale resta sempre onAnnulla, l'unica via affidabile
+  // indipendentemente dal contesto in cui questo componente viene montato —
+  // l'hook serve solo per il suo effetto collaterale, registrare la guardia
+  // su X/backdrop/Esc della Modal "Aggiungi attività" che lo ospita.
+  useProteggiChiusuraModal(dirty, () => setConfermaChiusuraAperta(true))
+
+  function handleAnnullaClick() {
+    if (dirty) setConfermaChiusuraAperta(true)
+    else onAnnulla()
+  }
 
   function aggiornaRiga(i: number, patch: Partial<RigaBozza>) {
     setRighe((r) => r.map((riga, idx) => (idx === i ? { ...riga, ...patch } : riga)))
@@ -170,13 +199,23 @@ export function SatelliteNuovoOrdine({
         </button>
         <button
           type="button"
-          onClick={onAnnulla}
+          onClick={handleAnnullaClick}
           disabled={loading}
           className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
         >
           Annulla
         </button>
       </div>
+
+      <DialogConferma
+        aperto={confermaChiusuraAperta}
+        titolo="Dati non salvati"
+        messaggio="Chiudendo ora perderai i dati inseriti in questo Acquisto. Vuoi continuare la modifica o scartarli?"
+        opzioni={[
+          { label: 'Continua modifica', variante: 'primaria', onClick: () => setConfermaChiusuraAperta(false) },
+          { label: 'Scarta e chiudi', variante: 'secondaria', onClick: onAnnulla },
+        ]}
+      />
     </form>
   )
 }
