@@ -8,11 +8,7 @@ import type { Satellite } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { Combobox } from '@/components/combobox'
 import { inputClass } from '@/lib/input-class'
-
-function aDateLocal(iso: string | null): string {
-  if (!iso) return ''
-  return iso.slice(0, 10)
-}
+import { aDateLocal } from '@/lib/date-utils'
 
 type SedeSelezionata = { id: string; label: string }
 

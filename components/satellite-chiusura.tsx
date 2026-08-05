@@ -6,11 +6,7 @@ import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satellit
 import { formattaValuta } from '@/lib/formato-valuta'
 import { DOT_COLOR, labelStatoChiusura, type Acconto, type Satellite } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
-
-function aDateLocal(iso: string | null): string {
-  if (!iso) return ''
-  return iso.slice(0, 10)
-}
+import { aDateLocal } from '@/lib/date-utils'
 
 const ACCONTO_VUOTO: Acconto = { etichetta: '', data: null, importo: 0 }
 
