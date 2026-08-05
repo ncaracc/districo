@@ -9,6 +9,10 @@ import { formattaValuta } from '@/lib/formato-valuta'
 import { Combobox } from '@/components/combobox'
 import { inputClass } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
+import { useDirtyForm } from '@/lib/use-dirty-form'
+import { useProteggiChiusuraModal } from '@/components/modal'
+import { SalvaFlottante } from '@/components/salva-flottante'
+import { DialogConferma } from '@/components/dialog-conferma'
 
 type SedeSelezionata = { id: string; label: string }
 
@@ -41,6 +45,22 @@ export function SatelliteNoleggio({
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
+  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
+  // qui, a differenza di altri satelliti, "Prenotazione effettuata" NON si
+  // auto-salva (unico checkbox binario dell'app con questo comportamento,
+  // vedi docs/audit-ui.md sezione 3) — resta quindi dentro lo snapshot
+  // insieme a tutti gli altri campi, tutti salvati insieme da "Salva".
+  const { dirty, segnaSalvato } = useDirtyForm({
+    fornitoreSedeId: sede?.id ?? null,
+    dataDa,
+    dataA,
+    costo,
+    note,
+    prenotazioneEffettuata,
+  })
+  const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
+  const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
+
   const verde = prenotazioneEffettuata
 
   async function handleSalva() {
@@ -55,109 +75,134 @@ export function SatelliteNoleggio({
       prenotazioneEffettuata,
     })
     setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
+    if (!result.ok) {
+      setErrore(result.error)
+      return false
+    }
+    segnaSalvato()
+    router.refresh()
+    return true
+  }
+
+  async function handleSalvaEEsci() {
+    if (await handleSalva()) {
+      setConfermaUscitaAperta(false)
+      chiudiReale()
+    }
+  }
+
+  function handleEsciSenzaSalvare() {
+    setConfermaUscitaAperta(false)
+    chiudiReale()
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
-        <p className="text-sm font-medium text-gray-900">Noleggio</p>
+    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
+    // non annidato dentro — stesso motivo già documentato in
+    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    <>
+      <div className="rounded-lg border border-gray-200 p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
+          <p className="text-sm font-medium text-gray-900">Noleggio</p>
+        </div>
+
+        {isOwner ? (
+          <div className="space-y-3">
+            <div>
+              <label htmlFor="noleggio-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
+                Compagnia (fornitore)
+              </label>
+              {sede ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                  <p className="text-sm text-gray-700">{sede.label}</p>
+                  <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
+                    Cambia
+                  </button>
+                </div>
+              ) : (
+                <Combobox
+                  id="noleggio-fornitore"
+                  placeholder="Cerca per ragione sociale o sede..."
+                  fetchOptions={cercaFornitoreSedi}
+                  onSelect={setSede}
+                />
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label htmlFor="noleggio-da" className="mb-1 block text-sm font-medium text-gray-700">
+                  Da
+                </label>
+                <input id="noleggio-da" type="date" value={dataDa} onChange={(e) => setDataDa(e.target.value)} className={inputClass()} />
+              </div>
+              <div>
+                <label htmlFor="noleggio-a" className="mb-1 block text-sm font-medium text-gray-700">
+                  A
+                </label>
+                <input id="noleggio-a" type="date" value={dataA} onChange={(e) => setDataA(e.target.value)} className={inputClass()} />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="noleggio-costo" className="mb-1 block text-sm font-medium text-gray-700">
+                Costo
+              </label>
+              <input
+                id="noleggio-costo"
+                type="number"
+                step="0.01"
+                value={costo}
+                onChange={(e) => setCosto(e.target.value)}
+                className={inputClass()}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="noleggio-note" className="mb-1 block text-sm font-medium text-gray-700">
+                Note
+              </label>
+              <textarea id="noleggio-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass()} />
+            </div>
+
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={prenotazioneEffettuata}
+                onChange={(e) => setPrenotazioneEffettuata(e.target.checked)}
+                className="accent-primary"
+              />
+              Prenotazione effettuata
+            </label>
+          </div>
+        ) : (
+          <div className="space-y-1 text-sm text-gray-700">
+            {fornitoreSedeLabel && <p>{fornitoreSedeLabel}</p>}
+            {(satellite.data_da || satellite.data_a) && (
+              <p>
+                {satellite.data_da ? new Date(satellite.data_da).toLocaleDateString('it-IT') : '—'} →{' '}
+                {satellite.data_a ? new Date(satellite.data_a).toLocaleDateString('it-IT') : '—'}
+              </p>
+            )}
+            {satellite.costo != null && <p>{formattaValuta(satellite.costo)}</p>}
+            {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
+          </div>
+        )}
       </div>
 
-      {isOwner ? (
-        <div className="space-y-3">
-          <div>
-            <label htmlFor="noleggio-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
-              Compagnia (fornitore)
-            </label>
-            {sede ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
-                <p className="text-sm text-gray-700">{sede.label}</p>
-                <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
-                  Cambia
-                </button>
-              </div>
-            ) : (
-              <Combobox
-                id="noleggio-fornitore"
-                placeholder="Cerca per ragione sociale o sede..."
-                fetchOptions={cercaFornitoreSedi}
-                onSelect={setSede}
-              />
-            )}
-          </div>
+      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} />}
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label htmlFor="noleggio-da" className="mb-1 block text-sm font-medium text-gray-700">
-                Da
-              </label>
-              <input id="noleggio-da" type="date" value={dataDa} onChange={(e) => setDataDa(e.target.value)} className={inputClass()} />
-            </div>
-            <div>
-              <label htmlFor="noleggio-a" className="mb-1 block text-sm font-medium text-gray-700">
-                A
-              </label>
-              <input id="noleggio-a" type="date" value={dataA} onChange={(e) => setDataA(e.target.value)} className={inputClass()} />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="noleggio-costo" className="mb-1 block text-sm font-medium text-gray-700">
-              Costo
-            </label>
-            <input
-              id="noleggio-costo"
-              type="number"
-              step="0.01"
-              value={costo}
-              onChange={(e) => setCosto(e.target.value)}
-              className={inputClass()}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="noleggio-note" className="mb-1 block text-sm font-medium text-gray-700">
-              Note
-            </label>
-            <textarea id="noleggio-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass()} />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={prenotazioneEffettuata}
-              onChange={(e) => setPrenotazioneEffettuata(e.target.checked)}
-              className="accent-primary"
-            />
-            Prenotazione effettuata
-          </label>
-
-          {errore && <p className="text-xs text-red-600">{errore}</p>}
-          <button
-            type="button"
-            onClick={handleSalva}
-            disabled={loading}
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Salvataggio…' : 'Salva'}
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-1 text-sm text-gray-700">
-          {fornitoreSedeLabel && <p>{fornitoreSedeLabel}</p>}
-          {(satellite.data_da || satellite.data_a) && (
-            <p>
-              {satellite.data_da ? new Date(satellite.data_da).toLocaleDateString('it-IT') : '—'} →{' '}
-              {satellite.data_a ? new Date(satellite.data_a).toLocaleDateString('it-IT') : '—'}
-            </p>
-          )}
-          {satellite.costo != null && <p>{formattaValuta(satellite.costo)}</p>}
-          {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
-        </div>
-      )}
-    </div>
+      <DialogConferma
+        aperto={confermaUscitaAperta}
+        titolo="Modifiche non salvate"
+        messaggio="Vuoi salvare le modifiche prima di uscire?"
+        opzioni={[
+          { label: 'Salva ed esci', variante: 'primaria', onClick: handleSalvaEEsci, disabled: loading },
+          { label: 'Esci senza salvare', variante: 'secondaria', onClick: handleEsciSenzaSalvare, disabled: loading },
+          { label: 'Annulla', variante: 'testuale', onClick: () => setConfermaUscitaAperta(false) },
+        ]}
+      />
+    </>
   )
 }

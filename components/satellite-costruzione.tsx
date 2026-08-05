@@ -11,6 +11,10 @@ import {
   type Satellite,
 } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
+import { useDirtyForm } from '@/lib/use-dirty-form'
+import { useProteggiChiusuraModal } from '@/components/modal'
+import { SalvaFlottante } from '@/components/salva-flottante'
+import { DialogConferma } from '@/components/dialog-conferma'
 
 function formattaDurata(inizio: string, fine: string | null): string {
   const ms = (fine ? new Date(fine).getTime() : Date.now()) - new Date(inizio).getTime()
@@ -34,6 +38,14 @@ export function SatelliteCostruzione({
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
+  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
+  // snapshot del solo campo Note — le azioni "avanza stato" sono bottoni
+  // d'azione a sé (transizioni one-way), non campi di un form da segnalare
+  // come non salvati.
+  const { dirty, segnaSalvato } = useDirtyForm({ descrizione })
+  const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
+  const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
+
   const stato = satellite.stato ?? 'da_iniziare'
   const azioni = azioniPossibiliCostruzione(stato)
 
@@ -42,8 +54,25 @@ export function SatelliteCostruzione({
     setErrore(null)
     const result = await aggiornaDescrizioneCostruzione(satellite.id, lavoroId, descrizione.trim() || null)
     setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
+    if (!result.ok) {
+      setErrore(result.error)
+      return false
+    }
+    segnaSalvato()
+    router.refresh()
+    return true
+  }
+
+  async function handleSalvaEEsci() {
+    if (await salvaDescrizione()) {
+      setConfermaUscitaAperta(false)
+      chiudiReale()
+    }
+  }
+
+  function handleEsciSenzaSalvare() {
+    setConfermaUscitaAperta(false)
+    chiudiReale()
   }
 
   async function avanza(nuovoStato: string) {
@@ -56,24 +85,27 @@ export function SatelliteCostruzione({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreCostruzione(stato)]}`} />
-          Costruzione
-        </p>
-        <span className="shrink-0 text-xs text-gray-600">{STATO_COSTRUZIONE_LABEL[stato] ?? stato}</span>
-      </div>
+    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
+    // non annidato dentro — stesso motivo già documentato in
+    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    <>
+      <div className="rounded-lg border border-gray-200 p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreCostruzione(stato)]}`} />
+            Costruzione
+          </p>
+          <span className="shrink-0 text-xs text-gray-600">{STATO_COSTRUZIONE_LABEL[stato] ?? stato}</span>
+        </div>
 
-      {satellite.data_inizio && (
-        <p className="mb-2 text-xs text-gray-500">
-          In corso da {formattaDurata(satellite.data_inizio, satellite.data_fine)}
-          {satellite.data_fine && ' (completata)'}
-        </p>
-      )}
+        {satellite.data_inizio && (
+          <p className="mb-2 text-xs text-gray-500">
+            In corso da {formattaDurata(satellite.data_inizio, satellite.data_fine)}
+            {satellite.data_fine && ' (completata)'}
+          </p>
+        )}
 
-      {isOwner ? (
-        <div className="space-y-2">
+        {isOwner ? (
           <textarea
             rows={3}
             value={descrizione}
@@ -81,36 +113,41 @@ export function SatelliteCostruzione({
             placeholder="Note"
             className={inputClass()}
           />
-          <button
-            type="button"
-            onClick={salvaDescrizione}
-            disabled={loading}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            Salva note
-          </button>
-        </div>
-      ) : (
-        satellite.descrizione_libera && <p className="text-sm text-gray-600">{satellite.descrizione_libera}</p>
-      )}
+        ) : (
+          satellite.descrizione_libera && <p className="text-sm text-gray-600">{satellite.descrizione_libera}</p>
+        )}
 
-      {errore && <p className="mt-2 text-xs text-red-600">{errore}</p>}
+        {errore && <p className="mt-2 text-xs text-red-600">{errore}</p>}
 
-      {isOwner && azioni.length > 0 && (
-        <div className="mt-3 flex gap-2">
-          {azioni.map((a) => (
-            <button
-              key={a.stato}
-              type="button"
-              onClick={() => avanza(a.stato)}
-              disabled={loading}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Salvataggio…' : a.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+        {isOwner && azioni.length > 0 && (
+          <div className="mt-3 flex gap-2">
+            {azioni.map((a) => (
+              <button
+                key={a.stato}
+                type="button"
+                onClick={() => avanza(a.stato)}
+                disabled={loading}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Salvataggio…' : a.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={salvaDescrizione} />}
+
+      <DialogConferma
+        aperto={confermaUscitaAperta}
+        titolo="Modifiche non salvate"
+        messaggio="Vuoi salvare le modifiche prima di uscire?"
+        opzioni={[
+          { label: 'Salva ed esci', variante: 'primaria', onClick: handleSalvaEEsci, disabled: loading },
+          { label: 'Esci senza salvare', variante: 'secondaria', onClick: handleEsciSenzaSalvare, disabled: loading },
+          { label: 'Annulla', variante: 'testuale', onClick: () => setConfermaUscitaAperta(false) },
+        ]}
+      />
+    </>
   )
 }

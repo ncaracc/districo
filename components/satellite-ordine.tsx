@@ -11,6 +11,10 @@ import { Combobox } from '@/components/combobox'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import { DOT_COLOR, coloreAcquisti, labelStatoAcquisti, type Satellite, type SatelliteAllegato, type SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
+import { useDirtyForm } from '@/lib/use-dirty-form'
+import { useProteggiChiusuraModal } from '@/components/modal'
+import { SalvaFlottante } from '@/components/salva-flottante'
+import { DialogConferma } from '@/components/dialog-conferma'
 
 type SedeSelezionata = { id: string; label: string }
 type RigaBozza = { descrizione: string }
@@ -71,13 +75,39 @@ export function SatelliteOrdine({
     }
   }
 
+  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
+  // stesso snapshot già inviato al server da campiCorrenti() — "Ordinato"
+  // resta auto-salvante (fuori da questo tracking) ma persiste anche lui
+  // questi campi come effetto collaterale quando si attiva (vedi
+  // handleToggleOrdinato sotto): richiama segnaSalvato() anche lì.
+  const { dirty, segnaSalvato } = useDirtyForm(campiCorrenti())
+  const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
+  const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
+
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
     const result = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
     setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
+    if (!result.ok) {
+      setErrore(result.error)
+      return false
+    }
+    segnaSalvato(campiCorrenti())
+    router.refresh()
+    return true
+  }
+
+  async function handleSalvaEEsci() {
+    if (await handleSalva()) {
+      setConfermaUscitaAperta(false)
+      chiudiReale()
+    }
+  }
+
+  function handleEsciSenzaSalvare() {
+    setConfermaUscitaAperta(false)
+    chiudiReale()
   }
 
   // Toggle reversibile finché l'ordine non è stato inviato via mail (vedi
@@ -95,6 +125,7 @@ export function SatelliteOrdine({
         setErrore(salvato.error)
         return
       }
+      segnaSalvato(campiCorrenti())
     }
     const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, checked)
     setLoading(false)
@@ -134,225 +165,232 @@ export function SatelliteOrdine({
   const editabile = isOwner && !satellite.ordinato
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-          {editabile ? 'Acquisto' : fornitoreSedeLabel ?? 'Nessun fornitore'}
-        </p>
-        <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.ordinato, haFornitore, haRighe)}</span>
-      </div>
+    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
+    // non annidato dentro — stesso motivo già documentato in
+    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    <>
+      <div className="rounded-lg border border-gray-200 p-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
+            {editabile ? 'Acquisto' : fornitoreSedeLabel ?? 'Nessun fornitore'}
+          </p>
+          <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.ordinato, haFornitore, haRighe)}</span>
+        </div>
 
-      <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
+        <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
 
-      {editabile ? (
-        <div className="mb-3 space-y-3">
-          <div>
-            <label htmlFor="ordine-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
-              Fornitore
-            </label>
-            {sede ? (
-              <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
-                <p className="text-sm text-gray-700">{sede.label}</p>
-                <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
-                  Cambia
-                </button>
-              </div>
-            ) : (
-              <Combobox
-                id="ordine-fornitore"
-                placeholder="Cerca per ragione sociale o sede..."
-                fetchOptions={cercaFornitoreSedi}
-                onSelect={setSede}
-              />
-            )}
-          </div>
-
-          <div>
-            <label htmlFor="ordine-categoria" className="mb-1 block text-sm font-medium text-gray-700">
-              Categoria
-            </label>
-            <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
-              <option value="">— Nessuna —</option>
-              {categorie.map((c) => (
-                <option key={c.id} value={c.nome}>
-                  {c.nome}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <span className="mb-1 block text-sm font-medium text-gray-700">Referenze</span>
-            <div className="space-y-2">
-              {righeBozza.map((riga, i) => (
-                <div key={i} className="flex gap-2">
-                  <input
-                    value={riga.descrizione}
-                    onChange={(e) => aggiornaRiga(i, e.target.value)}
-                    placeholder="Es. truciolare nobilitato bianco W10100 sp. 25 – 2 pannelli"
-                    className={`${inputClass()} min-w-0 flex-1`}
-                  />
-                  {righeBozza.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => setRigheBozza((r) => r.filter((_, idx) => idx !== i))}
-                      className="shrink-0 text-xs text-gray-400 hover:text-red-600"
-                    >
-                      ✕
-                    </button>
-                  )}
+        {editabile ? (
+          <div className="mb-3 space-y-3">
+            <div>
+              <label htmlFor="ordine-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
+                Fornitore
+              </label>
+              {sede ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
+                  <p className="text-sm text-gray-700">{sede.label}</p>
+                  <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
+                    Cambia
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <Combobox
+                  id="ordine-fornitore"
+                  placeholder="Cerca per ragione sociale o sede..."
+                  fetchOptions={cercaFornitoreSedi}
+                  onSelect={setSede}
+                />
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => setRigheBozza((r) => [...r, { descrizione: '' }])}
-              className="mt-2 text-xs font-medium text-gray-600 hover:text-gray-900"
-            >
-              + Aggiungi referenza
-            </button>
-          </div>
 
-          <div>
-            <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
-              Valore complessivo
-            </label>
-            <input
-              id="ordine-valore"
-              type="number"
-              step="0.01"
-              value={valore}
-              onChange={(e) => setValore(e.target.value)}
-              className={inputClass()}
-            />
-          </div>
-        </div>
-      ) : (
-        <>
-          {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
-          {righe.length > 0 && (
-            <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
-              {righe.map((r) => (
-                <li key={r.id}>{r.descrizione}</li>
-              ))}
-            </ul>
-          )}
-          {satellite.valore_complessivo != null && (
-            <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
-          )}
-        </>
-      )}
-
-      {satellite.data_invio_ordine && (
-        <p className="mb-2 text-xs text-gray-500">
-          Ordine inviato il {new Date(satellite.data_invio_ordine).toLocaleDateString('it-IT')}
-        </p>
-      )}
-
-      {isOwner && (
-        <div className="mb-2">
-          <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
-        </div>
-      )}
-      <div className="mb-2">
-        <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-      </div>
-
-      {errore && (
-        <p className="mb-2 text-xs text-red-600">
-          {errore}
-          {richiedeConfigurazione && (
-            <>
-              {' '}
-              <Link href="/profilo/impostazioni" className="underline underline-offset-2">
-                Vai a Profilo/Impostazioni
-              </Link>
-            </>
-          )}
-        </p>
-      )}
-
-      {editabile && (
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={handleSalva}
-            disabled={loading}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {loading ? 'Salvataggio…' : 'Salva'}
-          </button>
-        </div>
-      )}
-
-      {isOwner && !satellite.data_invio_ordine && (
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={satellite.ordinato}
-              disabled={loading || (!satellite.ordinato && (!sede || campiCorrenti().righe.length === 0))}
-              onChange={(e) => handleToggleOrdinato(e.target.checked)}
-              className="accent-primary"
-            />
-            Ordinato
-          </label>
-          {satellite.ordinato && !invioAperto && (
-            <button
-              type="button"
-              onClick={apriInvio}
-              disabled={loading}
-              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-            >
-              Invia ordine
-            </button>
-          )}
-        </div>
-      )}
-
-      {invioAperto && (
-        <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
-          {contatti === null ? (
-            <p className="text-xs text-gray-500">Caricamento contatti…</p>
-          ) : contatti.length === 0 ? (
-            <p className="text-xs text-gray-500">Nessun contatto con email per questa sede.</p>
-          ) : (
-            <>
-              <select
-                value={contattoScelto}
-                onChange={(e) => setContattoScelto(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900"
-              >
-                <option value="">— Scegli il destinatario —</option>
-                {contatti.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}
+            <div>
+              <label htmlFor="ordine-categoria" className="mb-1 block text-sm font-medium text-gray-700">
+                Categoria
+              </label>
+              <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
+                <option value="">— Nessuna —</option>
+                {categorie.map((c) => (
+                  <option key={c.id} value={c.nome}>
+                    {c.nome}
                   </option>
                 ))}
               </select>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={confermaInvio}
-                  disabled={loading || !contattoScelto}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Invio…' : 'Conferma invio'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setInvioAperto(false)}
-                  disabled={loading}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Annulla
-                </button>
+            </div>
+
+            <div>
+              <span className="mb-1 block text-sm font-medium text-gray-700">Referenze</span>
+              <div className="space-y-2">
+                {righeBozza.map((riga, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input
+                      value={riga.descrizione}
+                      onChange={(e) => aggiornaRiga(i, e.target.value)}
+                      placeholder="Es. truciolare nobilitato bianco W10100 sp. 25 – 2 pannelli"
+                      className={`${inputClass()} min-w-0 flex-1`}
+                    />
+                    {righeBozza.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setRigheBozza((r) => r.filter((_, idx) => idx !== i))}
+                        className="shrink-0 text-xs text-gray-400 hover:text-red-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-            </>
-          )}
+              <button
+                type="button"
+                onClick={() => setRigheBozza((r) => [...r, { descrizione: '' }])}
+                className="mt-2 text-xs font-medium text-gray-600 hover:text-gray-900"
+              >
+                + Aggiungi referenza
+              </button>
+            </div>
+
+            <div>
+              <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
+                Valore complessivo
+              </label>
+              <input
+                id="ordine-valore"
+                type="number"
+                step="0.01"
+                value={valore}
+                onChange={(e) => setValore(e.target.value)}
+                className={inputClass()}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
+            {righe.length > 0 && (
+              <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
+                {righe.map((r) => (
+                  <li key={r.id}>{r.descrizione}</li>
+                ))}
+              </ul>
+            )}
+            {satellite.valore_complessivo != null && (
+              <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
+            )}
+          </>
+        )}
+
+        {satellite.data_invio_ordine && (
+          <p className="mb-2 text-xs text-gray-500">
+            Ordine inviato il {new Date(satellite.data_invio_ordine).toLocaleDateString('it-IT')}
+          </p>
+        )}
+
+        {isOwner && (
+          <div className="mb-2">
+            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+          </div>
+        )}
+        <div className="mb-2">
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
         </div>
-      )}
-    </div>
+
+        {errore && (
+          <p className="mb-2 text-xs text-red-600">
+            {errore}
+            {richiedeConfigurazione && (
+              <>
+                {' '}
+                <Link href="/profilo/impostazioni" className="underline underline-offset-2">
+                  Vai a Profilo/Impostazioni
+                </Link>
+              </>
+            )}
+          </p>
+        )}
+
+        {isOwner && !satellite.data_invio_ordine && (
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={satellite.ordinato}
+                disabled={loading || (!satellite.ordinato && (!sede || campiCorrenti().righe.length === 0))}
+                onChange={(e) => handleToggleOrdinato(e.target.checked)}
+                className="accent-primary"
+              />
+              Ordinato
+            </label>
+            {satellite.ordinato && !invioAperto && (
+              <button
+                type="button"
+                onClick={apriInvio}
+                disabled={loading}
+                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                Invia ordine
+              </button>
+            )}
+          </div>
+        )}
+
+        {invioAperto && (
+          <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
+            {contatti === null ? (
+              <p className="text-xs text-gray-500">Caricamento contatti…</p>
+            ) : contatti.length === 0 ? (
+              <p className="text-xs text-gray-500">Nessun contatto con email per questa sede.</p>
+            ) : (
+              <>
+                <select
+                  value={contattoScelto}
+                  onChange={(e) => setContattoScelto(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900"
+                >
+                  <option value="">— Scegli il destinatario —</option>
+                  {contatti.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={confermaInvio}
+                    disabled={loading || !contattoScelto}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  >
+                    {loading ? 'Invio…' : 'Conferma invio'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvioAperto(false)}
+                    disabled={loading}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Annulla
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Nessun errore={errore} qui: è già mostrato sopra, condiviso anche
+          con handleToggleOrdinato/confermaInvio — duplicherebbe altrimenti. */}
+      {editabile && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={handleSalva} />}
+
+      <DialogConferma
+        aperto={confermaUscitaAperta}
+        titolo="Modifiche non salvate"
+        messaggio="Vuoi salvare le modifiche prima di uscire?"
+        opzioni={[
+          { label: 'Salva ed esci', variante: 'primaria', onClick: handleSalvaEEsci, disabled: loading },
+          { label: 'Esci senza salvare', variante: 'secondaria', onClick: handleEsciSenzaSalvare, disabled: loading },
+          { label: 'Annulla', variante: 'testuale', onClick: () => setConfermaUscitaAperta(false) },
+        ]}
+      />
+    </>
   )
 }
