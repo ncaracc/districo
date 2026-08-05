@@ -4,6 +4,9 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { creaCliente, aggiornaCliente } from '@/lib/clienti/actions'
 import { inputClass } from '@/lib/input-class'
+import { useDirtyForm } from '@/lib/use-dirty-form'
+import { useAvvisaUscitaPagina } from '@/lib/use-avvisa-uscita-pagina'
+import { SalvaFlottante } from '@/components/salva-flottante'
 
 type Fields = {
   nome: string
@@ -32,11 +35,17 @@ export function ClienteForm({
   })
   const [errors, setErrors] = useState<Errors>({})
   const [loading, setLoading] = useState(false)
-  const [salvato, setSalvato] = useState(false)
+
+  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
+  // Cliente/Fornitore sono form a pagina intera, non ospitati in una Modal —
+  // nessun dialog a 3 opzioni possibile (non esiste un unico "bottone
+  // chiudi" da proteggere, decisione esplicita dell'utente), solo l'avviso
+  // nativo del browser alla chiusura/reload reale della scheda.
+  const { dirty, segnaSalvato } = useDirtyForm(fields)
+  useAvvisaUscitaPagina(dirty)
 
   function set<K extends keyof Fields>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      setSalvato(false)
       setFields((f) => ({ ...f, [key]: e.target.value }))
     }
   }
@@ -76,8 +85,9 @@ export function ClienteForm({
       return
     }
 
+    segnaSalvato()
+
     if (clienteId) {
-      setSalvato(true)
       router.refresh()
     } else {
       router.push(`/clienti/${result.id}`)
@@ -89,9 +99,6 @@ export function ClienteForm({
     <form onSubmit={handleSubmit} noValidate className="space-y-5">
       {errors.form && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errors.form}</p>
-      )}
-      {salvato && (
-        <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">Modifiche salvate.</p>
       )}
 
       <div>
@@ -159,13 +166,13 @@ export function ClienteForm({
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors disabled:opacity-50"
-      >
-        {loading ? 'Salvataggio in corso…' : clienteId ? 'Salva modifiche' : 'Crea cliente'}
-      </button>
+      <SalvaFlottante
+        visibile={dirty}
+        salvando={loading}
+        testoSalva={clienteId ? 'Salva modifiche' : 'Crea cliente'}
+        testoSalvando="Salvataggio in corso…"
+        arrotondamento=""
+      />
     </form>
   )
 }
