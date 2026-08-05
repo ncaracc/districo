@@ -148,7 +148,7 @@ export function SatelliteOrdine({
       {editabile ? (
         <div className="mb-3 space-y-3">
           <div>
-            <label htmlFor="ordine-fornitore" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="ordine-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
               Fornitore
             </label>
             {sede ? (
@@ -169,7 +169,7 @@ export function SatelliteOrdine({
           </div>
 
           <div>
-            <label htmlFor="ordine-categoria" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="ordine-categoria" className="mb-1 block text-sm font-medium text-gray-700">
               Categoria
             </label>
             <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
@@ -183,7 +183,7 @@ export function SatelliteOrdine({
           </div>
 
           <div>
-            <span className="mb-1 block text-xs font-medium text-gray-700">Referenze</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700">Referenze</span>
             <div className="space-y-2">
               {righeBozza.map((riga, i) => (
                 <div key={i} className="flex gap-2">
@@ -215,7 +215,7 @@ export function SatelliteOrdine({
           </div>
 
           <div>
-            <label htmlFor="ordine-valore" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
               Valore complessivo
             </label>
             <input

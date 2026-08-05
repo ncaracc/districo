@@ -69,7 +69,7 @@ export function SatelliteNoleggio({
       {isOwner ? (
         <div className="space-y-3">
           <div>
-            <label htmlFor="noleggio-fornitore" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="noleggio-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
               Compagnia (fornitore)
             </label>
             {sede ? (
@@ -91,13 +91,13 @@ export function SatelliteNoleggio({
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label htmlFor="noleggio-da" className="mb-1 block text-xs font-medium text-gray-700">
+              <label htmlFor="noleggio-da" className="mb-1 block text-sm font-medium text-gray-700">
                 Da
               </label>
               <input id="noleggio-da" type="date" value={dataDa} onChange={(e) => setDataDa(e.target.value)} className={inputClass()} />
             </div>
             <div>
-              <label htmlFor="noleggio-a" className="mb-1 block text-xs font-medium text-gray-700">
+              <label htmlFor="noleggio-a" className="mb-1 block text-sm font-medium text-gray-700">
                 A
               </label>
               <input id="noleggio-a" type="date" value={dataA} onChange={(e) => setDataA(e.target.value)} className={inputClass()} />
@@ -105,7 +105,7 @@ export function SatelliteNoleggio({
           </div>
 
           <div>
-            <label htmlFor="noleggio-costo" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="noleggio-costo" className="mb-1 block text-sm font-medium text-gray-700">
               Costo
             </label>
             <input
@@ -119,7 +119,7 @@ export function SatelliteNoleggio({
           </div>
 
           <div>
-            <label htmlFor="noleggio-note" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="noleggio-note" className="mb-1 block text-sm font-medium text-gray-700">
               Note
             </label>
             <textarea id="noleggio-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass()} />

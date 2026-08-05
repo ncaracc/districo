@@ -56,7 +56,7 @@ export function AllegatoModale({
     <Modal aperto={aperta} onChiudi={handleChiudi} titolo="Allega file">
       <div className="space-y-4">
         <div>
-          <label className="mb-1 block text-xs font-medium text-gray-700">
+          <label className="mb-1 block text-sm font-medium text-gray-700">
             File <span className="text-red-500">*</span>
           </label>
           <input
@@ -70,7 +70,7 @@ export function AllegatoModale({
         </div>
 
         <div>
-          <label htmlFor="allegato-modale-etichetta" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="allegato-modale-etichetta" className="mb-1 block text-sm font-medium text-gray-700">
             Etichetta <span className="text-red-500">*</span>
           </label>
           <input

@@ -124,7 +124,7 @@ export function SatelliteAppuntamento({
       ) : isOwner ? (
         <div className="space-y-3">
           <div>
-            <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
               Data
             </label>
             <input
@@ -137,7 +137,7 @@ export function SatelliteAppuntamento({
           </div>
 
           <div>
-            <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
               Descrizione
             </label>
             <textarea

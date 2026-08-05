@@ -82,14 +82,14 @@ export function LavoroForm({
       {errore && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errore}</p>}
 
       <div>
-        <label htmlFor="lavoro-titolo" className="mb-1 block text-xs font-medium text-gray-700">
+        <label htmlFor="lavoro-titolo" className="mb-1 block text-sm font-medium text-gray-700">
           Titolo <span className="text-red-500">*</span>
         </label>
         <input id="lavoro-titolo" value={fields.titolo} onChange={set('titolo')} className={inputClass()} />
       </div>
 
       <div>
-        <label htmlFor="lavoro-descrizione" className="mb-1 block text-xs font-medium text-gray-700">
+        <label htmlFor="lavoro-descrizione" className="mb-1 block text-sm font-medium text-gray-700">
           Descrizione
         </label>
         <textarea
@@ -102,7 +102,7 @@ export function LavoroForm({
       </div>
 
       <div>
-        <label htmlFor="lavoro-data" className="mb-1 block text-xs font-medium text-gray-700">
+        <label htmlFor="lavoro-data" className="mb-1 block text-sm font-medium text-gray-700">
           Data <span className="text-red-500">*</span>
         </label>
         <input
@@ -116,31 +116,31 @@ export function LavoroForm({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
-          <label htmlFor="lavoro-indirizzo" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-indirizzo" className="mb-1 block text-sm font-medium text-gray-700">
             Indirizzo
           </label>
           <input id="lavoro-indirizzo" value={fields.indirizzo} onChange={set('indirizzo')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="lavoro-civico" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-civico" className="mb-1 block text-sm font-medium text-gray-700">
             Civico
           </label>
           <input id="lavoro-civico" value={fields.civico} onChange={set('civico')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="lavoro-cap" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-cap" className="mb-1 block text-sm font-medium text-gray-700">
             CAP
           </label>
           <input id="lavoro-cap" value={fields.cap} onChange={set('cap')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="lavoro-citta" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-citta" className="mb-1 block text-sm font-medium text-gray-700">
             Città
           </label>
           <input id="lavoro-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="lavoro-nazione" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-nazione" className="mb-1 block text-sm font-medium text-gray-700">
             Nazione
           </label>
           <select id="lavoro-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
@@ -152,7 +152,7 @@ export function LavoroForm({
           </select>
         </div>
         <div>
-          <label htmlFor="lavoro-sigla-provincia" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="lavoro-sigla-provincia" className="mb-1 block text-sm font-medium text-gray-700">
             {labelProvincia ?? 'Sigla provincia'}
           </label>
           <input

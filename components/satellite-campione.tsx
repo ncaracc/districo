@@ -77,7 +77,7 @@ export function SatelliteCampione({
         {isOwner ? (
           <div className="space-y-3">
             <div>
-              <label htmlFor="campione-descrizione" className="mb-1 block text-xs font-medium text-gray-700">
+              <label htmlFor="campione-descrizione" className="mb-1 block text-sm font-medium text-gray-700">
                 Descrizione
               </label>
               <textarea
@@ -100,7 +100,7 @@ export function SatelliteCampione({
             </label>
 
             <div>
-              <label htmlFor="campione-note" className="mb-1 block text-xs font-medium text-gray-700">
+              <label htmlFor="campione-note" className="mb-1 block text-sm font-medium text-gray-700">
                 Note (esito)
               </label>
               <textarea

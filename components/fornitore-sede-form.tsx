@@ -91,7 +91,7 @@ export function FornitoreSedeForm({
       {errore && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{errore}</p>}
 
       <div>
-        <label htmlFor="sede-nome" className="mb-1 block text-xs font-medium text-gray-700">
+        <label htmlFor="sede-nome" className="mb-1 block text-sm font-medium text-gray-700">
           Nome sede <span className="text-red-500">*</span>
         </label>
         <input id="sede-nome" value={fields.nome} onChange={set('nome')} className={inputClass()} placeholder="Es. Sede Bologna" />
@@ -99,31 +99,31 @@ export function FornitoreSedeForm({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
-          <label htmlFor="sede-indirizzo" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-indirizzo" className="mb-1 block text-sm font-medium text-gray-700">
             Indirizzo
           </label>
           <input id="sede-indirizzo" value={fields.indirizzo} onChange={set('indirizzo')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="sede-civico" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-civico" className="mb-1 block text-sm font-medium text-gray-700">
             Civico
           </label>
           <input id="sede-civico" value={fields.civico} onChange={set('civico')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="sede-cap" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-cap" className="mb-1 block text-sm font-medium text-gray-700">
             CAP
           </label>
           <input id="sede-cap" value={fields.cap} onChange={set('cap')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="sede-citta" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-citta" className="mb-1 block text-sm font-medium text-gray-700">
             Città
           </label>
           <input id="sede-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
         </div>
         <div>
-          <label htmlFor="sede-nazione" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-nazione" className="mb-1 block text-sm font-medium text-gray-700">
             Nazione
           </label>
           <select id="sede-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
@@ -135,7 +135,7 @@ export function FornitoreSedeForm({
           </select>
         </div>
         <div>
-          <label htmlFor="sede-sigla-provincia" className="mb-1 block text-xs font-medium text-gray-700">
+          <label htmlFor="sede-sigla-provincia" className="mb-1 block text-sm font-medium text-gray-700">
             {labelProvincia ?? 'Sigla provincia'}
           </label>
           <input

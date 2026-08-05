@@ -100,14 +100,14 @@ export function SatelliteChiusura({
       {isOwner ? (
         <div className="space-y-3">
           <div>
-            <label htmlFor="chiusura-data" className="mb-1 block text-xs font-medium text-gray-700">
+            <label htmlFor="chiusura-data" className="mb-1 block text-sm font-medium text-gray-700">
               Data
             </label>
             <input id="chiusura-data" type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass()} />
           </div>
 
           <div>
-            <span className="mb-1 block text-xs font-medium text-gray-700">Acconti ricevuti</span>
+            <span className="mb-1 block text-sm font-medium text-gray-700">Acconti ricevuti</span>
             <div className="space-y-2">
               {acconti.map((a, i) => (
                 <div key={i} className="flex flex-wrap items-center gap-2">

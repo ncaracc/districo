@@ -77,7 +77,7 @@ export function SatellitePreventivo({
         {isOwner ? (
           <div className="mb-2 flex items-end gap-2">
             <div className="flex-1">
-              <label htmlFor="valore-preventivo" className="mb-1 block text-xs font-medium text-gray-700">
+              <label htmlFor="valore-preventivo" className="mb-1 block text-sm font-medium text-gray-700">
                 Valore
               </label>
               <input
