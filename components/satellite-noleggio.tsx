@@ -64,8 +64,6 @@ export function SatelliteNoleggio({
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
-  const verde = prenotazioneEffettuata
-
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
@@ -105,11 +103,6 @@ export function SatelliteNoleggio({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-2 flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${verde ? 'bg-green-500' : 'bg-red-500'}`} />
-          <p className="text-sm font-medium text-gray-900">Noleggio</p>
-        </div>
-
         {isOwner ? (
           <div className="space-y-3">
             <div>

@@ -9,7 +9,7 @@ import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-emai
 import { formattaValuta } from '@/lib/formato-valuta'
 import { Combobox } from '@/components/combobox'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
-import { DOT_COLOR, coloreAcquisti, labelStatoAcquisti, type Satellite, type SatelliteAllegato, type SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
+import type { Satellite, SatelliteAllegato, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
@@ -159,9 +159,6 @@ export function SatelliteOrdine({
     router.refresh()
   }
 
-  const haFornitore = !!satellite.fornitore_sede_id
-  const haRighe = righe.length > 0
-  const colore = coloreAcquisti(satellite.ordinato, haFornitore, haRighe)
   const editabile = isOwner && !satellite.ordinato
 
   return (
@@ -170,14 +167,6 @@ export function SatelliteOrdine({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-            {editabile ? 'Acquisto' : fornitoreSedeLabel ?? 'Nessun fornitore'}
-          </p>
-          <span className="shrink-0 text-xs text-gray-600">{labelStatoAcquisti(satellite.ordinato, haFornitore, haRighe)}</span>
-        </div>
-
         <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
 
         {editabile ? (
@@ -265,6 +254,12 @@ export function SatelliteOrdine({
           </div>
         ) : (
           <>
+            {/* Una volta ordinato, il campo Fornitore (con la sua Combobox)
+                non è più renderizzato — questa riga evita che il nome del
+                fornitore diventi altrimenti irrecuperabile dalla Modal
+                (prima era l'unico posto in cui appariva ancora, come
+                sostituto del nome nel pallino+nome ora spostato in header). */}
+            <p className="mb-1 text-sm text-gray-700">{fornitoreSedeLabel ?? 'Nessun fornitore'}</p>
             {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
             {righe.length > 0 && (
               <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">

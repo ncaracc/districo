@@ -4,10 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaDescrizioneCostruzione, avanzaStatoCostruzione } from '@/lib/lavori/satelliti'
 import {
-  DOT_COLOR,
-  STATO_COSTRUZIONE_LABEL,
   azioniPossibiliCostruzione,
-  coloreCostruzione,
   type Satellite,
   type SatelliteAllegato,
 } from '@/lib/lavori/satelliti-meta'
@@ -94,14 +91,6 @@ export function SatelliteCostruzione({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[coloreCostruzione(stato)]}`} />
-            Costruzione
-          </p>
-          <span className="shrink-0 text-xs text-gray-600">{STATO_COSTRUZIONE_LABEL[stato] ?? stato}</span>
-        </div>
-
         {satellite.data_inizio && (
           <p className="mb-2 text-xs text-gray-500">
             In corso da {formattaDurata(satellite.data_inizio, satellite.data_fine)}

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { impostaProgettoAccettato } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
-import { DOT_COLOR, coloreProgetto, labelStatoProgetto, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
+import { labelStatoProgetto, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 
 // Progetto non fa più parte del gruppo "revisionabile" (vedi TipoRevisionabile
 // in satelliti-meta.ts) dallo Sprint C (documenti) del 2/8: niente più catena
@@ -29,7 +29,6 @@ export function SatelliteProgetto({
   const [errore, setErrore] = useState<string | null>(null)
 
   const haAllegati = allegati.length > 0
-  const colore = coloreProgetto(satellite.progetto_accettato, haAllegati)
   const label = labelStatoProgetto(satellite.progetto_accettato, haAllegati)
 
   // Nessuna conferma nativa qui (a differenza delle checkbox Accettato/
@@ -47,24 +46,18 @@ export function SatelliteProgetto({
 
   return (
     <div className="rounded-lg border border-gray-200 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-          Progetto
-        </p>
-        {isOwner && (
-          <label className="flex items-center gap-1.5 text-sm text-gray-700">
-            <input
-              type="checkbox"
-              checked={satellite.progetto_accettato}
-              disabled={loading}
-              onChange={(e) => toggleAccettato(e.target.checked)}
-              className="accent-primary"
-            />
-            Accettato
-          </label>
-        )}
-      </div>
+      {isOwner && (
+        <label className="mb-3 flex items-center gap-1.5 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={satellite.progetto_accettato}
+            disabled={loading}
+            onChange={(e) => toggleAccettato(e.target.checked)}
+            className="accent-primary"
+          />
+          Accettato
+        </label>
+      )}
 
       <div className="rounded-lg bg-gray-50 p-3">
         <div className="mb-2 flex items-center justify-between gap-3">

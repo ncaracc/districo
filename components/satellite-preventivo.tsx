@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaValorePreventivo, impostaPreventivoDecisione } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
-import { DOT_COLOR, colorePreventivo, labelStatoPreventivo, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
+import { labelStatoPreventivo, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { inputClass } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
@@ -56,7 +56,6 @@ export function SatellitePreventivo({
   if (!corrente) return null
 
   const storico = catena.slice(1)
-  const colore = colorePreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo)
   const label = labelStatoPreventivo(corrente.preventivo_accettato, corrente.preventivo_rifiutato, corrente.valore_complessivo)
 
   async function salvaValore() {
@@ -105,11 +104,6 @@ export function SatellitePreventivo({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-          <p className="text-sm font-medium text-gray-900">Preventivo</p>
-        </div>
-
         <div className="rounded-lg bg-gray-50 p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Corrente</span>

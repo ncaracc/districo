@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import { aggiornaCampione } from '@/lib/lavori/satelliti'
 import { SatelliteAllegati } from '@/components/satellite-allegati'
 import {
-  DOT_COLOR,
-  coloreCampione,
   labelStatoCampione,
   type Satellite,
   type SatelliteAllegato,
@@ -50,7 +48,6 @@ export function SatelliteCampione({
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
-  const colore = coloreCampione(satellite.descrizione, satellite.campione_consegnato)
   const label = labelStatoCampione(satellite.descrizione, satellite.campione_consegnato)
 
   async function handleSalva() {
@@ -89,11 +86,6 @@ export function SatelliteCampione({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[colore]}`} />
-          <p className="text-sm font-medium text-gray-900">Campionatura</p>
-        </div>
-
         <div className="rounded-lg bg-gray-50 p-3">
           <div className="mb-2 flex items-center justify-between gap-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Stato</span>

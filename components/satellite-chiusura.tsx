@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satelliti'
 import { formattaValuta } from '@/lib/formato-valuta'
-import { DOT_COLOR, labelStatoChiusura, type Acconto, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
+import type { Acconto, Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
@@ -119,14 +119,6 @@ export function SatelliteChiusura({
     // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <p className="flex items-center gap-2 text-sm font-medium text-gray-900">
-            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[satellite.chiusura_conclusa ? 'green' : 'red']}`} />
-            Chiusura Lavoro
-          </p>
-          <span className="shrink-0 text-xs text-gray-600">{labelStatoChiusura(satellite.chiusura_conclusa)}</span>
-        </div>
-
         <div className="mb-3 space-y-1 text-sm text-gray-700">
           <p>
             Valore (preventivo): <span className="font-medium text-gray-900">{valorePreventivo != null ? formattaValuta(valorePreventivo) : '—'}</span>

@@ -204,6 +204,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreProgetto(corrente.progetto_accettato, haAllegati),
       statoLabel: labelStatoProgetto(corrente.progetto_accettato, haAllegati),
       posizione: POSIZIONE_ATTIVITA.progetto,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteProgetto
           satellite={corrente}
@@ -238,6 +239,7 @@ export default async function LavoroDettaglioPage({
       colore: colorePreventivo(preventivoCorrente.preventivo_accettato, preventivoCorrente.preventivo_rifiutato, preventivoCorrente.valore_complessivo),
       statoLabel: labelStatoPreventivo(preventivoCorrente.preventivo_accettato, preventivoCorrente.preventivo_rifiutato, preventivoCorrente.valore_complessivo),
       posizione: POSIZIONE_ATTIVITA.preventivo,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatellitePreventivo catena={preventivoCatena} allegatiById={allegatiById} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
@@ -259,6 +261,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreCampione(s.descrizione, s.campione_consegnato),
       statoLabel: labelStatoCampione(s.descrizione, s.campione_consegnato),
       posizione: POSIZIONE_ATTIVITA.campionatura,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteCampione satellite={s} allegati={allegatiById[s.id] ?? []} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
       ),
@@ -307,6 +310,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreAcquisti(s.ordinato, haFornitore, haRighe),
       statoLabel: labelStatoAcquisti(s.ordinato, haFornitore, haRighe),
       posizione: POSIZIONE_ATTIVITA.acquisto,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteOrdine
           satellite={s}
@@ -341,6 +345,7 @@ export default async function LavoroDettaglioPage({
       colore: coloreCostruzione(stato),
       statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
       posizione: POSIZIONE_ATTIVITA.costruzione,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} allegati={allegatiById[s.id] ?? []} isOwner={isOwnerEffettivo} />
       ),
@@ -358,6 +363,7 @@ export default async function LavoroDettaglioPage({
       colore: s.prenotazione_effettuata ? 'green' : 'red',
       statoLabel: labelStatoNoleggio(s.prenotazione_effettuata),
       posizione: POSIZIONE_ATTIVITA.noleggio,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteNoleggio
           satellite={s}
@@ -415,6 +421,7 @@ export default async function LavoroDettaglioPage({
       colore: s.chiusura_conclusa ? 'green' : 'red',
       statoLabel: labelStatoChiusura(s.chiusura_conclusa),
       posizione: POSIZIONE_ATTIVITA.chiusura,
+      titoloConPallino: true,
       contenutoModifica: (
         <SatelliteChiusura
           satellite={s}
