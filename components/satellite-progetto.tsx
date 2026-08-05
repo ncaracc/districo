@@ -73,7 +73,7 @@ export function SatelliteProgetto({
         </div>
 
         {isOwner && (
-          <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+          <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
         )}
 
         {errore && <p className="mt-2 text-xs text-red-600">{errore}</p>}

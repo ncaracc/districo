@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { caricaAllegatiSatellite, eliminaAllegatoSatellite } from '@/lib/lavori/allegati'
 import { AllegatoModale } from '@/components/allegato-modale'
@@ -99,82 +99,47 @@ export function AllegatoLista({
 }
 
 // Trigger di upload, indipendente dalla lista (vedi AllegatoLista sopra).
-// Due varianti invariate nel comportamento rispetto a prima della
-// separazione: richiedeEtichetta=true apre AllegatoModale (solo
-// Appuntamento oggi), false usa il vecchio flusso inline (Preventivo/
-// Progetto/Campione, non toccato).
+// Apre sempre AllegatoModale (file + etichetta obbligatoria) — Sprint UI-3
+// (gestione allegati, 2026-08-06, vedi CLAUDE.md): il vecchio flusso inline
+// senza etichetta (upload immediato, etichetta = nome file grezzo) è stato
+// rimosso insieme alla migrazione di Preventivo/Campionatura, gli ultimi due
+// consumer rimasti che non richiedevano ancora l'etichetta — verificato con
+// una ricerca mirata su tutti gli usi di AllegatoTrigger/SatelliteAllegati
+// prima di eliminarlo: nessun consumer nel progetto lo raggiunge più, il
+// prop `richiedeEtichetta` stesso è stato rimosso (sempre vero, non serve
+// più distinguere).
 export function AllegatoTrigger({
   satelliteId,
   lavoroId,
   isOwner,
-  richiedeEtichetta = false,
   // Icona e padding del bottone configurabili: il restyling del form
   // Appuntamento (2026-08-02) li rende più grandi con più padding
-  // verticale, ma il default resta quello di sempre per non alterare
-  // l'aspetto negli altri satelliti che in futuro (Sprint C) potrebbero
-  // riusare questo stesso trigger con richiedeEtichetta=true.
+  // verticale, il default resta quello di sempre per gli altri satelliti.
   iconClassName = 'h-4 w-4',
   bottoneClassName = 'p-1.5',
   // Se true, il bottone mostra un badge "+" sovrapposto all'icona fermaglio
   // invece di un testo accanto (riga Generale/Allegati del modale
-  // Appuntamento, 2026-08-04 — corretto lo stesso giorno: la prima versione
-  // usava un prop `label` per testo affiancato, sostituito perché la
-  // richiesta era "solo icona, nessuna scritta"). Default assente, nessun
-  // cambiamento per gli usi icon-only esistenti.
+  // Appuntamento, 2026-08-04). Default assente, nessun cambiamento per gli
+  // usi icon-only esistenti.
   iconaConBadge = false,
 }: {
   satelliteId: string
   lavoroId: string
   isOwner: boolean
-  richiedeEtichetta?: boolean
   iconClassName?: string
   bottoneClassName?: string
   iconaConBadge?: boolean
 }) {
   const router = useRouter()
-  const inputRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const [modaleAperta, setModaleAperta] = useState(false)
 
   if (!isOwner) return null
 
-  // Vecchio flusso inline, invariato: usato solo quando richiedeEtichetta è
-  // false (Preventivo/Progetto/Campione, fuori scope in questo sprint).
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-
-    setLoading(true)
-    setErrore(null)
-
-    const formData = new FormData()
-    for (const f of Array.from(files)) formData.append('file', f)
-
-    try {
-      const result = await caricaAllegatiSatellite(satelliteId, lavoroId, formData)
-      if (!result.ok) {
-        setErrore(result.error)
-        return
-      }
-      if (inputRef.current) inputRef.current.value = ''
-      router.refresh()
-    } catch (err) {
-      // La Server Action può lanciare (non solo restituire ok:false) se supera
-      // il limite di dimensione del body o per un errore imprevisto del
-      // server — senza questo catch l'errore restava invisibile in UI e il
-      // bottone bloccato su "Caricamento…" per sempre (bug scoperto in
-      // produzione, vedi CLAUDE.md).
-      console.error('Upload allegato fallito', err)
-      setErrore('Errore nel caricamento del file. Riprova con un file più piccolo o un formato diverso.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Nuovo flusso a modale (Sprint "allegati modale"): un solo file + etichetta
-  // per conferma. Ritorna true/false così AllegatoModale sa se chiudersi da
-  // sola o restare aperta con l'errore mostrato.
+  // Un solo file + etichetta per conferma. Ritorna true/false così
+  // AllegatoModale sa se chiudersi da sola o restare aperta con l'errore
+  // mostrato.
   async function handleCaricaConEtichetta(file: File, etichettaCompilata: string): Promise<boolean> {
     setLoading(true)
     setErrore(null)
@@ -200,87 +165,59 @@ export function AllegatoTrigger({
     }
   }
 
-  if (richiedeEtichetta) {
-    return (
-      <>
-        <button
-          type="button"
-          onClick={() => setModaleAperta(true)}
-          aria-label={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
-          title={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
-          className={`relative inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900`}
-        >
-          <IconaGraffetta className={iconClassName} />
-          {iconaConBadge && (
-            <span
-              aria-hidden="true"
-              className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-white"
-            >
-              +
-            </span>
-          )}
-        </button>
-        <AllegatoModale
-          aperta={modaleAperta}
-          onChiudi={() => {
-            setModaleAperta(false)
-            setErrore(null)
-          }}
-          onConferma={handleCaricaConEtichetta}
-          loading={loading}
-          errore={errore}
-        />
-      </>
-    )
-  }
-
   return (
-    <div className="space-y-1">
-      <label className="inline-block cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
-        {loading ? 'Caricamento…' : '+ Allega file'}
-        <input
-          ref={inputRef}
-          type="file"
-          multiple
-          accept=".pdf,.jpg,.jpeg,.png,.webp,.gif"
-          disabled={loading}
-          onChange={handleUpload}
-          className="hidden"
-        />
-      </label>
-      {errore && <p className="mt-1 text-xs text-red-600">{errore}</p>}
-    </div>
+    <>
+      <button
+        type="button"
+        onClick={() => setModaleAperta(true)}
+        aria-label={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
+        title={iconaConBadge ? 'Aggiungi allegato' : 'Allega file'}
+        className={`relative inline-flex items-center rounded-lg ${bottoneClassName} text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900`}
+      >
+        <IconaGraffetta className={iconClassName} />
+        {iconaConBadge && (
+          <span
+            aria-hidden="true"
+            className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary text-[10px] font-bold leading-none text-white"
+          >
+            +
+          </span>
+        )}
+      </button>
+      <AllegatoModale
+        aperta={modaleAperta}
+        onChiudi={() => {
+          setModaleAperta(false)
+          setErrore(null)
+        }}
+        onConferma={handleCaricaConEtichetta}
+        loading={loading}
+        errore={errore}
+      />
+    </>
   )
 }
 
 // Wrapper di compatibilità: lista + trigger nello stesso ordine/aspetto di
-// sempre, usato da Preventivo/Progetto/Campione (satellite-revisionabile.tsx,
-// satellite-preventivo.tsx) — non toccati da questo sprint. Il form
-// Appuntamento (satellite-appuntamento.tsx) usa invece AllegatoLista e
-// AllegatoTrigger separatamente, per poterli posizionare in punti diversi.
+// sempre, usato da Preventivo/Campionatura (gli unici due satelliti rimasti
+// che non compongono Lista/Trigger separatamente per posizionarli in punti
+// diversi del proprio layout, come fa invece Appuntamento).
 export function SatelliteAllegati({
   satelliteId,
   lavoroId,
   allegati,
   isOwner,
-  richiedeEtichetta = false,
 }: {
   satelliteId: string
   lavoroId: string
   allegati: SatelliteAllegato[]
   isOwner: boolean
-  richiedeEtichetta?: boolean
 }) {
   return (
     <div className="mt-2">
       <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
       <div className="mt-1.5">
-        <AllegatoTrigger
-          satelliteId={satelliteId}
-          lavoroId={lavoroId}
-          isOwner={isOwner}
-          richiedeEtichetta={richiedeEtichetta}
-        />
+        <AllegatoTrigger satelliteId={satelliteId} lavoroId={lavoroId} isOwner={isOwner} />
       </div>
     </div>
   )

@@ -65,11 +65,12 @@ export async function caricaAllegatiSatellite(
     return { ok: false, error: 'Nessun file selezionato' }
   }
 
-  // Etichetta facoltativa lato server: il flusso a modale (Appuntamento,
-  // Progetto, Acquisto dallo Sprint C) la raccoglie e la richiede
-  // obbligatoria lato client — Preventivo/Campione restano sul vecchio
-  // flusso inline, quindi qui si ricade sul nome del file perché la
-  // colonna è NOT NULL a schema.
+  // Etichetta facoltativa lato server pur essendo ormai sempre raccolta e
+  // richiesta obbligatoria lato client (Sprint UI-3, 2026-08-06: anche
+  // Preventivo/Campionatura, ultimi due rimasti, sono passati al flusso a
+  // modale) — il fallback resta comunque come rete di sicurezza server-side
+  // (es. una richiesta diretta che bypassasse la UI), la colonna è NOT NULL
+  // a schema e va comunque popolata in ogni caso.
   const etichettaCondivisa = (formData.get('etichetta') as string | null)?.trim() || null
 
   // Progetto (Sprint C, 2/8): il primo allegato caricato è il momento

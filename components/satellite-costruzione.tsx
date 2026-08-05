@@ -123,7 +123,7 @@ export function SatelliteCostruzione({
 
         {isOwner && (
           <div className="mb-2">
-            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
           </div>
         )}
         <div className="mb-2">

@@ -141,7 +141,6 @@ export function SatelliteAppuntamento({
                   satelliteId={satellite.id}
                   lavoroId={lavoroId}
                   isOwner={isOwner}
-                  richiedeEtichetta
                   iconClassName="h-5 w-5"
                   iconaConBadge
                 />
