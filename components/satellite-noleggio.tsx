@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaNoleggio } from '@/lib/lavori/satelliti'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
-import type { Satellite } from '@/lib/lavori/satelliti-meta'
+import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { Combobox } from '@/components/combobox'
 import { inputClass } from '@/lib/input-class'
@@ -13,6 +13,7 @@ import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { SalvaFlottante } from '@/components/salva-flottante'
 import { DialogConferma } from '@/components/dialog-conferma'
+import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
 type SedeSelezionata = { id: string; label: string }
 
@@ -25,11 +26,13 @@ type SedeSelezionata = { id: string; label: string }
 export function SatelliteNoleggio({
   satellite,
   fornitoreSedeLabel,
+  allegati,
   lavoroId,
   isOwner,
 }: {
   satellite: Satellite
   fornitoreSedeLabel: string | null
+  allegati: SatelliteAllegato[]
   lavoroId: string
   isOwner: boolean
 }) {
@@ -189,6 +192,15 @@ export function SatelliteNoleggio({
             {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
           </div>
         )}
+
+        {isOwner && (
+          <div className="mb-2">
+            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+          </div>
+        )}
+        <div className="mb-2">
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+        </div>
       </div>
 
       {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} />}

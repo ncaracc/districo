@@ -9,12 +9,14 @@ import {
   azioniPossibiliCostruzione,
   coloreCostruzione,
   type Satellite,
+  type SatelliteAllegato,
 } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { SalvaFlottante } from '@/components/salva-flottante'
 import { DialogConferma } from '@/components/dialog-conferma'
+import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
 function formattaDurata(inizio: string, fine: string | null): string {
   const ms = (fine ? new Date(fine).getTime() : Date.now()) - new Date(inizio).getTime()
@@ -27,10 +29,12 @@ function formattaDurata(inizio: string, fine: string | null): string {
 export function SatelliteCostruzione({
   satellite,
   lavoroId,
+  allegati,
   isOwner,
 }: {
   satellite: Satellite
   lavoroId: string
+  allegati: SatelliteAllegato[]
   isOwner: boolean
 }) {
   const router = useRouter()
@@ -116,6 +120,15 @@ export function SatelliteCostruzione({
         ) : (
           satellite.descrizione_libera && <p className="text-sm text-gray-600">{satellite.descrizione_libera}</p>
         )}
+
+        {isOwner && (
+          <div className="mb-2">
+            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+          </div>
+        )}
+        <div className="mb-2">
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+        </div>
 
         {errore && <p className="mt-2 text-xs text-red-600">{errore}</p>}
 

@@ -4,13 +4,14 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satelliti'
 import { formattaValuta } from '@/lib/formato-valuta'
-import { DOT_COLOR, labelStatoChiusura, type Acconto, type Satellite } from '@/lib/lavori/satelliti-meta'
+import { DOT_COLOR, labelStatoChiusura, type Acconto, type Satellite, type SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { SalvaFlottante } from '@/components/salva-flottante'
 import { DialogConferma } from '@/components/dialog-conferma'
+import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
 const ACCONTO_VUOTO: Acconto = { etichetta: '', data: null, importo: 0 }
 
@@ -25,12 +26,14 @@ const ACCONTO_VUOTO: Acconto = { etichetta: '', data: null, importo: 0 }
 export function SatelliteChiusura({
   satellite,
   lavoroId,
+  allegati,
   isOwner,
   valorePreventivo,
   costiSostenuti,
 }: {
   satellite: Satellite
   lavoroId: string
+  allegati: SatelliteAllegato[]
   isOwner: boolean
   valorePreventivo: number | null
   costiSostenuti: number
@@ -220,6 +223,15 @@ export function SatelliteChiusura({
             )}
           </div>
         )}
+
+        {isOwner && (
+          <div className="mb-2">
+            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} richiedeEtichetta />
+          </div>
+        )}
+        <div className="mb-2">
+          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+        </div>
       </div>
 
       {/* Nessun errore={errore} qui: è già mostrato sopra, dentro il div

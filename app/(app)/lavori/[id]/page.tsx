@@ -341,8 +341,12 @@ export default async function LavoroDettaglioPage({
       colore: coloreCostruzione(stato),
       statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
       posizione: POSIZIONE_ATTIVITA.costruzione,
-      contenutoModifica: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={isOwnerEffettivo} />,
-      contenutoLettura: <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} isOwner={false} />,
+      contenutoModifica: (
+        <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} allegati={allegatiById[s.id] ?? []} isOwner={isOwnerEffettivo} />
+      ),
+      contenutoLettura: (
+        <SatelliteCostruzione satellite={s} lavoroId={lavoro.id} allegati={allegatiById[s.id] ?? []} isOwner={false} />
+      ),
     })
   })
 
@@ -358,6 +362,7 @@ export default async function LavoroDettaglioPage({
         <SatelliteNoleggio
           satellite={s}
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          allegati={allegatiById[s.id] ?? []}
           lavoroId={lavoro.id}
           isOwner={isOwnerEffettivo}
         />
@@ -366,6 +371,7 @@ export default async function LavoroDettaglioPage({
         <SatelliteNoleggio
           satellite={s}
           fornitoreSedeLabel={s.fornitore_sede_id ? labelPerSedeId.get(s.fornitore_sede_id) ?? null : null}
+          allegati={allegatiById[s.id] ?? []}
           lavoroId={lavoro.id}
           isOwner={false}
         />
@@ -413,6 +419,7 @@ export default async function LavoroDettaglioPage({
         <SatelliteChiusura
           satellite={s}
           lavoroId={lavoro.id}
+          allegati={allegatiById[s.id] ?? []}
           isOwner={isOwnerEffettivo}
           valorePreventivo={valorePreventivo}
           costiSostenuti={costiSostenuti}
@@ -422,6 +429,7 @@ export default async function LavoroDettaglioPage({
         <SatelliteChiusura
           satellite={s}
           lavoroId={lavoro.id}
+          allegati={allegatiById[s.id] ?? []}
           isOwner={false}
           valorePreventivo={valorePreventivo}
           costiSostenuti={costiSostenuti}
