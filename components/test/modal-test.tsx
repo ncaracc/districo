@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { IconaChiudi } from '@/components/icons'
 import { SalvaFlottante } from '@/components/salva-flottante'
 import { useDirtyForm } from '@/lib/use-dirty-form'
+import { inputClass } from '@/lib/input-class'
 
 // Modal di test — ambiente di iterazione rapida sul design, separato dai
 // satelliti reali (vedi CLAUDE.md quando aggiornato). Primo passo: solo
@@ -21,6 +22,17 @@ const FONT_MIN = 14
 const FONT_MAX = 28
 const FONT_STEP = 2
 const FONT_DEFAULT = 18
+
+// Testo di prova (passo 4): 4 paragrafi, abbastanza lunghi da forzare lo
+// scroll interno della Modal (in particolare su mobile, con la dimensione
+// ridotta del passo 3) — verifica che l'header e il bottone Salva restino
+// visibili/accessibili mentre il corpo scorre.
+const TESTO_DEFAULT = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
+  'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus, sed elementum nibh tincidunt id. Nulla facilisi. Vivamus varius, ligula eget commodo pulvinar, sapien nisl fermentum nisi, at fringilla purus mauris a nunc.',
+  'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec ullamcorper nulla non metus auctor fringilla. Aenean lacinia bibendum nulla sed consectetur. Etiam porta sem malesuada magna mollis euismod.',
+  'Nullam quis risus eget urna mollis ornare vel eu leo. Maecenas faucibus mollis interdum. Vestibulum id ligula porta felis euismod semper. Cras mattis consectetur purus sit amet fermentum. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.',
+].join('\n\n')
 
 // Involucro locale della Modal di test — NON il componente Modal condiviso
 // (components/modal.tsx), lasciato intenzionalmente intatto: la dimensione
@@ -94,12 +106,25 @@ function ModalTestShell({
 
 export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
   const [fontSize, setFontSize] = useState(FONT_DEFAULT)
+  const [testo, setTesto] = useState(TESTO_DEFAULT)
+  const testoRef = useRef<HTMLTextAreaElement>(null)
 
-  // Nessun campo form vero in questo passo: il dirty-state è agganciato
-  // direttamente al controllo +/- della dimensione titolo, solo per poter
-  // vedere dal vivo come si comporta SalvaFlottante (compare al primo
-  // cambiamento, scompare al "salva" senza persistere nulla).
-  const { dirty, segnaSalvato } = useDirtyForm({ fontSize })
+  // Auto-crescita del textarea sul proprio contenuto (nessuna scrollbar
+  // interna): l'altezza segue esattamente `scrollHeight`, così un testo
+  // lungo allunga il corpo della Modal fino a superare lo spazio visibile
+  // e a far scorrere l'intera Modal (il div `overflow-y-auto` del corpo,
+  // vedi ModalTestShell) — non un doppio scroll annidato nel textarea.
+  useEffect(() => {
+    const el = testoRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [testo])
+
+  // Dirty-state agganciato sia al controllo +/- della dimensione titolo sia
+  // al testo: il bottone Salva compare alla prima modifica di uno dei due,
+  // scompare al "salva" (nessuna persistenza reale in questo passo).
+  const { dirty, segnaSalvato } = useDirtyForm({ fontSize, testo })
 
   function decrementa() {
     setFontSize((s) => Math.max(FONT_MIN, s - FONT_STEP))
@@ -147,10 +172,17 @@ export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () 
 
   return (
     <ModalTestShell aperto={aperto} onChiudi={onChiudi} titolo={titolo}>
-      <p className="text-sm text-gray-500">
-        Corpo del modale — i campi veri (testo/data/numero/allegati) arrivano nei prossimi passi. Per ora usa i
-        controlli +/− accanto al titolo per far comparire il bottone Salva flottante qui sotto.
-      </p>
+      {/* mt-2: si somma al py-4 del corpo della Modal (ModalTestShell) per
+          una distanza sotto il titolo né incollata né eccessiva. */}
+      <div className="mt-2">
+        <label className="mb-1 block text-sm font-medium text-gray-700">Testo di prova</label>
+        <textarea
+          ref={testoRef}
+          value={testo}
+          onChange={(e) => setTesto(e.target.value)}
+          className={`${inputClass()} resize-none overflow-hidden`}
+        />
+      </div>
       <SalvaFlottante visibile={dirty} salvando={false} onSalva={() => segnaSalvato()} variante="pillola" />
     </ModalTestShell>
   )
