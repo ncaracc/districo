@@ -153,9 +153,26 @@ function ModalTestShell({
   )
 }
 
-export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
-  const [fontSize, setFontSize] = useState(FONT_DEFAULT)
-  const [testo, setTesto] = useState(TESTO_DEFAULT)
+// Contenuto della Modal di test — reso come `children` di ModalTestShell,
+// quindi genuino DISCENDENTE del suo Provider nell'albero dei fiber React
+// (a differenza di ModalTest, che è l'ANTENATO che costruisce ModalTestShell:
+// un componente non può consumare un Context fornito da un Provider che lui
+// stesso genera nel proprio return, perché al momento dei suoi hook quel
+// Provider non è ancora "entrato" nell'albero — bug scoperto in produzione
+// dopo il passo 5, vedi CLAUDE.md). Stesso identico pattern del componente
+// satellite reale (es. SatellitePreventivo): un componente separato passato
+// come children a Modal, mai lo stesso componente che assembla <Modal>.
+function ModalTestContenuto({
+  fontSize,
+  setFontSize,
+  testo,
+  setTesto,
+}: {
+  fontSize: number
+  setFontSize: (f: number) => void
+  testo: string
+  setTesto: (t: string) => void
+}) {
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const testoRef = useRef<HTMLTextAreaElement>(null)
 
@@ -182,13 +199,16 @@ export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () 
   // del dialog sotto, mai direttamente dal contenuto.
   const chiudiReale = useProteggiChiusuraModalTest(dirty, () => setConfermaUscitaAperta(true))
 
-  // ModalTest non si smonta mai alla chiusura (resta sempre montato in
-  // AppNav, solo ModalTestShell ritorna null quando aperto=false) — senza
-  // un reset esplicito lo stato resterebbe in memoria da un'apertura
-  // all'altra. Azzera sia i valori sia la baseline di useDirtyForm (non
-  // solo i valori): se l'utente avesse già premuto il Salva pillola a metà
-  // sessione, la baseline sarebbe rimasta su quei valori intermedi, e un
-  // reset dei soli campi risulterebbe di nuovo "sporco" al prossimo giro.
+  // fontSize/testo vivono in ModalTest (mai smontato, sempre montato in
+  // AppNav) — senza un reset esplicito resterebbero in memoria da
+  // un'apertura all'altra. Azzera sia i valori sia la baseline di
+  // useDirtyForm (non solo i valori): se l'utente avesse già premuto il
+  // Salva pillola a metà sessione, la baseline sarebbe rimasta su quei
+  // valori intermedi, e un reset dei soli campi risulterebbe di nuovo
+  // "sporco" al prossimo giro. ModalTestContenuto invece SI smonta
+  // correttamente ad ogni chiusura (ModalTestShell ritorna null quando
+  // aperto=false, quindi anche {children}) — dirty/confermaUscitaAperta
+  // ripartono già puliti da soli al prossimo mount, senza bisogno di reset.
   function resetCompleto() {
     setFontSize(FONT_DEFAULT)
     setTesto(TESTO_DEFAULT)
@@ -211,6 +231,39 @@ export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () 
     setConfermaUscitaAperta(false)
     chiudiReale()
   }
+
+  return (
+    <>
+      {/* mt-2: si somma al py-4 del corpo della Modal (ModalTestShell) per
+          una distanza sotto il titolo né incollata né eccessiva. */}
+      <div className="mt-2">
+        <label className="mb-1 block text-sm font-medium text-gray-700">Testo di prova</label>
+        <textarea
+          ref={testoRef}
+          value={testo}
+          onChange={(e) => setTesto(e.target.value)}
+          className={`${inputClass()} resize-none overflow-hidden`}
+        />
+      </div>
+      <SalvaFlottante visibile={dirty} salvando={false} onSalva={() => segnaSalvato()} variante="pillola" />
+
+      <DialogConferma
+        aperto={confermaUscitaAperta}
+        titolo="Modifiche non salvate"
+        messaggio="Vuoi salvare le modifiche prima di uscire?"
+        opzioni={[
+          { label: 'Salva ed esci', variante: 'primaria', onClick: handleSalvaEdEsci },
+          { label: 'Esci senza salvare', variante: 'secondaria', onClick: handleEsciSenzaSalvare },
+          { label: 'Annulla', variante: 'testuale', onClick: () => setConfermaUscitaAperta(false) },
+        ]}
+      />
+    </>
+  )
+}
+
+export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
+  const [fontSize, setFontSize] = useState(FONT_DEFAULT)
+  const [testo, setTesto] = useState(TESTO_DEFAULT)
 
   function decrementa() {
     setFontSize((s) => Math.max(FONT_MIN, s - FONT_STEP))
@@ -258,29 +311,7 @@ export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () 
 
   return (
     <ModalTestShell aperto={aperto} onChiudi={onChiudi} titolo={titolo}>
-      {/* mt-2: si somma al py-4 del corpo della Modal (ModalTestShell) per
-          una distanza sotto il titolo né incollata né eccessiva. */}
-      <div className="mt-2">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Testo di prova</label>
-        <textarea
-          ref={testoRef}
-          value={testo}
-          onChange={(e) => setTesto(e.target.value)}
-          className={`${inputClass()} resize-none overflow-hidden`}
-        />
-      </div>
-      <SalvaFlottante visibile={dirty} salvando={false} onSalva={() => segnaSalvato()} variante="pillola" />
-
-      <DialogConferma
-        aperto={confermaUscitaAperta}
-        titolo="Modifiche non salvate"
-        messaggio="Vuoi salvare le modifiche prima di uscire?"
-        opzioni={[
-          { label: 'Salva ed esci', variante: 'primaria', onClick: handleSalvaEdEsci },
-          { label: 'Esci senza salvare', variante: 'secondaria', onClick: handleEsciSenzaSalvare },
-          { label: 'Annulla', variante: 'testuale', onClick: () => setConfermaUscitaAperta(false) },
-        ]}
-      />
+      <ModalTestContenuto fontSize={fontSize} setFontSize={setFontSize} testo={testo} setTesto={setTesto} />
     </ModalTestShell>
   )
 }
