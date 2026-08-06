@@ -3,7 +3,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { IconaChiudi } from '@/components/icons'
-import { SalvaFlottante } from '@/components/salva-flottante'
 import { DialogConferma } from '@/components/dialog-conferma'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { inputClass } from '@/lib/input-class'
@@ -34,6 +33,63 @@ const TESTO_DEFAULT = [
   'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec ullamcorper nulla non metus auctor fringilla. Aenean lacinia bibendum nulla sed consectetur. Etiam porta sem malesuada magna mollis euismod.',
   'Nullam quis risus eget urna mollis ornare vel eu leo. Maecenas faucibus mollis interdum. Vestibulum id ligula porta felis euismod semper. Cras mattis consectetur purus sit amet fermentum. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.',
 ].join('\n\n')
+
+// Spazio (in px) nascosto sotto il layout viewport quando la tastiera
+// virtuale è aperta su mobile — passo 6, vedi CLAUDE.md. window.innerHeight
+// resta quello del layout viewport; window.visualViewport.height/.offsetTop
+// riflettono invece l'area REALMENTE visibile sopra la tastiera. Un
+// `position: fixed; bottom: 0` normale ignora questa differenza (motivo del
+// bug segnalato: il Salva pillola restava sotto la tastiera). Duplicato qui,
+// non ancora portato nel componente SalvaFlottante condiviso (usato dai
+// satelliti reali) come richiesto esplicitamente — solo la variante
+// 'pillola' della Modal di test lo usa per ora, in attesa di validazione.
+//
+// DIFFERENZA NOTA iOS/Android (come richiesto di segnalare esplicitamente):
+// su iOS Safari, un elemento `position: fixed` è posizionato rispetto al
+// LAYOUT viewport, non al visual viewport — quando la tastiera si apre,
+// Safari non ridimensiona affatto window.innerHeight (resta invariato),
+// riduce solo visualViewport.height e può spostare visualViewport.offsetTop
+// (la pagina scorre per portare il campo attivo in vista): un elemento
+// `fixed bottom-0` NON segue automaticamente la tastiera, resta ancorato al
+// fondo del layout viewport ormai fuori dallo schermo visibile — da qui la
+// formula sotto (`innerHeight - vv.height - vv.offsetTop`) restituisce un
+// valore concreto >0 su iOS. Su Android Chrome invece, a seconda della
+// versione/della configurazione (`interactive-widget` nel meta viewport),
+// il browser spesso ridimensiona GIÀ window.innerHeight insieme alla
+// tastiera (il layout viewport si restringe da solo) — in quel caso la
+// stessa formula restituisce ~0 (nessun offset aggiuntivo necessario,
+// l'elemento fixed è già correttamente sopra la tastiera senza alcun
+// intervento JS). La formula quindi si "auto-adatta" a entrambi i
+// comportamenti invece di assumerne uno solo, ma è importante sapere che il
+// valore osservato in pratica sarà sistematicamente diverso tra i due SO
+// (tipicamente >0 su iOS, spesso ~0 su Android) — non un bug della singola
+// piattaforma, comportamento nativo divergente dei due browser.
+function useTastieraInset() {
+  const [inset, setInset] = useState(0)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+
+    function aggiorna() {
+      const nascosto = window.innerHeight - vv!.height - vv!.offsetTop
+      setInset(Math.max(0, Math.round(nascosto)))
+    }
+
+    aggiorna()
+    // 'resize' copre l'apertura/chiusura della tastiera; 'scroll' copre lo
+    // spostamento di visualViewport.offsetTop quando iOS scorre la pagina
+    // per portare il campo attivo in vista a tastiera già aperta.
+    vv.addEventListener('resize', aggiorna)
+    vv.addEventListener('scroll', aggiorna)
+    return () => {
+      vv.removeEventListener('resize', aggiorna)
+      vv.removeEventListener('scroll', aggiorna)
+    }
+  }, [])
+
+  return inset
+}
 
 type Guardia = () => void
 
@@ -193,6 +249,11 @@ function ModalTestContenuto({
   // scompare al "salva" (nessuna persistenza reale in questo passo).
   const { dirty, segnaSalvato } = useDirtyForm({ fontSize, testo })
 
+  // Passo 6: spazio nascosto dalla tastiera virtuale, per tenere il Salva
+  // pillola sempre sopra di essa invece che sotto (vedi useTastieraInset
+  // sopra per il dettaglio/le differenze iOS-Android).
+  const tastieraInset = useTastieraInset()
+
   // Registra la guardia sulla Shell: con dirty=true, X/backdrop/Esc aprono
   // il dialog invece di chiudere direttamente. `chiudiReale` è il vero
   // onChiudi (passato da AppNav) — invocato esplicitamente dalle due azioni
@@ -245,7 +306,24 @@ function ModalTestContenuto({
           className={`${inputClass()} resize-none overflow-hidden`}
         />
       </div>
-      <SalvaFlottante visibile={dirty} salvando={false} onSalva={() => segnaSalvato()} variante="pillola" />
+      {/* Salva pillola locale (non il componente SalvaFlottante condiviso,
+          come da richiesta esplicita — solo qui per ora, in attesa di
+          portare la logica di useTastieraInset lì in uno sprint dedicato
+          se questa validazione funziona bene). Stesso stile della variante
+          'pillola' già esistente in SalvaFlottante, ma con `bottom`
+          calcolato dinamicamente: 50px dal fondo del visual viewport
+          (non del layout viewport), così resta sopra la tastiera invece
+          che sotto quando questa è aperta. */}
+      {dirty && (
+        <button
+          type="button"
+          onClick={() => segnaSalvato()}
+          style={{ bottom: 50 + tastieraInset }}
+          className="fixed left-1/2 z-[60] -translate-x-1/2 rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600"
+        >
+          Salva
+        </button>
+      )}
 
       <DialogConferma
         aperto={confermaUscitaAperta}
