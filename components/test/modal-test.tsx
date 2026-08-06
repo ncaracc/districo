@@ -23,17 +23,12 @@ const TITOLO_PLACEHOLDER = 'Titolo della finestra di TEST'
 // range min/max/step).
 const TITOLO_FONT_SIZE = 16
 
-// Testo di prova (passo 4): 4 paragrafi, abbastanza lunghi da forzare lo
-// scroll interno della Modal (in particolare su mobile, con la dimensione
-// ridotta del passo 3) — verifica che l'header e il bottone Salva restino
-// visibili/accessibili mentre il corpo scorre. Font-size +2px al passo 7
-// (14px di text-sm di default -> 16px, TESTO_FONT_SIZE sotto).
-const TESTO_DEFAULT = [
-  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
-  'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus, sed elementum nibh tincidunt id. Nulla facilisi. Vivamus varius, ligula eget commodo pulvinar, sapien nisl fermentum nisi, at fringilla purus mauris a nunc.',
-  'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec ullamcorper nulla non metus auctor fringilla. Aenean lacinia bibendum nulla sed consectetur. Etiam porta sem malesuada magna mollis euismod.',
-  'Nullam quis risus eget urna mollis ornare vel eu leo. Maecenas faucibus mollis interdum. Vestibulum id ligula porta felis euismod semper. Cras mattis consectetur purus sit amet fermentum. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.',
-].join('\n\n')
+// Testo di prova: campo vuoto di default (il Lorem Ipsum del passo 4,
+// usato per validare lo scroll interno della Modal, è stato tolto
+// esplicitamente a fine sessione — la validazione è conclusa, non serve
+// più pre-compilare il campo). Font-size +2px dal passo 7 (14px di text-sm
+// di default -> 16px, TESTO_FONT_SIZE sotto), invariato.
+const TESTO_DEFAULT = ''
 const TESTO_FONT_SIZE = 16
 
 // Controllo ora — un solo <select> con slot "HH:MM" predefiniti (passo 7:
