@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { IconaChiudi } from '@/components/icons'
 import { DialogConferma } from '@/components/dialog-conferma'
 import { useDirtyForm } from '@/lib/use-dirty-form'
-import { inputClass } from '@/lib/input-class'
+import { inputClass, inputClassFisso } from '@/lib/input-class'
 
 // Modal di test — ambiente di iterazione rapida sul design, separato dai
 // satelliti reali (vedi CLAUDE.md quando aggiornato). Primo passo: solo
@@ -17,22 +17,40 @@ import { inputClass } from '@/lib/input-class'
 
 const TITOLO_PLACEHOLDER = 'Titolo della finestra di TEST'
 
-// Range esplorativo, non un limite definitivo: da aggiustare dal vivo.
-const FONT_MIN = 14
-const FONT_MAX = 28
-const FONT_STEP = 2
-const FONT_DEFAULT = 18
+// Passo 7: il controllo +/- (passo 1) è stato rimosso, il titolo torna
+// fisso — 16px, cioè -2px rispetto ai 18px di default che aveva prima
+// (non più regolabile a runtime, quindi una sola costante invece di un
+// range min/max/step).
+const TITOLO_FONT_SIZE = 16
 
 // Testo di prova (passo 4): 4 paragrafi, abbastanza lunghi da forzare lo
 // scroll interno della Modal (in particolare su mobile, con la dimensione
 // ridotta del passo 3) — verifica che l'header e il bottone Salva restino
-// visibili/accessibili mentre il corpo scorre.
+// visibili/accessibili mentre il corpo scorre. Font-size +2px al passo 7
+// (14px di text-sm di default -> 16px, TESTO_FONT_SIZE sotto).
 const TESTO_DEFAULT = [
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
   'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Curabitur pretium tincidunt lacus, sed elementum nibh tincidunt id. Nulla facilisi. Vivamus varius, ligula eget commodo pulvinar, sapien nisl fermentum nisi, at fringilla purus mauris a nunc.',
   'Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec ullamcorper nulla non metus auctor fringilla. Aenean lacinia bibendum nulla sed consectetur. Etiam porta sem malesuada magna mollis euismod.',
   'Nullam quis risus eget urna mollis ornare vel eu leo. Maecenas faucibus mollis interdum. Vestibulum id ligula porta felis euismod semper. Cras mattis consectetur purus sit amet fermentum. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus.',
 ].join('\n\n')
+const TESTO_FONT_SIZE = 16
+
+// Passo 7 — nuovi controlli data/ora da confrontare visivamente (nessuna
+// persistenza, solo collegati al dirty-state come il resto). Opzioni
+// generate una sola volta a livello di modulo, non ricalcolate ad ogni
+// render.
+const ORE = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTI_STEP_15 = ['00', '15', '30', '45']
+
+// Variante B: un solo <select> con slot "HH:MM" predefiniti, 08:00-19:00
+// passo 30 minuti — range/step scelti a giudizio, non critici da validare.
+const SLOT_ORARI: string[] = []
+for (let minuti = 8 * 60; minuti <= 19 * 60; minuti += 30) {
+  const h = String(Math.floor(minuti / 60)).padStart(2, '0')
+  const m = String(minuti % 60).padStart(2, '0')
+  SLOT_ORARI.push(`${h}:${m}`)
+}
 
 // Spazio (in px) nascosto sotto il layout viewport quando la tastiera
 // virtuale è aperta su mobile — passo 6, vedi CLAUDE.md. window.innerHeight
@@ -218,17 +236,22 @@ function ModalTestShell({
 // dopo il passo 5, vedi CLAUDE.md). Stesso identico pattern del componente
 // satellite reale (es. SatellitePreventivo): un componente separato passato
 // come children a Modal, mai lo stesso componente che assembla <Modal>.
-function ModalTestContenuto({
-  fontSize,
-  setFontSize,
-  testo,
-  setTesto,
-}: {
-  fontSize: number
-  setFontSize: (f: number) => void
-  testo: string
-  setTesto: (t: string) => void
-}) {
+//
+// Nessun prop dal passo 7 in poi: testo/data/ora* vivono tutti QUI (stato
+// locale), non più sollevati in ModalTest — al passo 5 fontSize/testo erano
+// stati sollevati solo perché il titolo (costruito in ModalTest, fuori dal
+// Provider) doveva mostrare la dimensione corrente tramite il controllo +/-;
+// rimosso quel controllo (passo 7), non c'è più alcun motivo per condividere
+// stato con ModalTest. Vantaggio diretto: ModalTestContenuto si smonta per
+// davvero ad ogni chiusura (ModalTestShell ritorna null), quindi TUTTI i
+// campi ripartono già puliti al prossimo mount — resetCompleto() del passo 5
+// non serve più, "Salva ed esci"/"Esci senza salvare" chiudono soltanto.
+function ModalTestContenuto() {
+  const [testo, setTesto] = useState(TESTO_DEFAULT)
+  const [data, setData] = useState('')
+  const [oraAOre, setOraAOre] = useState('')
+  const [oraAMinuti, setOraAMinuti] = useState('')
+  const [oraB, setOraB] = useState('')
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const testoRef = useRef<HTMLTextAreaElement>(null)
 
@@ -244,10 +267,10 @@ function ModalTestContenuto({
     el.style.height = `${el.scrollHeight}px`
   }, [testo])
 
-  // Dirty-state agganciato sia al controllo +/- della dimensione titolo sia
-  // al testo: il bottone Salva compare alla prima modifica di uno dei due,
-  // scompare al "salva" (nessuna persistenza reale in questo passo).
-  const { dirty, segnaSalvato } = useDirtyForm({ fontSize, testo })
+  // Dirty-state (passo 7): il controllo +/- del titolo è sparito, sostituito
+  // da testo + i tre nuovi controlli data/ora — il Salva pillola compare
+  // alla prima modifica di uno qualunque di questi cinque campi.
+  const { dirty, segnaSalvato } = useDirtyForm({ testo, data, oraAOre, oraAMinuti, oraB })
 
   // Passo 6: spazio nascosto dalla tastiera virtuale, per tenere il Salva
   // pillola sempre sopra di essa invece che sotto (vedi useTastieraInset
@@ -260,35 +283,18 @@ function ModalTestContenuto({
   // del dialog sotto, mai direttamente dal contenuto.
   const chiudiReale = useProteggiChiusuraModalTest(dirty, () => setConfermaUscitaAperta(true))
 
-  // fontSize/testo vivono in ModalTest (mai smontato, sempre montato in
-  // AppNav) — senza un reset esplicito resterebbero in memoria da
-  // un'apertura all'altra. Azzera sia i valori sia la baseline di
-  // useDirtyForm (non solo i valori): se l'utente avesse già premuto il
-  // Salva pillola a metà sessione, la baseline sarebbe rimasta su quei
-  // valori intermedi, e un reset dei soli campi risulterebbe di nuovo
-  // "sporco" al prossimo giro. ModalTestContenuto invece SI smonta
-  // correttamente ad ogni chiusura (ModalTestShell ritorna null quando
-  // aperto=false, quindi anche {children}) — dirty/confermaUscitaAperta
-  // ripartono già puliti da soli al prossimo mount, senza bisogno di reset.
-  function resetCompleto() {
-    setFontSize(FONT_DEFAULT)
-    setTesto(TESTO_DEFAULT)
-    segnaSalvato({ fontSize: FONT_DEFAULT, testo: TESTO_DEFAULT })
-  }
-
   // "Salva ed esci" ed "Esci senza salvare" si comportano allo stesso modo
   // qui: nessuna persistenza reale dietro questa Modal di test, quindi
   // "salvare" significa solo far sparire il dirty-state (come già fa il
-  // Salva pillola) — in entrambi i casi lo stato locale torna pulito prima
-  // di chiudere davvero, così la prossima apertura riparte da zero.
+  // Salva pillola). Nessun reset esplicito necessario (a differenza del
+  // passo 5): chiudiReale() fa smontare ModalTestContenuto, tutto lo stato
+  // locale (incluso quello di useDirtyForm) sparisce da solo.
   function handleSalvaEdEsci() {
-    resetCompleto()
     setConfermaUscitaAperta(false)
     chiudiReale()
   }
 
   function handleEsciSenzaSalvare() {
-    resetCompleto()
     setConfermaUscitaAperta(false)
     chiudiReale()
   }
@@ -303,9 +309,58 @@ function ModalTestContenuto({
           ref={testoRef}
           value={testo}
           onChange={(e) => setTesto(e.target.value)}
+          style={{ fontSize: TESTO_FONT_SIZE }}
           className={`${inputClass()} resize-none overflow-hidden`}
         />
       </div>
+
+      <div className="mt-4">
+        <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
+        <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass()} />
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-1 block text-sm font-medium text-gray-700">Ora - variante A (select separati)</label>
+        <div className="flex gap-2">
+          <select
+            value={oraAOre}
+            onChange={(e) => setOraAOre(e.target.value)}
+            className={`${inputClassFisso()} flex-1`}
+          >
+            <option value="">--</option>
+            {ORE.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <select
+            value={oraAMinuti}
+            onChange={(e) => setOraAMinuti(e.target.value)}
+            className={`${inputClassFisso()} flex-1`}
+          >
+            <option value="">--</option>
+            {MINUTI_STEP_15.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <label className="mb-1 block text-sm font-medium text-gray-700">Ora - variante B (slot predefiniti)</label>
+        <select value={oraB} onChange={(e) => setOraB(e.target.value)} className={inputClass()}>
+          <option value="">--</option>
+          {SLOT_ORARI.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Salva pillola locale (non il componente SalvaFlottante condiviso,
           come da richiesta esplicita — solo qui per ora, in attesa di
           portare la logica di useTastieraInset lì in uno sprint dedicato
@@ -339,57 +394,28 @@ function ModalTestContenuto({
   )
 }
 
-export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
-  const [fontSize, setFontSize] = useState(FONT_DEFAULT)
-  const [testo, setTesto] = useState(TESTO_DEFAULT)
-
-  function decrementa() {
-    setFontSize((s) => Math.max(FONT_MIN, s - FONT_STEP))
-  }
-
-  function incrementa() {
-    setFontSize((s) => Math.min(FONT_MAX, s + FONT_STEP))
-  }
-
-  const titolo = (
-    <span className="inline-flex flex-wrap items-center gap-2">
-      {/* Semaforo: un solo colore fisso per questo passo (verde), non ancora
-          ciclabile — placeholder puramente visivo, nessuno stato reale
-          dietro. Stessa forma (pallino pieno) già in uso nell'header dei
-          satelliti veri, colore scelto qui direttamente (non importato da
-          lib/lavori/satelliti-meta.ts) per restare isolato dal codice di
-          produzione. */}
-      <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
-      <span className="font-sans font-semibold text-gray-900" style={{ fontSize }}>
-        {TITOLO_PLACEHOLDER}
-      </span>
-      <span className="inline-flex items-center gap-1">
-        <button
-          type="button"
-          onClick={decrementa}
-          disabled={fontSize <= FONT_MIN}
-          aria-label="Riduci dimensione titolo"
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-300 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"
-        >
-          −
-        </button>
-        <span className="w-9 text-center text-[11px] tabular-nums text-gray-400">{fontSize}px</span>
-        <button
-          type="button"
-          onClick={incrementa}
-          disabled={fontSize >= FONT_MAX}
-          aria-label="Aumenta dimensione titolo"
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-gray-300 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-40"
-        >
-          +
-        </button>
-      </span>
+// Titolo fisso (passo 7, nessun controllo +/- residuo): nessuna dipendenza
+// da props/state, definito una sola volta a livello di modulo invece che
+// ricreato ad ogni render di ModalTest.
+const TITOLO = (
+  <span className="inline-flex items-center gap-2">
+    {/* Semaforo: un solo colore fisso per questo passo (verde), non ancora
+        ciclabile — placeholder puramente visivo, nessuno stato reale
+        dietro. Stessa forma (pallino pieno) già in uso nell'header dei
+        satelliti veri, colore scelto qui direttamente (non importato da
+        lib/lavori/satelliti-meta.ts) per restare isolato dal codice di
+        produzione. */}
+    <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-green-500" />
+    <span className="font-sans font-semibold text-gray-900" style={{ fontSize: TITOLO_FONT_SIZE }}>
+      {TITOLO_PLACEHOLDER}
     </span>
-  )
+  </span>
+)
 
+export function ModalTest({ aperto, onChiudi }: { aperto: boolean; onChiudi: () => void }) {
   return (
-    <ModalTestShell aperto={aperto} onChiudi={onChiudi} titolo={titolo}>
-      <ModalTestContenuto fontSize={fontSize} setFontSize={setFontSize} testo={testo} setTesto={setTesto} />
+    <ModalTestShell aperto={aperto} onChiudi={onChiudi} titolo={TITOLO}>
+      <ModalTestContenuto />
     </ModalTestShell>
   )
 }
