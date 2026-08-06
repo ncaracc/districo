@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
+import { ModalTest } from '@/components/test/modal-test'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
@@ -90,6 +91,10 @@ export function AppNav({
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
+  // Ambiente di iterazione rapida sul design (vedi components/test/modal-test.tsx
+  // e CLAUDE.md quando aggiornato) — non un satellite reale, nessuna
+  // restrizione d'ambiente: visibile in produzione come le altre voci.
+  const [apertoTest, setApertoTest] = useState(false)
 
   // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
   // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
@@ -136,6 +141,7 @@ export function AppNav({
   }
 
   return (
+    <>
     <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
       {/* Contenitore indipendente dalla larghezza del contenuto della pagina
           ospitante: stessa larghezza piena + stesso padding (px-4 / lg:px-12)
@@ -173,6 +179,17 @@ export function AppNav({
               </Link>
             )
           })}
+          {/* Voce "Test": non è una pagina/route (nessun href), apre la
+              Modal di test invece di navigare — stesso trattamento visivo
+              delle altre voci (mai "attiva", non essendo legata a un
+              pathname). */}
+          <button
+            type="button"
+            onClick={() => setApertoTest(true)}
+            className="border-b-2 border-transparent pb-0.5 text-sm text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
+          >
+            Test
+          </button>
           {VOCI_IN_ARRIVO.map((label) => (
             <span key={label} className="border-b-2 border-transparent pb-0.5 text-sm text-gray-300 cursor-not-allowed">
               {label}
@@ -273,6 +290,18 @@ export function AppNav({
               </li>
             )
           })}
+          <li>
+            <button
+              type="button"
+              onClick={() => {
+                setApertoTest(true)
+                setAperto(false)
+              }}
+              className="block w-full rounded-lg border-l-2 border-transparent py-4 pl-3 pr-2 text-left text-xl text-gray-600 transition-colors hover:bg-gray-50"
+            >
+              Test
+            </button>
+          </li>
           {VOCI_IN_ARRIVO.map((label) => (
             <li key={label}>
               <span className="flex cursor-not-allowed items-center justify-between border-l-2 border-transparent py-4 pl-3 pr-2 text-xl text-gray-400">
@@ -305,5 +334,7 @@ export function AppNav({
         </ul>
       </nav>
     </header>
+    <ModalTest aperto={apertoTest} onChiudi={() => setApertoTest(false)} />
+    </>
   )
 }

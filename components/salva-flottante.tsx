@@ -39,6 +39,7 @@ export function SalvaFlottante({
   testoSalva = 'Salva',
   testoSalvando = 'Salvataggio…',
   arrotondamento = 'sm:rounded-b-2xl',
+  variante = 'barra',
 }: {
   visibile: boolean
   salvando: boolean
@@ -50,8 +51,28 @@ export function SalvaFlottante({
   testoSalva?: string
   testoSalvando?: string
   arrotondamento?: string
+  // 'barra' (default, invariato): fascia sticky a piena larghezza, in uso su
+  // tutti i satelliti/Cliente/Fornitore. 'pillola' (Modal di test, vedi
+  // components/test/modal-test.tsx): bottone flottante staccato dai bordi
+  // con margine, più generoso di un FAB standard, colore acceso — stile in
+  // esplorazione, non ancora adottato altrove (aggiornare qui il commento
+  // in CLAUDE.md se/quando lo diventa).
+  variante?: 'barra' | 'pillola'
 }) {
   if (!visibile) return null
+
+  if (variante === 'pillola') {
+    return (
+      <button
+        type={onSalva ? 'button' : 'submit'}
+        onClick={onSalva}
+        disabled={salvando}
+        className="fixed bottom-5 right-5 z-[60] rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600 disabled:opacity-50"
+      >
+        {salvando ? testoSalvando : testoSalva}
+      </button>
+    )
+  }
 
   return (
     <div className="-mx-4 -mb-4 mt-4">
