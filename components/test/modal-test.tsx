@@ -36,84 +36,89 @@ const TESTO_DEFAULT = [
 ].join('\n\n')
 const TESTO_FONT_SIZE = 16
 
-// Passo 7 — nuovi controlli data/ora da confrontare visivamente (nessuna
-// persistenza, solo collegati al dirty-state come il resto). Opzioni
-// generate una sola volta a livello di modulo, non ricalcolate ad ogni
-// render.
-const ORE = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
-const MINUTI_STEP_15 = ['00', '15', '30', '45']
-
-// Variante B: un solo <select> con slot "HH:MM" predefiniti, 08:00-19:00.
-// Passo 8: il passo era 30 minuti (00, 30) — non 00/15/30/45 come indicato
-// nella richiesta (verificato nel codice prima di procedere, segnalato nel
-// riepilogo). Interpretato l'obiettivo letterale ("quarti d'ora standard +
-// 12 in più, niente pattern rigido"): minuti per ogni ora = 00/12/15/30/45,
-// tranne l'ultima ora (19) fermata a :00 per restare nel range 08:00-19:00
-// dichiarato in precedenza, non oltre.
-const MINUTI_SLOT_B = ['00', '12', '15', '30', '45']
+// Controllo ora — un solo <select> con slot "HH:MM" predefiniti (passo 7:
+// era affiancato da una "variante A" a due <select> separati, rimossa al
+// passo 9 avendo scelto questa soluzione, vedi CLAUDE.md). Range/step
+// aggiornati al passo 9: 07:30-19:30, passo 15 minuti (sostituisce il
+// pattern 00/12/15/30/45 del passo 8, un esperimento provvisorio).
 const SLOT_ORARI: string[] = []
-for (let h = 8; h <= 19; h++) {
-  for (const m of MINUTI_SLOT_B) {
-    if (h === 19 && m !== '00') break
-    SLOT_ORARI.push(`${String(h).padStart(2, '0')}:${m}`)
-  }
+for (let minuti = 7 * 60 + 30; minuti <= 19 * 60 + 30; minuti += 15) {
+  const h = String(Math.floor(minuti / 60)).padStart(2, '0')
+  const m = String(minuti % 60).padStart(2, '0')
+  SLOT_ORARI.push(`${h}:${m}`)
 }
 
-// Spazio (in px) nascosto sotto il layout viewport quando la tastiera
-// virtuale è aperta su mobile — passo 6, vedi CLAUDE.md. window.innerHeight
-// resta quello del layout viewport; window.visualViewport.height/.offsetTop
-// riflettono invece l'area REALMENTE visibile sopra la tastiera. Un
-// `position: fixed; bottom: 0` normale ignora questa differenza (motivo del
-// bug segnalato: il Salva pillola restava sotto la tastiera). Duplicato qui,
-// non ancora portato nel componente SalvaFlottante condiviso (usato dai
-// satelliti reali) come richiesto esplicitamente — solo la variante
-// 'pillola' della Modal di test lo usa per ora, in attesa di validazione.
+// Breakpoint `sm:` di Tailwind (640px) — sotto questa soglia il box della
+// Modal è `fixed` (mobile), sopra è `relative` (desktop). Deve combaciare
+// esattamente con le classi `sm:` usate più sotto.
+const BREAKPOINT_SM = 640
+
+// Passo 9: riparata la regressione del passo 8. Il bottone Salva era
+// passato da `fixed` (viewport) ad `absolute` (box Modal) per il fix dello
+// scroll — perdendo però l'aggancio a window.visualViewport che lo teneva
+// sopra la tastiera virtuale (passo 6). Stesso principio riapplicato qui,
+// ma stavolta al BOX della Modal stesso (non più al bottone, che ora la
+// segue "gratis" essendo ancorato al fondo del box): quando la tastiera è
+// aperta, top/bottom del box si aggiustano per restare dentro lo spazio
+// REALMENTE visibile (window.visualViewport), non quello del layout
+// viewport (che iOS non ridimensiona mai, vedi nota sotto).
 //
-// DIFFERENZA NOTA iOS/Android (come richiesto di segnalare esplicitamente):
-// su iOS Safari, un elemento `position: fixed` è posizionato rispetto al
-// LAYOUT viewport, non al visual viewport — quando la tastiera si apre,
-// Safari non ridimensiona affatto window.innerHeight (resta invariato),
-// riduce solo visualViewport.height e può spostare visualViewport.offsetTop
-// (la pagina scorre per portare il campo attivo in vista): un elemento
-// `fixed bottom-0` NON segue automaticamente la tastiera, resta ancorato al
-// fondo del layout viewport ormai fuori dallo schermo visibile — da qui la
-// formula sotto (`innerHeight - vv.height - vv.offsetTop`) restituisce un
-// valore concreto >0 su iOS. Su Android Chrome invece, a seconda della
-// versione/della configurazione (`interactive-widget` nel meta viewport),
-// il browser spesso ridimensiona GIÀ window.innerHeight insieme alla
-// tastiera (il layout viewport si restringe da solo) — in quel caso la
-// stessa formula restituisce ~0 (nessun offset aggiuntivo necessario,
-// l'elemento fixed è già correttamente sopra la tastiera senza alcun
-// intervento JS). La formula quindi si "auto-adatta" a entrambi i
-// comportamenti invece di assumerne uno solo, ma è importante sapere che il
-// valore osservato in pratica sarà sistematicamente diverso tra i due SO
-// (tipicamente >0 su iOS, spesso ~0 su Android) — non un bug della singola
-// piattaforma, comportamento nativo divergente dei due browser.
-function useTastieraInset() {
-  const [inset, setInset] = useState(0)
+// Perché SOLO su mobile (guardia `window.innerWidth >= BREAKPOINT_SM` →
+// null): su desktop il box è `position: relative`, dove la regola CSS per
+// `top`/`bottom` è diversa da `fixed`/`absolute` — se entrambi sono
+// specificati (non `auto`), `bottom` viene IGNORATO e vince `top` da solo,
+// quindi impostare `top: 20px` inline avrebbe spostato il box desktop di
+// 20px verso il basso invece di lasciarlo centrato (scoperto ragionando
+// sulla specifica prima di scrivere il codice, non in produzione). Su
+// `fixed`/`absolute` invece (mobile) `top` e `bottom` sono onorati insieme,
+// esattamente il comportamento voluto per "restringere" il box da entrambi
+// i lati — nessun problema lì.
+//
+// DIFFERENZA NOTA iOS/Android (come già richiesto esplicitamente al passo
+// 6, stessa logica, ora applicata al box): su iOS Safari un elemento
+// `position: fixed` è posizionato rispetto al LAYOUT viewport, che non si
+// ridimensiona mai all'apertura tastiera (si restringe solo il visual
+// viewport, con offsetTop che si sposta se la pagina scorre per portare il
+// campo attivo in vista) — la formula sotto restituirà quindi tipicamente
+// un valore concreto >0 sia per top sia per bottom quando serve. Su Android
+// Chrome, il layout viewport spesso si ridimensiona già da solo insieme
+// alla tastiera (a seconda di versione/`interactive-widget`) — la stessa
+// formula restituirà tipicamente ~0, nessun intervento aggiuntivo
+// necessario. Testato esplicitamente su Android come richiesto; iOS resta
+// da verificare separatamente (comportamento noto per essere diverso).
+function useTastieraBox() {
+  const [box, setBox] = useState<{ top: number; bottom: number } | null>(null)
 
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return
 
     function aggiorna() {
-      const nascosto = window.innerHeight - vv!.height - vv!.offsetTop
-      setInset(Math.max(0, Math.round(nascosto)))
+      if (window.innerWidth >= BREAKPOINT_SM) {
+        setBox(null)
+        return
+      }
+      const top = 20 + Math.max(0, Math.round(vv!.offsetTop))
+      const bottom = 20 + Math.max(0, Math.round(window.innerHeight - vv!.height - vv!.offsetTop))
+      setBox({ top, bottom })
     }
 
     aggiorna()
-    // 'resize' copre l'apertura/chiusura della tastiera; 'scroll' copre lo
-    // spostamento di visualViewport.offsetTop quando iOS scorre la pagina
-    // per portare il campo attivo in vista a tastiera già aperta.
+    // 'resize'/'scroll' di visualViewport coprono apertura/chiusura
+    // tastiera e lo spostamento di offsetTop; 'resize' della window copre
+    // il cambio di breakpoint (rotazione schermo, resize della finestra
+    // desktop) che da solo non tocca visualViewport.
     vv.addEventListener('resize', aggiorna)
     vv.addEventListener('scroll', aggiorna)
+    window.addEventListener('resize', aggiorna)
     return () => {
       vv.removeEventListener('resize', aggiorna)
       vv.removeEventListener('scroll', aggiorna)
+      window.removeEventListener('resize', aggiorna)
     }
   }, [])
 
-  return inset
+  return box
 }
 
 type Guardia = () => void
@@ -183,6 +188,10 @@ function ModalTestShell({
   // il re-render necessario a farlo comparire.
   const [spazioRiservato, setSpazioRiservato] = useState(0)
 
+  // Passo 9: aggiustamento top/bottom del box per la tastiera virtuale
+  // (null su desktop — vedi useTastieraBox per il perché della guardia).
+  const tastieraBox = useTastieraBox()
+
   function richiediChiusura() {
     if (guardiaRef.current) guardiaRef.current()
     else onChiudi()
@@ -235,8 +244,17 @@ function ModalTestShell({
             con l'85vh già in uso su Modal in produzione) — così su un monitor
             grande resta una finestra di dimensione ragionevole centrata, non
             un rettangolo che segue lo schermo. Solo qui, non nel Modal
-            condiviso. */}
-        <div className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]">
+            condiviso.
+
+            Passo 9: `tastieraBox` (null su desktop) sovrascrive top/bottom
+            in px quando la tastiera virtuale è aperta su mobile, restringendo
+            il box allo spazio realmente visibile (window.visualViewport) —
+            `inset-5` resta comunque la base/il fallback (left/right sempre
+            da lì, top/bottom da lì finché tastieraBox è null). */}
+        <div
+          className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]"
+          style={tastieraBox ? { top: tastieraBox.top, bottom: tastieraBox.bottom } : undefined}
+        >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">{titolo}</p>
             <button
@@ -288,9 +306,9 @@ function ModalTestShell({
 function ModalTestContenuto() {
   const [testo, setTesto] = useState(TESTO_DEFAULT)
   const [data, setData] = useState('')
-  const [oraAOre, setOraAOre] = useState('')
-  const [oraAMinuti, setOraAMinuti] = useState('')
-  const [oraB, setOraB] = useState('')
+  // Passo 9: era "oraB" quando conviveva con la (ora rimossa) variante A a
+  // due <select> separati — rinominato, non c'è più nulla da distinguere.
+  const [ora, setOra] = useState('')
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const testoRef = useRef<HTMLTextAreaElement>(null)
 
@@ -306,10 +324,10 @@ function ModalTestContenuto() {
     el.style.height = `${el.scrollHeight}px`
   }, [testo])
 
-  // Dirty-state (passo 7): il controllo +/- del titolo è sparito, sostituito
-  // da testo + i tre nuovi controlli data/ora — il Salva pillola compare
-  // alla prima modifica di uno qualunque di questi cinque campi.
-  const { dirty, segnaSalvato } = useDirtyForm({ testo, data, oraAOre, oraAMinuti, oraB })
+  // Dirty-state: testo + data + ora — il Salva pillola compare alla prima
+  // modifica di uno qualunque di questi campi (passo 9: da 5 a 3 campi,
+  // rimossa la variante A).
+  const { dirty, segnaSalvato } = useDirtyForm({ testo, data, ora })
 
   // Registra la guardia sulla Shell: con dirty=true, X/backdrop/Esc aprono
   // il dialog invece di chiudere direttamente. `chiudiReale` è il vero
@@ -401,51 +419,34 @@ function ModalTestContenuto() {
         />
       </div>
 
-      <div className="mt-4">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
-        <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass()} />
-      </div>
-
-      <div className="mt-4">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Ora - variante A (select separati)</label>
-        <div className="flex gap-2">
-          <select
-            value={oraAOre}
-            onChange={(e) => setOraAOre(e.target.value)}
-            className={`${inputClassFisso()} flex-1`}
-          >
+      {/* Passo 9: Data e Ora affiancate sulla stessa riga (prima una sotto
+          l'altra) — inputClassFisso()+flex-1 su entrambe, stesso principio
+          già usato per i due <select> della (ormai rimossa) variante A, per
+          non combinare `w-full` (di inputClass) con una larghezza flessibile
+          nella stessa classe. Variante A (due <select> ore/minuti separati)
+          rimossa: la variante B (slot predefiniti) è la soluzione scelta,
+          l'etichetta non distingue più "variante B" da altro — è solo "Ora". */}
+      <div className="mt-4 flex gap-2">
+        <div className="flex-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className={`${inputClassFisso()} w-full`}
+          />
+        </div>
+        <div className="flex-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">Ora</label>
+          <select value={ora} onChange={(e) => setOra(e.target.value)} className={`${inputClassFisso()} w-full`}>
             <option value="">--</option>
-            {ORE.map((o) => (
-              <option key={o} value={o}>
-                {o}
-              </option>
-            ))}
-          </select>
-          <select
-            value={oraAMinuti}
-            onChange={(e) => setOraAMinuti(e.target.value)}
-            className={`${inputClassFisso()} flex-1`}
-          >
-            <option value="">--</option>
-            {MINUTI_STEP_15.map((m) => (
-              <option key={m} value={m}>
-                {m}
+            {SLOT_ORARI.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>
         </div>
-      </div>
-
-      <div className="mt-4">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Ora - variante B (slot predefiniti)</label>
-        <select value={oraB} onChange={(e) => setOraB(e.target.value)} className={inputClass()}>
-          <option value="">--</option>
-          {SLOT_ORARI.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Salva pillola locale (non il componente SalvaFlottante condiviso,
@@ -456,15 +457,12 @@ function ModalTestContenuto() {
           questo bottone sia annidato dentro il div scrollabile: l'overflow
           di quel div clippa solo se il bottone eccede il SUO box, non
           rilevante qui dato che bottom:20 lo tiene ben dentro), `bottom`
-          fisso a MARGINE_SALVA — non più aggiustato per la tastiera
-          virtuale (regressione nota rispetto al passo 6: quell'aggiustamento
-          era relativo al viewport, non ha più senso con un ancoraggio al
-          box — se il problema si ripresenta va risolto riposizionando il
-          BOX stesso rispetto alla tastiera, non questo bottone; non
-          affrontato in questo passo). useTastieraInset() resta definito
-          sopra ma non più chiamato da nessuno — lasciato per un possibile
-          riuso futuro invece di eliminarlo, dato che documenta un
-          comportamento di piattaforma reale non banale da ridedurre. */}
+          fisso a MARGINE_SALVA. Passo 9: la tastiera virtuale è di nuovo
+          gestita correttamente — non più aggiustando QUESTO bottone (come
+          al passo 6), ma il BOX della Modal stesso (useTastieraBox, sopra),
+          che si restringe sopra la tastiera; il bottone, ancorato al fondo
+          del box, la segue "gratis" senza bisogno di alcun aggiustamento
+          proprio. */}
       {dirty && (
         <button
           ref={salvaRef}
