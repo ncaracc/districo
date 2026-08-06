@@ -64,11 +64,16 @@ function ModalTestShell({
           1.25rem = 20px esatti in Tailwind), fisso indipendentemente dalla
           dimensione dello schermo — `fixed` toglie il box dal flusso, quindi
           il centraggio flex del genitore non lo riguarda più su mobile.
-          Desktop (sm:): torna al centraggio flex normale, dimensione
-          ridotta di circa il 18% rispetto a quella di produzione
-          (max-w-lg/max-h-[85vh] → 420px/70vh) — solo qui, non nel Modal
+          Desktop (sm:): torna al centraggio flex normale. Corretto (passo 3):
+          una riduzione percentuale (max-w-[420px]/70vh, passo 2) non dava un
+          risultato sensato — sostituita con una larghezza massima assoluta,
+          indipendente dalla larghezza del monitor (640px, a metà del range
+          600-700px indicato) più un'altezza massima in vh (80vh, coerente
+          con l'85vh già in uso su Modal in produzione) — così su un monitor
+          grande resta una finestra di dimensione ragionevole centrata, non
+          un rettangolo che segue lo schermo. Solo qui, non nel Modal
           condiviso. */}
-      <div className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[420px] sm:max-h-[70vh]">
+      <div className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]">
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
           <p className="text-sm font-semibold text-gray-900">{titolo}</p>
           <button
