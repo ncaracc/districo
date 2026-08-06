@@ -43,13 +43,20 @@ const TESTO_FONT_SIZE = 16
 const ORE = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
 const MINUTI_STEP_15 = ['00', '15', '30', '45']
 
-// Variante B: un solo <select> con slot "HH:MM" predefiniti, 08:00-19:00
-// passo 30 minuti — range/step scelti a giudizio, non critici da validare.
+// Variante B: un solo <select> con slot "HH:MM" predefiniti, 08:00-19:00.
+// Passo 8: il passo era 30 minuti (00, 30) — non 00/15/30/45 come indicato
+// nella richiesta (verificato nel codice prima di procedere, segnalato nel
+// riepilogo). Interpretato l'obiettivo letterale ("quarti d'ora standard +
+// 12 in più, niente pattern rigido"): minuti per ogni ora = 00/12/15/30/45,
+// tranne l'ultima ora (19) fermata a :00 per restare nel range 08:00-19:00
+// dichiarato in precedenza, non oltre.
+const MINUTI_SLOT_B = ['00', '12', '15', '30', '45']
 const SLOT_ORARI: string[] = []
-for (let minuti = 8 * 60; minuti <= 19 * 60; minuti += 30) {
-  const h = String(Math.floor(minuti / 60)).padStart(2, '0')
-  const m = String(minuti % 60).padStart(2, '0')
-  SLOT_ORARI.push(`${h}:${m}`)
+for (let h = 8; h <= 19; h++) {
+  for (const m of MINUTI_SLOT_B) {
+    if (h === 19 && m !== '00') break
+    SLOT_ORARI.push(`${String(h).padStart(2, '0')}:${m}`)
+  }
 }
 
 // Spazio (in px) nascosto sotto il layout viewport quando la tastiera
@@ -111,14 +118,24 @@ function useTastieraInset() {
 
 type Guardia = () => void
 
+// Margine fisso richiesto al passo 8: sia tra il bordo inferiore del
+// bottone Salva e il bordo inferiore del box Modal, sia come contributo
+// allo spazio riservato in fondo al contenuto scrollabile.
+const MARGINE_SALVA = 20
+
 // Context locale, equivalente a quello interno di components/modal.tsx —
 // duplicato invece di importato: ModalTestShell non è il Modal condiviso
 // (vedi commento sopra), quindi non può fornire l'istanza Context di
 // quel componente (useContext funziona solo con lo stesso oggetto Context
-// usato dal Provider). Stessa identica logica del componente reale.
+// usato dal Provider). Stessa identica logica del componente reale, più
+// `impostaSpazioRiservato` (nuovo al passo 8): un discendente (il bottone
+// Salva, dentro ModalTestContenuto) non può altrimenti influenzare il
+// padding del contenitore scrollabile che vive in ModalTestShell — stesso
+// principio già usato per registraGuardia, non un pattern nuovo.
 const ModalTestContesto = createContext<{
   onChiudi: () => void
   registraGuardia: (guardia: Guardia | null) => void
+  impostaSpazioRiservato: (px: number) => void
 } | null>(null)
 
 // Equivalente locale di useProteggiChiusuraModal (components/modal.tsx,
@@ -158,6 +175,14 @@ function ModalTestShell({
   // tentativo di chiusura (X/backdrop/Esc), stesso principio di modal.tsx.
   const guardiaRef = useRef<Guardia | null>(null)
 
+  // Spazio (px) da riservare in fondo al contenuto scrollabile quando il
+  // Salva pillola è visibile — passo 8, riportato da ModalTestContenuto via
+  // impostaSpazioRiservato(). Questo, a differenza di guardiaRef, DEVE
+  // essere state (non ref): influenza direttamente il rendering (il
+  // paddingBottom del div scrollabile sotto), un ref non farebbe scattare
+  // il re-render necessario a farlo comparire.
+  const [spazioRiservato, setSpazioRiservato] = useState(0)
+
   function richiediChiusura() {
     if (guardiaRef.current) guardiaRef.current()
     else onChiudi()
@@ -189,7 +214,11 @@ function ModalTestShell({
 
   return createPortal(
     <ModalTestContesto.Provider
-      value={{ onChiudi, registraGuardia: (guardia) => { guardiaRef.current = guardia } }}
+      value={{
+        onChiudi,
+        registraGuardia: (guardia) => { guardiaRef.current = guardia },
+        impostaSpazioRiservato: setSpazioRiservato,
+      }}
     >
       <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
         <div className="fixed inset-0 bg-black/40" onClick={richiediChiusura} aria-hidden="true" />
@@ -219,7 +248,17 @@ function ModalTestShell({
               <IconaChiudi className="h-5 w-5" />
             </button>
           </div>
-          <div className="grow overflow-y-auto px-4 py-4">{children}</div>
+          {/* paddingBottom dinamico (passo 8): 16px di base (py-4) + lo
+              spazio riservato al Salva pillola quando visibile, misurato in
+              JS su ModalTestContenuto — lo stile inline sovrascrive solo
+              padding-bottom, padding-top resta quello di py-4 (Tailwind
+              genera le due proprietà separate, non uno shorthand). */}
+          <div
+            className="grow overflow-y-auto px-4 py-4"
+            style={{ paddingBottom: 16 + spazioRiservato }}
+          >
+            {children}
+          </div>
         </div>
       </div>
     </ModalTestContesto.Provider>,
@@ -272,16 +311,64 @@ function ModalTestContenuto() {
   // alla prima modifica di uno qualunque di questi cinque campi.
   const { dirty, segnaSalvato } = useDirtyForm({ testo, data, oraAOre, oraAMinuti, oraB })
 
-  // Passo 6: spazio nascosto dalla tastiera virtuale, per tenere il Salva
-  // pillola sempre sopra di essa invece che sotto (vedi useTastieraInset
-  // sopra per il dettaglio/le differenze iOS-Android).
-  const tastieraInset = useTastieraInset()
-
   // Registra la guardia sulla Shell: con dirty=true, X/backdrop/Esc aprono
   // il dialog invece di chiudere direttamente. `chiudiReale` è il vero
   // onChiudi (passato da AppNav) — invocato esplicitamente dalle due azioni
   // del dialog sotto, mai direttamente dal contenuto.
   const chiudiReale = useProteggiChiusuraModalTest(dirty, () => setConfermaUscitaAperta(true))
+
+  // Passo 8: il Salva pillola passa da `fixed` (viewport) ad `absolute`
+  // (box della Modal — sm:relative su desktop, fixed su mobile: entrambi
+  // già stabiliscono un containing block per un discendente absolute,
+  // nessuna modifica extra necessaria lì). Altezza misurata realmente via
+  // ref (non assunta fissa in codice, come richiesto esplicitamente) e
+  // comunicata a ModalTestShell tramite lo stesso Context già usato per la
+  // guardia di chiusura, per riservare lo spazio corrispondente in fondo al
+  // contenuto scrollabile.
+  const salvaRef = useRef<HTMLButtonElement>(null)
+  const ctx = useContext(ModalTestContesto)
+
+  useEffect(() => {
+    const impostaSpazioRiservato = ctx?.impostaSpazioRiservato
+    if (!impostaSpazioRiservato) return
+
+    if (!dirty) {
+      impostaSpazioRiservato(0)
+      return
+    }
+
+    const el = salvaRef.current
+    if (!el) return
+
+    function misura() {
+      impostaSpazioRiservato!(el!.offsetHeight + MARGINE_SALVA)
+    }
+    misura()
+    // ResizeObserver, non solo una misura una tantum: l'altezza del bottone
+    // può cambiare (es. testo che va a capo a viewport molto stretti) anche
+    // senza che `dirty` cambi.
+    const ro = new ResizeObserver(misura)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [ctx, dirty])
+
+  // Effetto "pulizia allo smontaggio vero", non ad ogni cambio di ctx: `ctx`
+  // cambia identità ad ogni render di ModalTestShell (il value del Provider
+  // è un oggetto letterale ricreato ogni volta, vedi sopra) — un effect con
+  // `[ctx]` come dipendenza girerebbe la propria cleanup ad ogni giro,
+  // azzerando lo spazio riservato subito dopo averlo appena impostato
+  // (bug individuato scrivendo questo stesso file, corretto prima di
+  // committare). Dipendenze vuote invece: la cleanup scatta SOLO al vero
+  // smontaggio di ModalTestContenuto — "latest ref" (stesso pattern già in
+  // uso per richiediChiusuraRef in ModalTestShell) per usare comunque il
+  // ctx più recente in quel momento, non quello catturato al primo render.
+  const ctxRef = useRef(ctx)
+  useEffect(() => {
+    ctxRef.current = ctx
+  })
+  useEffect(() => {
+    return () => ctxRef.current?.impostaSpazioRiservato(0)
+  }, [])
 
   // "Salva ed esci" ed "Esci senza salvare" si comportano allo stesso modo
   // qui: nessuna persistenza reale dietro questa Modal di test, quindi
@@ -362,19 +449,29 @@ function ModalTestContenuto() {
       </div>
 
       {/* Salva pillola locale (non il componente SalvaFlottante condiviso,
-          come da richiesta esplicita — solo qui per ora, in attesa di
-          portare la logica di useTastieraInset lì in uno sprint dedicato
-          se questa validazione funziona bene). Stesso stile della variante
-          'pillola' già esistente in SalvaFlottante, ma con `bottom`
-          calcolato dinamicamente: 50px dal fondo del visual viewport
-          (non del layout viewport), così resta sopra la tastiera invece
-          che sotto quando questa è aperta. */}
+          come da richiesta esplicita — solo qui per ora). Passo 8: da
+          `fixed` (viewport) ad `absolute` (box della Modal, il primo
+          ancestor posizionato risalendo dal DOM — qui il contenitore
+          fixed/relative di ModalTestShell, non influenzato dal fatto che
+          questo bottone sia annidato dentro il div scrollabile: l'overflow
+          di quel div clippa solo se il bottone eccede il SUO box, non
+          rilevante qui dato che bottom:20 lo tiene ben dentro), `bottom`
+          fisso a MARGINE_SALVA — non più aggiustato per la tastiera
+          virtuale (regressione nota rispetto al passo 6: quell'aggiustamento
+          era relativo al viewport, non ha più senso con un ancoraggio al
+          box — se il problema si ripresenta va risolto riposizionando il
+          BOX stesso rispetto alla tastiera, non questo bottone; non
+          affrontato in questo passo). useTastieraInset() resta definito
+          sopra ma non più chiamato da nessuno — lasciato per un possibile
+          riuso futuro invece di eliminarlo, dato che documenta un
+          comportamento di piattaforma reale non banale da ridedurre. */}
       {dirty && (
         <button
+          ref={salvaRef}
           type="button"
           onClick={() => segnaSalvato()}
-          style={{ bottom: 50 + tastieraInset }}
-          className="fixed left-1/2 z-[60] -translate-x-1/2 rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600"
+          style={{ bottom: MARGINE_SALVA }}
+          className="absolute left-1/2 z-[60] -translate-x-1/2 rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600"
         >
           Salva
         </button>
