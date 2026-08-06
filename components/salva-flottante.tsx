@@ -67,7 +67,10 @@ export function SalvaFlottante({
         type={onSalva ? 'button' : 'submit'}
         onClick={onSalva}
         disabled={salvando}
-        className="fixed bottom-5 right-5 z-[60] rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600 disabled:opacity-50"
+        // Centrato orizzontalmente (left-1/2 + -translate-x-1/2), 50px dal
+        // basso — non più ancorato all'angolo destro (passo 2, Modal di
+        // test, vedi CLAUDE.md).
+        className="fixed bottom-[50px] left-1/2 z-[60] -translate-x-1/2 rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600 disabled:opacity-50"
       >
         {salvando ? testoSalvando : testoSalva}
       </button>
