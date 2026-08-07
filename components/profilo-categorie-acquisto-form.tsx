@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { creaCategoriaAcquisto, eliminaCategoriaAcquisto } from '@/lib/acquisti/categorie'
+import { inputClass } from '@/lib/input-class'
 
 export function ProfiloCategorieAcquistoForm({ categorie }: { categorie: { id: string; nome: string }[] }) {
   const router = useRouter()
@@ -54,7 +55,7 @@ export function ProfiloCategorieAcquistoForm({ categorie }: { categorie: { id: s
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           placeholder="Nuova categoria (es. Materiale, Ferramenta, Lavorazioni esterne)"
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors"
+          className={inputClass()}
         />
         <button
           type="submit"

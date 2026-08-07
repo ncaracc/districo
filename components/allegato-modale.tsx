@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Modal } from '@/components/modal'
+import { inputClass } from '@/lib/input-class'
 
 // Flusso di caricamento allegato in un'unica modale (Sprint "allegati
 // modale" 2026-08-02, vedi CLAUDE.md): sostituisce la sequenza precedente
@@ -80,7 +81,7 @@ export function AllegatoModale({
             onChange={(e) => setEtichetta(e.target.value)}
             placeholder="Es. Foto ingresso cucina"
             disabled={loading}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors"
+            className={inputClass()}
           />
         </div>
 

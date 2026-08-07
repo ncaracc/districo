@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { AuthCard } from '@/components/auth-card'
+import { inputClass } from '@/lib/input-class'
 
 export default function PasswordDimenticataPage() {
   const [email, setEmail] = useState('')
@@ -72,7 +73,7 @@ export default function PasswordDimenticataPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors"
+                className={inputClass()}
                 placeholder="nome@esempio.it"
               />
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { PasswordInput } from '@/components/password-input'
 import { AuthCard } from '@/components/auth-card'
+import { inputClass } from '@/lib/input-class'
 
 type Stato = 'verifica' | 'pronto' | 'non_valido' | 'aggiornata'
 
@@ -130,11 +131,7 @@ export default function ReimpostaPasswordPage() {
             autoComplete="new-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-              errors.password
-                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
-            }`}
+            className={inputClass(!!errors.password)}
           />
           {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
         </div>
@@ -148,11 +145,7 @@ export default function ReimpostaPasswordPage() {
             autoComplete="new-password"
             value={confermaPassword}
             onChange={(e) => setConfermaPassword(e.target.value)}
-            className={`w-full rounded-lg border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 transition-colors ${
-              errors.confermaPassword
-                ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-                : 'border-gray-300 focus:border-gray-900 focus:ring-gray-900'
-            }`}
+            className={inputClass(!!errors.confermaPassword)}
           />
           {errors.confermaPassword && (
             <p className="mt-1 text-xs text-red-600">{errors.confermaPassword}</p>

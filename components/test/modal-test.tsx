@@ -31,18 +31,14 @@ const TITOLO_FONT_SIZE = 16
 const TESTO_DEFAULT = ''
 const TESTO_FONT_SIZE = 16
 
-// Fix preventivo per iOS Safari (segnalato da test reale su iPhone, stessa
-// sessione dei fix scroll-padding-bottom/min-w-0): Safari zooma
-// automaticamente l'intera pagina quando un <input>/<select> con
-// `font-size` sotto 16px riceve il focus — i campi Data/Ora, introdotti al
-// passo 9, erano rimasti su inputClassFisso() (text-sm, 14px), sotto quella
-// soglia. Una navigazione client-side (SPA, come da Modal di test alla
-// Dashboard) non necessariamente resetta lo zoom innescato — sintomo
-// osservato: "la Dashboard appare più larga dello schermo" dopo aver
-// toccato questi campi, pur non essendo un problema della Dashboard stessa.
-// Stesso pattern già in uso per TESTO_FONT_SIZE sopra: uno style inline
-// sovrascrive solo la dimensione del font, non l'intera classe.
-const DATA_ORA_FONT_SIZE = 16
+// Fix zoom iOS Safari su Data/Ora (segnalato da test reale su iPhone,
+// passo 9): risolto localmente con uno style inline a 16px (vedi storia
+// git), poi reso strutturale — Priorità 1 dell'audit iOS Safari/WebKit
+// (docs/audit-ios.md, 2026-08-07): `inputClassFisso()` (lib/input-class.ts)
+// è ora `text-base` (16px) di default per tutto il progetto, quindi lo
+// style inline locale qui era diventato ridondante (stesso valore) ed è
+// stato rimosso — Data/Ora ereditano il fix dal modulo condiviso come ogni
+// altro campo, nessuna eccezione locale residua in questo file.
 
 // Controllo ora — un solo <select> con slot "HH:MM" predefiniti (passo 7:
 // era affiancato da una "variante A" a due <select> separati, rimossa al
@@ -472,7 +468,6 @@ function ModalTestContenuto() {
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
-            style={{ fontSize: DATA_ORA_FONT_SIZE }}
             className={`${inputClassFisso()} w-full`}
           />
         </div>
@@ -481,7 +476,6 @@ function ModalTestContenuto() {
           <select
             value={ora}
             onChange={(e) => setOra(e.target.value)}
-            style={{ fontSize: DATA_ORA_FONT_SIZE }}
             className={`${inputClassFisso()} w-full`}
           >
             <option value="">--</option>

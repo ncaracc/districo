@@ -6,8 +6,13 @@ import { creaContatto, aggiornaContatto } from '@/lib/fornitori/actions'
 
 type Fields = { nome: string; cognome: string; cellulare: string; email: string }
 
+// Variante locale di lib/input-class.ts, non assorbita lì (padding più
+// compresso, px-2.5 py-1.5 invece di px-3 py-2, per un form annidato in una
+// card più piccola — eccezione documentata, unica occorrenza nel progetto).
+// text-base (16px), non più text-sm: stesso fix del modulo condiviso,
+// Priorità 1 dell'audit iOS Safari/WebKit (docs/audit-ios.md, 2026-08-07).
 function inputClass() {
-  return 'w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
+  return 'w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:border-gray-900 focus:ring-gray-900 transition-colors'
 }
 
 export function FornitoreSedeContattoForm({
