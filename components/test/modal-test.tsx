@@ -265,10 +265,28 @@ function ModalTestShell({
               spazio riservato al Salva pillola quando visibile, misurato in
               JS su ModalTestContenuto — lo stile inline sovrascrive solo
               padding-bottom, padding-top resta quello di py-4 (Tailwind
-              genera le due proprietà separate, non uno shorthand). */}
+              genera le due proprietà separate, non uno shorthand).
+
+              scrollPaddingBottom (fix problema 1, segnalato da test reale su
+              iPhone): stesso identico valore del paddingBottom. Il
+              paddingBottom da solo riserva lo spazio visivo, ma lo scroll
+              nativo "porta il caret in vista" di iOS Safari (che scatta ad
+              ogni ritorno a capo mentre si scrive nel textarea, indipendente
+              dai listener su window.visualViewport di useTastieraBox) non ne
+              è a conoscenza — scorre il testo fino al bordo visibile reale
+              del contenitore, ignorando sia il padding sia il bottone Salva
+              (position:absolute, dipinto sopra, invisibile a quell'algoritmo)
+              che quindi finisce sopra l'ultima riga scritta. scroll-padding
+              (CSS Scroll Snap, Safari iOS ≥14.5) esiste apposta per questo:
+              dice al browser di lasciare N px in fondo quando scorre un
+              elemento in vista — stesso meccanismo del padding visivo, ma
+              applicato allo scroll automatico. Su Android non dovrebbe
+              cambiare nulla in pratica (lì il problema non si presentava
+              già), qui aggiunto perché additivo e a basso rischio. DA
+              VERIFICARE su iPhone reale, non testabile in questo ambiente. */}
           <div
             className="grow overflow-y-auto px-4 py-4"
-            style={{ paddingBottom: 16 + spazioRiservato }}
+            style={{ paddingBottom: 16 + spazioRiservato, scrollPaddingBottom: 16 + spazioRiservato }}
           >
             {children}
           </div>
@@ -420,9 +438,22 @@ function ModalTestContenuto() {
           non combinare `w-full` (di inputClass) con una larghezza flessibile
           nella stessa classe. Variante A (due <select> ore/minuti separati)
           rimossa: la variante B (slot predefiniti) è la soluzione scelta,
-          l'etichetta non distingue più "variante B" da altro — è solo "Ora". */}
+          l'etichetta non distingue più "variante B" da altro — è solo "Ora".
+
+          min-w-0 su entrambi i wrapper (fix problema 2, segnalato da test
+          reale su iPhone): un flex item ha di default `min-width: auto`, che
+          per un controllo nativo (<select>, <input type="date">) si risolve
+          nella larghezza minima intrinseca del widget del browser — su iOS
+          Safari quel minimo è tipicamente più largo che su Android Chrome
+          (frecce/padding/segmenti gg-mm-aaaa del date picker nativo), quindi
+          né Data né Ora riuscivano a restringersi sotto quella soglia su
+          schermi stretti, invadendo lo spazio del vicino invece di andare in
+          overflow "pulito". Stesso principio già noto in questo progetto ma
+          in grid, non flex (vedi CLAUDE.md, riga allegati: "1fr equivale a
+          minmax(auto,1fr), non minmax(0,1fr)"). DA VERIFICARE su iPhone
+          reale, non testabile in questo ambiente. */}
       <div className="mt-4 flex gap-2">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <label className="mb-1 block text-sm font-medium text-gray-700">Data</label>
           <input
             type="date"
@@ -431,7 +462,7 @@ function ModalTestContenuto() {
             className={`${inputClassFisso()} w-full`}
           />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <label className="mb-1 block text-sm font-medium text-gray-700">Ora</label>
           <select value={ora} onChange={(e) => setOra(e.target.value)} className={`${inputClassFisso()} w-full`}>
             <option value="">--</option>
