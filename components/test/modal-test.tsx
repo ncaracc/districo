@@ -31,6 +31,19 @@ const TITOLO_FONT_SIZE = 16
 const TESTO_DEFAULT = ''
 const TESTO_FONT_SIZE = 16
 
+// Fix preventivo per iOS Safari (segnalato da test reale su iPhone, stessa
+// sessione dei fix scroll-padding-bottom/min-w-0): Safari zooma
+// automaticamente l'intera pagina quando un <input>/<select> con
+// `font-size` sotto 16px riceve il focus — i campi Data/Ora, introdotti al
+// passo 9, erano rimasti su inputClassFisso() (text-sm, 14px), sotto quella
+// soglia. Una navigazione client-side (SPA, come da Modal di test alla
+// Dashboard) non necessariamente resetta lo zoom innescato — sintomo
+// osservato: "la Dashboard appare più larga dello schermo" dopo aver
+// toccato questi campi, pur non essendo un problema della Dashboard stessa.
+// Stesso pattern già in uso per TESTO_FONT_SIZE sopra: uno style inline
+// sovrascrive solo la dimensione del font, non l'intera classe.
+const DATA_ORA_FONT_SIZE = 16
+
 // Controllo ora — un solo <select> con slot "HH:MM" predefiniti (passo 7:
 // era affiancato da una "variante A" a due <select> separati, rimossa al
 // passo 9 avendo scelto questa soluzione, vedi CLAUDE.md). Range/step
@@ -459,12 +472,18 @@ function ModalTestContenuto() {
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
+            style={{ fontSize: DATA_ORA_FONT_SIZE }}
             className={`${inputClassFisso()} w-full`}
           />
         </div>
         <div className="min-w-0 flex-1">
           <label className="mb-1 block text-sm font-medium text-gray-700">Ora</label>
-          <select value={ora} onChange={(e) => setOra(e.target.value)} className={`${inputClassFisso()} w-full`}>
+          <select
+            value={ora}
+            onChange={(e) => setOra(e.target.value)}
+            style={{ fontSize: DATA_ORA_FONT_SIZE }}
+            className={`${inputClassFisso()} w-full`}
+          >
             <option value="">--</option>
             {SLOT_ORARI.map((s) => (
               <option key={s} value={s}>
