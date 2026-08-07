@@ -1,10 +1,79 @@
 'use client'
 
-import { createContext, useContext, useEffect, useRef } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconaChiudi } from '@/components/icons'
 
 type Guardia = () => void
+
+// Breakpoint `sm:` di Tailwind (640px) — deve combaciare esattamente con le
+// classi `sm:` usate più sotto (stesso principio già in uso in
+// components/test/modal-test.tsx, BREAKPOINT_SM).
+const BREAKPOINT_SM = 640
+
+// Fix Finding C dell'audit iOS Safari/WebKit (docs/audit-ios.md, 2026-08-07):
+// su mobile, `max-h-[92vh]` si calcola contro il viewport "massimo" (barra
+// degli indirizzi collassata), non contro l'area REALMENTE visibile in quel
+// momento — se il satellite si apre con la barra ancora espansa, o con la
+// tastiera virtuale aperta, il box può risultare più alto dello spazio
+// visibile, con la pagina sottostante bloccata (document.body.style.overflow
+// = 'hidden' mentre la Modal è aperta) quindi senza alcun modo per l'utente
+// di raggiungere la parte tagliata.
+//
+// Porting MINIMALE e ISOLATO da useTastieraBox (components/test/modal-test.tsx):
+// solo la parte di MISURAZIONE (window.visualViewport.height, che si
+// restringe sia per il collasso della barra sia per la tastiera — a
+// differenza di `dvh`, che copre solo il primo caso), NON la parte di
+// riposizionamento top/bottom del box. Questo componente resta centrato via
+// flex (`items-center justify-center` sul contenitore, invariato) — qui si
+// limita solo l'altezza massima allo spazio realmente visibile, senza
+// riposizionare il box: risolve la "tagliata fuori dallo schermo" senza
+// cambiare il modello di posizionamento della Modal in produzione (che tocca
+// tutti gli 8 satelliti reali), scelta deliberata per restare il fix più
+// sicuro/meno invasivo possibile qui — il riposizionamento completo (box
+// `fixed`+inset dinamico) resta nello scope dello sprint di propagazione del
+// design dalla Modal di test (Finding A, non ancora iniziato, vedi CLAUDE.md).
+//
+// Attivo solo sotto BREAKPOINT_SM (torna `undefined` su desktop, dove
+// max-h-[85vh]/85dvh resta l'unica fonte di verità) e solo quando
+// window.visualViewport è disponibile — altrimenti (SSR, primo render prima
+// dell'effect, browser senza l'API) il fallback CSS max-h-[92dvh]/92vh sotto
+// si applica da solo, nessun salto visivo.
+function useAltezzaMassimaMobile(): number | undefined {
+  const [altezzaMassima, setAltezzaMassima] = useState<number | undefined>(undefined)
+
+  useEffect(() => {
+    const vv = window.visualViewport
+    if (!vv) return
+
+    function aggiorna() {
+      if (window.innerWidth >= BREAKPOINT_SM) {
+        setAltezzaMassima(undefined)
+        return
+      }
+      // 92%: stessa percentuale della classe max-h-[92vh]/[92dvh] di
+      // fallback, qui applicata però all'altezza VISIBILE reale.
+      setAltezzaMassima(Math.round(vv!.height * 0.92))
+    }
+
+    aggiorna()
+    // 'resize'/'scroll' di visualViewport coprono sia il collasso/espansione
+    // della barra indirizzi sia l'apertura/chiusura della tastiera; 'resize'
+    // della window copre il cambio di breakpoint (rotazione, resize desktop)
+    // che da solo non tocca visualViewport — stesso set di listener di
+    // useTastieraBox.
+    vv.addEventListener('resize', aggiorna)
+    vv.addEventListener('scroll', aggiorna)
+    window.addEventListener('resize', aggiorna)
+    return () => {
+      vv.removeEventListener('resize', aggiorna)
+      vv.removeEventListener('scroll', aggiorna)
+      window.removeEventListener('resize', aggiorna)
+    }
+  }, [])
+
+  return altezzaMassima
+}
 
 // Contesto interno: espone ai discendenti (i componenti satellite montati
 // come children) il vero onChiudi e un modo per "proteggere" la chiusura
@@ -78,6 +147,10 @@ export function Modal({
   // chiusura (X/backdrop/Esc).
   const guardiaRef = useRef<Guardia | null>(null)
 
+  // Fix Finding C (vedi commento della funzione sopra): altezza massima in
+  // px calcolata sull'area realmente visibile, solo su mobile.
+  const altezzaMassimaMobile = useAltezzaMassimaMobile()
+
   function richiediChiusura() {
     if (guardiaRef.current) guardiaRef.current()
     else onChiudi()
@@ -130,8 +203,24 @@ export function Modal({
             la Modal si dimensiona sul contenuto fino al tetto del 92%
             viewport (ancora "full-screen" per un form lungo, come da intento
             originale del 31/7 — "comodo per scrivere note lunghe" — semplicemente
-            non più forzato anche quando il contenuto è breve). */}
-        <div className="relative flex max-h-[92vh] w-full flex-col overflow-hidden bg-white sm:max-h-[85vh] sm:w-full sm:max-w-lg sm:rounded-2xl">
+            non più forzato anche quando il contenuto è breve).
+
+            dvh accanto a vh (fix Finding C, docs/audit-ios.md): `vh` su iOS
+            Safari si calcola contro il viewport "massimo" (barra indirizzi
+            collassata), non l'area realmente visibile — `dvh` la ricalcola
+            dal vero stato del browser. `supports-[height:100dvh]:` (non un
+            semplice passaggio a dvh puro) mantiene `vh` come fallback per i
+            browser che non supportano ancora `dvh`: se il `@supports` non
+            matcha, la dichiarazione `max-h-[…dvh]` è invalida e viene
+            scartata per intero dal browser, la classe `vh` precedente resta
+            l'unica applicata — nessuna regressione lì. `style` inline
+            (altezzaMassimaMobile, solo mobile) vince comunque su entrambe le
+            classi quando disponibile: risolve anche il caso tastiera
+            virtuale, che `dvh` da solo NON copre su iOS Safari. */}
+        <div
+          className="relative flex max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] w-full flex-col overflow-hidden bg-white sm:max-h-[85vh] sm:supports-[height:100dvh]:max-h-[85dvh] sm:w-full sm:max-w-lg sm:rounded-2xl"
+          style={altezzaMassimaMobile !== undefined ? { maxHeight: altezzaMassimaMobile } : undefined}
+        >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">{titolo}</p>
             <button
