@@ -31,6 +31,19 @@
 // margine (wrapper esterno, `position` di default) e sticky (elemento
 // interno, senza margini propri) lo risolve, indipendentemente dal
 // meccanismo esatto del browser.
+//
+// Rimossa la variante `'pillola'` (Priorità 3, audit iOS Safari/WebKit,
+// docs/audit-ios.md, 2026-08-07): mai agganciata a nessun chiamante reale
+// (solo `variante='barra'`, il default, era in uso), e conteneva il
+// comportamento *pre-fix* del bottone della Modal di test (`fixed`, senza
+// alcuna gestione della tastiera virtuale) — risincronizzarla avrebbe
+// richiesto portare anche il riposizionamento del box (`useTastieraBox`,
+// `components/test/modal-test.tsx`) dentro `components/modal.tsx`, cioè
+// esattamente la propagazione completa non ancora pianificata. Tenerla
+// "mezza corretta" (solo il bottone) sarebbe stato fuorviante quanto
+// lasciarla com'era — rimossa, da ricostruire per intero dalla versione
+// validata in `modal-test.tsx` quando lo sprint di propagazione partirà
+// (vedi "Prossimi passi aperti" in CLAUDE.md).
 export function SalvaFlottante({
   visibile,
   salvando,
@@ -39,7 +52,6 @@ export function SalvaFlottante({
   testoSalva = 'Salva',
   testoSalvando = 'Salvataggio…',
   arrotondamento = 'sm:rounded-b-2xl',
-  variante = 'barra',
 }: {
   visibile: boolean
   salvando: boolean
@@ -51,31 +63,8 @@ export function SalvaFlottante({
   testoSalva?: string
   testoSalvando?: string
   arrotondamento?: string
-  // 'barra' (default, invariato): fascia sticky a piena larghezza, in uso su
-  // tutti i satelliti/Cliente/Fornitore. 'pillola' (Modal di test, vedi
-  // components/test/modal-test.tsx): bottone flottante staccato dai bordi
-  // con margine, più generoso di un FAB standard, colore acceso — stile in
-  // esplorazione, non ancora adottato altrove (aggiornare qui il commento
-  // in CLAUDE.md se/quando lo diventa).
-  variante?: 'barra' | 'pillola'
 }) {
   if (!visibile) return null
-
-  if (variante === 'pillola') {
-    return (
-      <button
-        type={onSalva ? 'button' : 'submit'}
-        onClick={onSalva}
-        disabled={salvando}
-        // Centrato orizzontalmente (left-1/2 + -translate-x-1/2), 50px dal
-        // basso — non più ancorato all'angolo destro (passo 2, Modal di
-        // test, vedi CLAUDE.md).
-        className="fixed bottom-[50px] left-1/2 z-[60] -translate-x-1/2 rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600 disabled:opacity-50"
-      >
-        {salvando ? testoSalvando : testoSalva}
-      </button>
-    )
-  }
 
   return (
     <div className="-mx-4 -mb-4 mt-4">
