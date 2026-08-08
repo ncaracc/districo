@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { KpiDashboardCards } from '@/components/kpi-dashboard'
 import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
+import { LavoroDocumentoBottone } from '@/components/lavoro-documento-bottone'
+import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCalendario } from '@/components/icons'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { InvitoPendingCard } from './invito-pending-card'
@@ -102,7 +104,10 @@ export default async function LavoriPage() {
     // dove il vincolo max-w-2xl non è comunque mai il fattore stringente,
     // attivare il breakout costringerebbe <main> oltre la viewport reale.
     <div className="lg:relative lg:left-1/2 lg:w-screen lg:-translate-x-1/2">
-      <div className="lg:px-12">
+      {/* pb-24: spazio riservato in fondo alla pagina perché la pillola
+          "Nuovo lavoro" (fixed, sempre visibile) non copra mai l'ultima
+          riga/card della lista durante lo scroll. */}
+      <div className="pb-24 lg:px-12">
         {invitiConDettagli.length > 0 && (
           <div className="mb-6 space-y-3">
             {invitiConDettagli.map((invito) => (
@@ -111,15 +116,13 @@ export default async function LavoriPage() {
           </div>
         )}
 
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <Link
-            href="/lavori/nuovo"
-            className="shrink-0 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
-          >
-            Nuovo Lavoro
-          </Link>
-        </div>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900">Dashboard</h1>
+
+        {/* Bottone flottante (sessione affinamento UI 2026-08-08, vedi
+            CLAUDE.md): sostituisce il vecchio Link inline in testata,
+            stesso pattern "pillola" del bottone Salva validato nei modali
+            satellite — sempre visibile durante lo scroll della lista. */}
+        <PillolaFlottante href="/lavori/nuovo">Nuovo lavoro</PillolaFlottante>
 
         <KpiDashboardCards kpi={kpi} />
 
@@ -160,7 +163,10 @@ export default async function LavoriPage() {
                     <span className="text-sm text-gray-700">
                       {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
                     </span>
-                    <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                    <div className="flex items-center gap-1">
+                      <LavoroDocumentoBottone />
+                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                    </div>
                   </div>
                 </div>
               ))}
@@ -221,7 +227,10 @@ export default async function LavoriPage() {
                       </Link>
                     </td>
                     <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
-                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                      <div className="flex items-center justify-end gap-1">
+                        <LavoroDocumentoBottone />
+                        <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                      </div>
                     </td>
                   </tr>
                 ))}

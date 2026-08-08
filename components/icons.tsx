@@ -72,3 +72,21 @@ export function IconaChiudi({ className }: { className?: string }) {
     </svg>
   )
 }
+
+// Segnaposto "documento" (file-text), sessione affinamento UI 2026-08-08:
+// icona accanto al cestino nella riga Lavoro di Dashboard, nessuna azione
+// reale dietro per ora (vedi LavoroDocumentoBottone) — collegata in futuro
+// alla generazione di un PDF di sintesi lavoro con QR di accesso diretto.
+export function IconaDocumento({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path
+        d="M6.5 2.5h7l5 5V20a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5.5 20V4A1.5 1.5 0 0 1 6.5 2.5Z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M13.5 2.5V7a1 1 0 0 0 1 1h4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8.5 12.5h7M8.5 15.5h7M8.5 18.5h4.5" strokeLinecap="round" />
+    </svg>
+  )
+}

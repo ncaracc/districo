@@ -53,9 +53,10 @@ export default async function LavoroDettaglioPage({
 
   if (!lavoro) notFound()
 
-  const [{ data: isOwner }, { data: satellitiGrezzi }] = await Promise.all([
+  const [{ data: isOwner }, { data: satellitiGrezzi }, { data: cliente }] = await Promise.all([
     supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: id }),
     supabase.from('lavoro_satellite').select('*').eq('lavoro_id', id),
+    supabase.from('cliente').select('nome').eq('id', lavoro.cliente_id).maybeSingle(),
   ])
 
   const satelliti: Satellite[] = satellitiGrezzi ?? []
@@ -453,6 +454,10 @@ export default async function LavoroDettaglioPage({
 
   return (
     <div>
+      {/* Sezione 1 — Torna alla dashboard (sessione affinamento UI
+          2026-08-08, vedi CLAUDE.md): ridondante col click sul logo
+          Districo (già riporta alla home), ma mantenuto esplicito come
+          richiesto — non un comportamento ovvio per tutti gli utenti. */}
       <div className="mb-2">
         <Link
           href="/lavori"
@@ -462,6 +467,7 @@ export default async function LavoroDettaglioPage({
         </Link>
       </div>
 
+      {/* Sezione 2 — Informazioni generali */}
       <div className="mb-6">
         <LavoroInfo
           lavoroId={lavoro.id}
@@ -469,6 +475,7 @@ export default async function LavoroDettaglioPage({
           stato={lavoro.stato}
           accettatoAt={lavoro.accettato_at}
           completatoAt={lavoro.completato_at}
+          clienteNome={cliente?.nome ?? null}
           fields={{
             titolo: lavoro.titolo,
             descrizione: lavoro.descrizione,
@@ -495,6 +502,8 @@ export default async function LavoroDettaglioPage({
         </div>
       )}
 
+      {/* Sezioni 3 (elenco attività, tabella invariata) e 4 (pillola
+          "Aggiungi attività") — entrambe dentro LavoroSatelliteTabella. */}
       <LavoroSatelliteTabella
         righe={righeTabella}
         lavoroId={lavoro.id}
