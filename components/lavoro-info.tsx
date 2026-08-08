@@ -7,7 +7,7 @@ import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
 import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
 
-type LavoroInfoFields = {
+export type LavoroInfoFields = {
   titolo: string
   descrizione: string | null
   data_lavoro: string | null
@@ -50,6 +50,7 @@ export function LavoroInfo({
   completatoAt,
   clienteNome,
   fields,
+  onModificaChange,
 }: {
   lavoroId: string
   isOwner: boolean
@@ -62,8 +63,18 @@ export function LavoroInfo({
   // eliminato (dato orfano, caso limite non gestito diversamente da prima).
   clienteNome: string | null
   fields: LavoroInfoFields
+  // Sessione rifinitura 2026-08-08 (vedi CLAUDE.md): notifica il genitore
+  // quando si apre/chiude il form di modifica — usato da
+  // LavoroDettaglioSezioni per nascondere la pillola "Aggiungi attività"
+  // (altrimenti resterebbe visibile dietro al form, sovrapposta al bottone
+  // "Annulla"). Facoltativo: nessun impatto per chi non lo passa.
+  onModificaChange?: (modifica: boolean) => void
 }) {
-  const [modifica, setModifica] = useState(false)
+  const [modifica, setModificaState] = useState(false)
+  function setModifica(v: boolean) {
+    setModificaState(v)
+    onModificaChange?.(v)
+  }
 
   const indirizzoFormattato = formattaIndirizzo(fields)
   const dataFormattata = fields.data_lavoro

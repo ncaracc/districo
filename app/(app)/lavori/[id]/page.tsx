@@ -2,8 +2,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LavoroRiapri } from '@/components/lavoro-riapri'
-import { LavoroInfo } from '@/components/lavoro-info'
-import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
+import { LavoroDettaglioSezioni } from '@/components/lavoro-dettaglio-sezioni'
+import { type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { SatellitePreventivo } from '@/components/satellite-preventivo'
 import { SatelliteProgetto } from '@/components/satellite-progetto'
@@ -467,53 +467,49 @@ export default async function LavoroDettaglioPage({
         </Link>
       </div>
 
-      {/* Sezione 2 — Informazioni generali */}
-      <div className="mb-6">
-        <LavoroInfo
-          lavoroId={lavoro.id}
-          isOwner={!!isOwner}
-          stato={lavoro.stato}
-          accettatoAt={lavoro.accettato_at}
-          completatoAt={lavoro.completato_at}
-          clienteNome={cliente?.nome ?? null}
-          fields={{
-            titolo: lavoro.titolo,
-            descrizione: lavoro.descrizione,
-            data_lavoro: lavoro.data_lavoro,
-            indirizzo: lavoro.indirizzo,
-            civico: lavoro.civico,
-            cap: lavoro.cap,
-            citta: lavoro.citta,
-            sigla_provincia: lavoro.sigla_provincia,
-            nazione: lavoro.nazione,
-          }}
-        />
-      </div>
-
-      {lavoro.stato === 'opportunita' && preventivoSatelliti.length > 0 && !isOwner && (
-        <div className="mb-8">
-          <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
-        </div>
-      )}
-
-      {isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
-        <div className="mb-8">
-          <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
-        </div>
-      )}
-
-      {/* Sezioni 3 (elenco attività, tabella invariata) e 4 (pillola
-          "Aggiungi attività") — entrambe dentro LavoroSatelliteTabella. */}
-      <LavoroSatelliteTabella
-        righe={righeTabella}
+      {/* Sezione 2 (Informazioni generali) e Sezioni 3/4 (tabella attività +
+          pillola "Aggiungi attività"): wrapper client comune (sessione
+          rifinitura 2026-08-08, vedi CLAUDE.md) — nasconde la pillola
+          mentre il form di modifica qui sotto è aperto. Il contenuto in
+          mezzo (messaggio "opportunità"/"Riapri lavoro", nessuno stato
+          coinvolto) passa come children, invariato. */}
+      <LavoroDettaglioSezioni
         lavoroId={lavoro.id}
         isOwner={!!isOwner}
+        stato={lavoro.stato}
+        accettatoAt={lavoro.accettato_at}
+        completatoAt={lavoro.completato_at}
+        clienteNome={cliente?.nome ?? null}
+        fields={{
+          titolo: lavoro.titolo,
+          descrizione: lavoro.descrizione,
+          data_lavoro: lavoro.data_lavoro,
+          indirizzo: lavoro.indirizzo,
+          civico: lavoro.civico,
+          cap: lavoro.cap,
+          citta: lavoro.citta,
+          sigla_provincia: lavoro.sigla_provincia,
+          nazione: lavoro.nazione,
+        }}
         completato={completato}
+        righe={righeTabella}
         progettoEsiste={progettoEsiste}
         preventivoEsiste={preventivoEsiste}
         chiusuraEsiste={chiusuraEsiste}
         categorieAcquisto={categorieAcquisto ?? []}
-      />
+      >
+        {lavoro.stato === 'opportunita' && preventivoSatelliti.length > 0 && !isOwner && (
+          <div className="mb-8">
+            <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
+          </div>
+        )}
+
+        {isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
+          <div className="mb-8">
+            <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
+          </div>
+        )}
+      </LavoroDettaglioSezioni>
     </div>
   )
 }
