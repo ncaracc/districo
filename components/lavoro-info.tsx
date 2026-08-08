@@ -101,7 +101,11 @@ export function LavoroInfo({
         )}
       </div>
 
-      <h1 className="mt-1 text-2xl font-bold text-gray-900">{fields.titolo}</h1>
+      {/* Sessione rifinitura 2026-08-08 (vedi CLAUDE.md): titolo nascosto
+          in modalità Modifica — niente più trattamento grafico speciale,
+          il primo campo del form (Titolo, editabile) prende il suo posto
+          subito sotto la riga cliente/Modifica. */}
+      {!modifica && <h1 className="mt-1 text-2xl font-bold text-gray-900">{fields.titolo}</h1>}
 
       {modifica ? (
         <div className="mt-3">

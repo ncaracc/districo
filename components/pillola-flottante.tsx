@@ -21,8 +21,23 @@ import Link from 'next/link'
 // href → renderizza un Link (navigazione, es. "Nuovo lavoro"); onClick →
 // renderizza un button (apre una Modal in loco, es. "Aggiungi attività").
 // Esclusivi, non entrambi nello stesso utilizzo.
-const CLASSI =
-  'fixed bottom-5 left-1/2 z-30 -translate-x-1/2 whitespace-nowrap rounded-full bg-sky-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors hover:bg-sky-600'
+//
+// Classi esportate separatamente (sessione rifinitura 2026-08-08, vedi
+// CLAUDE.md): servono a comporre un gruppo di due pillole affiancate
+// (Salva/Annulla in LavoroForm) dentro un unico contenitore fixed centrato
+// — ogni pillola del gruppo non può avere la propria `fixed left-1/2
+// -translate-x-1/2` individuale (si sovrapporrebbero), quindi qui si
+// esporta solo la forma/dimensione (`PILLOLA_CLASSI_BASE`) più le due
+// varianti di colore, e il posizionamento fixed lo applica il chiamante al
+// contenitore del gruppo. `PillolaFlottante` stesso (singola pillola
+// centrata) continua a comporre tutto internamente, invariato per i
+// chiamanti esistenti.
+export const PILLOLA_CLASSI_BASE =
+  'z-30 whitespace-nowrap rounded-full px-7 py-4 text-base font-semibold shadow-lg transition-colors disabled:opacity-50'
+export const PILLOLA_CLASSI_PRIMARIA = `${PILLOLA_CLASSI_BASE} bg-sky-500 text-white shadow-sky-500/30 hover:bg-sky-600`
+export const PILLOLA_CLASSI_SECONDARIA = `${PILLOLA_CLASSI_BASE} border border-gray-300 bg-white text-gray-700 shadow-gray-900/10 hover:bg-gray-50`
+
+const CLASSI = `fixed bottom-5 left-1/2 -translate-x-1/2 ${PILLOLA_CLASSI_PRIMARIA}`
 
 export function PillolaFlottante({
   children,

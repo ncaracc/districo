@@ -95,7 +95,6 @@ export function LavoroSatelliteTabella({
   preventivoEsiste,
   chiusuraEsiste,
   categorieAcquisto,
-  nascondiPillolaAggiungi = false,
 }: {
   righe: RigaSatellite[]
   lavoroId: string
@@ -110,13 +109,6 @@ export function LavoroSatelliteTabella({
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
   categorieAcquisto: { id: string; nome: string }[]
-  // Sessione rifinitura 2026-08-08 (vedi CLAUDE.md): nasconde la pillola
-  // "Aggiungi attività" quando è aperto il form di modifica del Lavoro
-  // (titolo/indirizzo, sezione separata — non una Modal). Passato dal
-  // wrapper LavoroDettaglioSezioni, che tiene lo stato condiviso tra le due
-  // sezioni sibling. Facoltativo: chi non lo passa mantiene il comportamento
-  // di prima.
-  nascondiPillolaAggiungi?: boolean
 }) {
   const router = useRouter()
   const [apertoSatelliteId, setApertoSatelliteId] = useState<string | null>(null)
@@ -309,13 +301,15 @@ export function LavoroSatelliteTabella({
           perché non copra mai l'ultima riga della tabella.
           Nascosta (sessione rifinitura 2026-08-08) quando è aperta la
           modale di un satellite (rigaAperta, sola lettura o modifica —
-          stessa Modal in entrambi i casi), la modale "Aggiungi attività"
+          stessa Modal in entrambi i casi) o la modale "Aggiungi attività"
           stessa (mostraAggiungi — resterebbe visibile dietro alla propria
-          modale, stesso problema), o il form di modifica del Lavoro
-          (nascondiPillolaAggiungi, dal wrapper condiviso): in tutti questi
-          casi è pura distrazione dietro un backdrop semi-trasparente,
-          nessuna azione sensata da offrire in quel momento. */}
-      {isOwner && !completato && !rigaAperta && !mostraAggiungi && !nascondiPillolaAggiungi && (
+          modale, stesso problema): in entrambi i casi è pura distrazione
+          dietro un backdrop semi-trasparente, nessuna azione sensata da
+          offrire in quel momento. Il caso "form di modifica del Lavoro
+          aperto" non richiede più una condizione qui: da questa stessa
+          sessione l'intera Sezione 3 (compresa questa pillola) non viene
+          più renderizzata in quel caso — vedi LavoroDettaglioSezioni. */}
+      {isOwner && !completato && !rigaAperta && !mostraAggiungi && (
         <PillolaFlottante onClick={() => setMostraAggiungi(true)}>Aggiungi attività</PillolaFlottante>
       )}
 

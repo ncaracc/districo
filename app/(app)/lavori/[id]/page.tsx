@@ -1,4 +1,3 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { LavoroRiapri } from '@/components/lavoro-riapri'
@@ -454,25 +453,15 @@ export default async function LavoroDettaglioPage({
 
   return (
     <div>
-      {/* Sezione 1 — Torna alla dashboard (sessione affinamento UI
-          2026-08-08, vedi CLAUDE.md): ridondante col click sul logo
-          Districo (già riporta alla home), ma mantenuto esplicito come
-          richiesto — non un comportamento ovvio per tutti gli utenti. */}
-      <div className="mb-2">
-        <Link
-          href="/lavori"
-          className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-        >
-          ← Dashboard
-        </Link>
-      </div>
-
-      {/* Sezione 2 (Informazioni generali) e Sezioni 3/4 (tabella attività +
-          pillola "Aggiungi attività"): wrapper client comune (sessione
-          rifinitura 2026-08-08, vedi CLAUDE.md) — nasconde la pillola
-          mentre il form di modifica qui sotto è aperto. Il contenuto in
-          mezzo (messaggio "opportunità"/"Riapri lavoro", nessuno stato
-          coinvolto) passa come children, invariato. */}
+      {/* Sezione 1 (Torna alla dashboard), Sezione 2 (Informazioni
+          generali) e Sezioni 3/4 (tabella attività + pillola "Aggiungi
+          attività"): wrapper client comune (sessione rifinitura
+          2026-08-08, vedi CLAUDE.md) — Sezione 1 e Sezione 3 vengono
+          nascoste mentre il form di modifica del Lavoro qui sotto è
+          aperto (link "← Dashboard" ridondante coi bottoni Salva/Annulla
+          flottanti; tabella attività non pertinente in quel contesto). Il
+          contenuto in mezzo (messaggio "opportunità"/"Riapri lavoro",
+          nessuno stato coinvolto) passa come children, invariato. */}
       <LavoroDettaglioSezioni
         lavoroId={lavoro.id}
         isOwner={!!isOwner}
