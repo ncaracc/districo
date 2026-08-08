@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
+import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCestino, IconaMatita } from '@/components/icons'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
@@ -218,7 +219,7 @@ export function LavoroSatelliteTabella({
   const opzioni = ORDINE_ATTIVITA.filter((chiave) => RIPETIBILE_ATTIVITA[chiave] || !esistente[chiave])
 
   return (
-    <div>
+    <div className={isOwner && !completato ? 'pb-24' : undefined}>
       {righe.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-gray-200">
           <table className="w-full text-sm">
@@ -292,16 +293,14 @@ export function LavoroSatelliteTabella({
         </div>
       )}
 
+      {/* Bottone flottante (sessione affinamento UI 2026-08-08, vedi
+          CLAUDE.md): sostituisce il vecchio link testuale "+ Aggiungi
+          attività", stesso pattern "pillola" del bottone Salva validato nei
+          modali satellite — sempre visibile durante lo scroll della lista
+          attività. pb-24 sul contenitore radice (sotto) riserva lo spazio
+          perché non copra mai l'ultima riga della tabella. */}
       {isOwner && !completato && (
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setMostraAggiungi(true)}
-            className="text-sm font-medium text-gray-600 hover:text-gray-900"
-          >
-            + Aggiungi attività
-          </button>
-        </div>
+        <PillolaFlottante onClick={() => setMostraAggiungi(true)}>Aggiungi attività</PillolaFlottante>
       )}
 
       <Modal aperto={mostraAggiungi} onChiudi={chiudiAggiungi} titolo="Aggiungi attività">

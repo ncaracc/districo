@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { LavoroForm } from '@/components/lavoro-form'
-import { IconaCalendario, IconaMatita, IconaPin } from '@/components/icons'
+import { IconaMatita, IconaPin } from '@/components/icons'
 import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
 
@@ -25,17 +25,27 @@ const STATO_LAVORO_LABEL: Record<string, string> = {
   completato: 'Completato',
 }
 
-// Unifica in un'unica stringa "Stato · data della transizione" (es. "Accettato
-// · 27/07/2026"), invece delle due frasi separate mostrate in precedenza
-// (badge di stato in alto + "Lavoro accettato il ..." più sotto, ridondanti).
+// Colore badge stato — sessione affinamento UI 2026-08-08 (vedi CLAUDE.md):
+// copre tutti e 4 gli stati esistenti, "stile LED" per i tre che hanno un
+// significato di avanzamento (giallo/verde/rosso, stessa palette satura già
+// in uso per il semaforo attività — DOT_COLOR in satelliti-meta.ts), grigio
+// neutro per 'opportunita' (nessuna decisione presa ancora, non un
+// avvertimento — non fa parte della palette "a LED" riservata agli stati).
+const STATO_LAVORO_COLORE: Record<string, string> = {
+  opportunita: 'bg-gray-200 text-gray-700',
+  accettato: 'bg-yellow-500 text-white',
+  completato: 'bg-green-600 text-white',
+  rifiutato: 'bg-red-500 text-white',
+}
+
 // Solo accettato/completato hanno una data di transizione tracciata in
 // schema (accettato_at/completato_at) — rifiutato e opportunità mostrano
-// solo l'etichetta.
+// solo l'etichetta, invariato dal comportamento precedente.
 function formattaBadgeStato(stato: string, accettatoAt: string | null, completatoAt: string | null): string {
   const label = STATO_LAVORO_LABEL[stato] ?? stato
   const data = stato === 'accettato' ? accettatoAt : stato === 'completato' ? completatoAt : null
   if (!data) return label
-  return `${label} · ${new Date(data).toLocaleDateString('it-IT')}`
+  return `${label}: ${new Date(data).toLocaleDateString('it-IT')}`
 }
 
 function formattaIndirizzo(f: LavoroInfoFields): string | null {
@@ -57,6 +67,7 @@ export function LavoroInfo({
   stato,
   accettatoAt,
   completatoAt,
+  clienteNome,
   fields,
 }: {
   lavoroId: string
@@ -64,6 +75,11 @@ export function LavoroInfo({
   stato: string
   accettatoAt: string | null
   completatoAt: string | null
+  // Sessione affinamento UI 2026-08-08: prima non mostrato affatto in questa
+  // pagina — riga dedicata, sopra il titolo, informazione secondaria
+  // (carattere più piccolo). null se il cliente è stato nel frattempo
+  // eliminato (dato orfano, caso limite non gestito diversamente da prima).
+  clienteNome: string | null
   fields: LavoroInfoFields
 }) {
   const [modifica, setModifica] = useState(false)
@@ -75,7 +91,9 @@ export function LavoroInfo({
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3">
+      {clienteNome && <p className="text-sm text-gray-500">{clienteNome}</p>}
+
+      <div className="mt-1 flex items-start justify-between gap-3">
         <h1 className="text-2xl font-bold text-gray-900">{fields.titolo}</h1>
         {isOwner && !modifica && (
           <button
@@ -109,40 +127,51 @@ export function LavoroInfo({
         </div>
       ) : (
         <>
-          <div className="mt-2">
-            <span className="inline-block rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white">
+          {/* Riga badge doppia — 50%/50% se lo spazio lo consente
+              (sm: in su), impilata sotto: data apertura + stato colorato. */}
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {dataFormattata && (
+              <span className="inline-block rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600">
+                Aperto: {dataFormattata}
+              </span>
+            )}
+            <span
+              className={`inline-block rounded-full px-3 py-1.5 text-xs font-medium ${STATO_LAVORO_COLORE[stato] ?? 'bg-gray-200 text-gray-700'} ${dataFormattata ? '' : 'sm:col-span-2'}`}
+            >
               {formattaBadgeStato(stato, accettatoAt, completatoAt)}
             </span>
           </div>
 
           {fields.descrizione && (
-            <div className="mt-3 border-b border-gray-200 pb-3">
+            <div className="mt-3">
               <p className="whitespace-pre-wrap text-sm text-gray-700">{fields.descrizione}</p>
             </div>
           )}
 
-          <div className="mt-3 space-y-1.5 text-sm text-gray-600">
-            {dataFormattata && (
-              <p className="flex items-center gap-1.5">
-                <IconaCalendario className="h-4 w-4 shrink-0 text-gray-400" />
-                Aperto il {dataFormattata}
-              </p>
+          <div className="mt-3 flex items-center gap-1.5 text-sm">
+            <IconaPin className="h-4 w-4 shrink-0 text-gray-400" />
+            {indirizzoFormattato ? (
+              // Stile "link accento" (sessione affinamento UI 2026-08-08,
+              // vedi CLAUDE.md): sky-600, nessuna sottolineatura a riposo
+              // (solo on-hover, desktop) — stesso accento sky introdotto
+              // dalla pillola Salva validata (7/8), riusato qui come unico
+              // colore "accento" del progetto oltre al nero primario e alla
+              // palette a LED. `active:` copre il feedback touch su mobile
+              // (scurimento breve, transition-colors = 150ms di default in
+              // Tailwind, ripristinato automaticamente al rilascio del tap).
+              <a
+                href={urlGoogleMaps(fields)}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sky-600 underline-offset-2 transition-colors duration-150 hover:underline active:text-sky-800"
+              >
+                {indirizzoFormattato}
+              </a>
+            ) : (
+              <span className="inline-block rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-500">
+                Indirizzo non specificato
+              </span>
             )}
-            <p className="flex items-center gap-1.5">
-              <IconaPin className="h-4 w-4 shrink-0 text-gray-400" />
-              {indirizzoFormattato ? (
-                <a
-                  href={urlGoogleMaps(fields)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-2 hover:text-gray-900"
-                >
-                  {indirizzoFormattato}
-                </a>
-              ) : (
-                <span className="text-red-600">Indirizzo non specificato</span>
-              )}
-            </p>
           </div>
         </>
       )}
