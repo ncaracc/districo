@@ -5,6 +5,7 @@ import { LavoroForm } from '@/components/lavoro-form'
 import { IconaMatita, IconaPin } from '@/components/icons'
 import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
+import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
 
 type LavoroInfoFields = {
   titolo: string
@@ -16,26 +17,6 @@ type LavoroInfoFields = {
   citta: string | null
   sigla_provincia: string | null
   nazione: string | null
-}
-
-const STATO_LAVORO_LABEL: Record<string, string> = {
-  opportunita: 'Opportunità',
-  accettato: 'Accettato',
-  rifiutato: 'Rifiutato',
-  completato: 'Completato',
-}
-
-// Colore badge stato — sessione affinamento UI 2026-08-08 (vedi CLAUDE.md):
-// copre tutti e 4 gli stati esistenti, "stile LED" per i tre che hanno un
-// significato di avanzamento (giallo/verde/rosso, stessa palette satura già
-// in uso per il semaforo attività — DOT_COLOR in satelliti-meta.ts), grigio
-// neutro per 'opportunita' (nessuna decisione presa ancora, non un
-// avvertimento — non fa parte della palette "a LED" riservata agli stati).
-const STATO_LAVORO_COLORE: Record<string, string> = {
-  opportunita: 'bg-gray-200 text-gray-700',
-  accettato: 'bg-yellow-500 text-white',
-  completato: 'bg-green-600 text-white',
-  rifiutato: 'bg-red-500 text-white',
 }
 
 // Solo accettato/completato hanno una data di transizione tracciata in
@@ -91,10 +72,12 @@ export function LavoroInfo({
 
   return (
     <div>
-      {clienteNome && <p className="text-sm text-gray-500">{clienteNome}</p>}
-
-      <div className="mt-1 flex items-start justify-between gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">{fields.titolo}</h1>
+      {/* Sessione rifinitura 2026-08-08 (vedi CLAUDE.md): nome cliente
+          spostato sulla stessa riga del bottone Modifica, con lo stesso
+          peso visivo (contrasto) del link "← Dashboard" — non più un
+          text-gray-500 troppo tenue accanto al titolo in grassetto. */}
+      <div className="flex items-center justify-between gap-3">
+        {clienteNome && <p className="text-sm font-medium text-gray-600">{clienteNome}</p>}
         {isOwner && !modifica && (
           <button
             type="button"
@@ -106,6 +89,8 @@ export function LavoroInfo({
           </button>
         )}
       </div>
+
+      <h1 className="mt-1 text-2xl font-bold text-gray-900">{fields.titolo}</h1>
 
       {modifica ? (
         <div className="mt-3">

@@ -8,14 +8,8 @@ import { LavoroDocumentoBottone } from '@/components/lavoro-documento-bottone'
 import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCalendario } from '@/components/icons'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
 import { InvitoPendingCard } from './invito-pending-card'
-
-const STATO_LABEL: Record<string, string> = {
-  opportunita: 'Opportunità',
-  accettato: 'Accettato',
-  rifiutato: 'Rifiutato',
-  completato: 'Completato',
-}
 
 const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const
 
@@ -143,8 +137,10 @@ export default async function LavoriPage() {
                   <Link href={`/lavori/${l.id}`} className="block">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
-                      <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                        {STATO_LABEL[l.stato] ?? l.stato}
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATO_LAVORO_COLORE[l.stato] ?? 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {STATO_LAVORO_LABEL[l.stato] ?? l.stato}
                       </span>
                     </div>
                     <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-gray-900">
@@ -160,12 +156,12 @@ export default async function LavoriPage() {
                     </div>
                   </Link>
                   <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
-                    <span className="text-sm text-gray-700">
+                    <span className="text-base font-bold text-gray-900">
                       {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
                     </span>
-                    <div className="flex items-center gap-1">
-                      <LavoroDocumentoBottone />
-                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
+                    <div className="flex items-center gap-2">
+                      <LavoroDocumentoBottone grande />
+                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} grande />
                     </div>
                   </div>
                 </div>
@@ -207,8 +203,10 @@ export default async function LavoriPage() {
                     </td>
                     <td className="p-0">
                       <Link href={`/lavori/${l.id}`} className="block px-4 py-3 transition-colors group-hover:bg-gray-50">
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                          {STATO_LABEL[l.stato] ?? l.stato}
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATO_LAVORO_COLORE[l.stato] ?? 'bg-gray-100 text-gray-600'}`}
+                        >
+                          {STATO_LAVORO_LABEL[l.stato] ?? l.stato}
                         </span>
                       </Link>
                     </td>

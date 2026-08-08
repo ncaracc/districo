@@ -7,7 +7,11 @@ import { IconaDocumento } from '@/components/icons'
 // collegato in futuro alla generazione di un PDF di sintesi lavoro con QR di
 // accesso diretto. Non disabilitato (richiesto esplicitamente): resta
 // cliccabile, stesso trattamento hover/focus del cestino accanto.
-export function LavoroDocumentoBottone() {
+//
+// `grande` (sessione rifinitura 2026-08-08): variante leggermente più
+// grande usata solo dalla card mobile della Dashboard — la tabella desktop
+// resta alla dimensione originale, fuori scope di quella richiesta.
+export function LavoroDocumentoBottone({ grande = false }: { grande?: boolean }) {
   return (
     <button
       type="button"
@@ -16,7 +20,7 @@ export function LavoroDocumentoBottone() {
       title="Documento di sintesi (non ancora disponibile)"
       className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
     >
-      <IconaDocumento className="h-4 w-4" />
+      <IconaDocumento className={grande ? 'h-5 w-5' : 'h-4 w-4'} />
     </button>
   )
 }
