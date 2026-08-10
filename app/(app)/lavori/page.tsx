@@ -9,6 +9,7 @@ import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCalendario } from '@/components/icons'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import { InvitoPendingCard } from './invito-pending-card'
 
 const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const
@@ -87,21 +88,14 @@ export default async function LavoriPage() {
   const nomeClientePerId = new Map((clienti ?? []).map((c) => [c.id, c.nome]))
 
   return (
-    // "Breakout" dal max-w-2xl del layout condiviso (app/(app)/layout.tsx):
-    // questa pagina e /statistiche (Conclusi) usano la larghezza piena su
-    // desktop, le altre (Clienti, Fornitori, dettaglio Lavoro, Profilo)
-    // restano centrate come oggi — non si tocca il layout comune.
-    // Attivo solo da lg: in su (non solo per lo scope della richiesta, che
-    // riguarda esplicitamente "schermi desktop ampi": <main> vive dentro un
-    // contenitore flex-col nel root layout, quindi con overflow:visible il
-    // suo min-width automatico segue il min-content dei figli — sotto lg,
-    // dove il vincolo max-w-2xl non è comunque mai il fattore stringente,
-    // attivare il breakout costringerebbe <main> oltre la viewport reale.
-    <div className="lg:relative lg:left-1/2 lg:w-screen lg:-translate-x-1/2">
+    // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
+    // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
+    // le pagine principali (Clienti, Fornitori, dettaglio Lavoro, Conclusi).
+    <div className={CONTENITORE_LARGO}>
       {/* pb-24: spazio riservato in fondo alla pagina perché la pillola
           "Nuovo lavoro" (fixed, sempre visibile) non copra mai l'ultima
           riga/card della lista durante lo scroll. */}
-      <div className="pb-24 lg:px-12">
+      <div className="pb-24">
         {invitiConDettagli.length > 0 && (
           <div className="mb-6 space-y-3">
             {invitiConDettagli.map((invito) => (

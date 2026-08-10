@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
 import { ModalTest } from '@/components/test/modal-test'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
@@ -143,14 +144,13 @@ export function AppNav({
   return (
     <>
     <header className="border-b border-gray-200 bg-white sticky top-0 z-10">
-      {/* Contenitore indipendente dalla larghezza del contenuto della pagina
-          ospitante: stessa larghezza piena + stesso padding (px-4 / lg:px-12)
-          del "breakout" usato da Dashboard/Conclusi (app/(app)/lavori/page.tsx),
-          non il max-w-5xl mx-auto di prima — così i bordi di header/footer
-          coincidono sempre con quelli della tabella su schermi lg+,
-          indipendentemente da quanto sono strette le altre pagine (Clienti,
-          Fornitori, dettaglio Lavoro, Profilo), che restano centrate. */}
-      <div className="px-4 py-5 lg:px-12 flex items-center justify-between md:grid md:grid-cols-3 md:items-center">
+      {/* Stesso contenitore largo delle pagine principali (sessione "coerenza
+          layout desktop", 2026-08-10 — vedi CLAUDE.md e
+          lib/layout-container.ts): i bordi di header/footer coincidono così
+          con quelli del contenuto su schermi ampi, sia per le pagine che
+          usano CONTENITORE_LARGO sia per quelle più strette
+          (CONTENITORE_STRETTO), tutte centrate allo stesso modo. */}
+      <div className={`${CONTENITORE_LARGO} px-4 py-5 flex items-center justify-between md:grid md:grid-cols-3 md:items-center`}>
         <Link href="/lavori" className="flex items-center py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-14 w-auto" />

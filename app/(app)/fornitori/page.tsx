@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { inputClass } from '@/lib/input-class'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 export default async function FornitoriPage({
   searchParams,
@@ -16,7 +17,10 @@ export default async function FornitoriPage({
   const { data: fornitori } = await query
 
   return (
-    <div>
+    // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
+    // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
+    // le pagine principali (Dashboard, Clienti, dettaglio Lavoro, Conclusi).
+    <div className={CONTENITORE_LARGO}>
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Fornitori</h1>
         <Link

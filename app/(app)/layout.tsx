@@ -15,10 +15,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // valore usato resta soggetto al contenuto quando quest'ultimo (qui: la
     // tabella a piena larghezza della Dashboard, il primo contenuto
     // abbastanza largo da farlo emergere) richiede più spazio — min-w-0 da
-    // solo non basta. `w-full` forza esplicitamente il 100% del contenitore,
-    // poi `max-w-2xl` continua a limitarlo come prima quando c'è spazio in
-    // eccedenza. Nessun effetto visivo su nessuna pagina esistente.
-    <main className="w-full min-w-0 max-w-2xl mx-auto px-4 py-6">
+    // solo non basta. `w-full` forza esplicitamente il 100% del contenitore.
+    //
+    // Nessun max-width qui (sessione "coerenza layout desktop", 2026-08-10,
+    // vedi CLAUDE.md e lib/layout-container.ts): prima `<main>` imponeva
+    // `max-w-2xl` di default, costringendo le pagine che volevano più
+    // spazio a "scappare" da quel vincolo con un breakout basato su
+    // `w-screen` — causa della scrollbar orizzontale indesiderata su
+    // schermi ampi (100vw non tiene conto della scrollbar verticale del
+    // browser). Ogni pagina sceglie ora esplicitamente il proprio
+    // contenitore (`CONTENITORE_LARGO`/`CONTENITORE_STRETTO`), nessuno dei
+    // due dipende da `vw`.
+    <main className="w-full min-w-0 px-4 py-6">
       {children}
     </main>
   )

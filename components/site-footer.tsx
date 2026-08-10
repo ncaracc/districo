@@ -1,12 +1,12 @@
 import Link from 'next/link'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 export function SiteFooter() {
   return (
     <footer className="border-t border-gray-200 bg-white">
-      {/* Stesso contenitore a piena larghezza dell'header (vedi commento in
-          app-nav.tsx): niente più max-w-5xl mx-auto, stesso px-4/lg:px-12
-          del breakout Dashboard/Conclusi, per allineamento garantito. */}
-      <div className="grid grid-cols-1 gap-6 px-4 py-10 text-center md:grid-cols-3 lg:px-12">
+      {/* Stesso contenitore dell'header (vedi commento in app-nav.tsx), per
+          allineamento garantito con il contenuto delle pagine. */}
+      <div className={`${CONTENITORE_LARGO} grid grid-cols-1 gap-6 px-4 py-10 text-center md:grid-cols-3`}>
         <div className="flex items-center justify-center md:justify-start">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-9 w-auto" />

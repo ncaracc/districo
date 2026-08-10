@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 const STATO_LABEL: Record<string, string> = {
   rifiutato: 'Rifiutato',
@@ -36,61 +37,58 @@ export default async function StatistichePage({
   const nomeClientePerId = new Map((clienti ?? []).map((c) => [c.id, c.nome]))
 
   return (
-    // "Breakout" dal max-w-2xl del layout condiviso, stesso pattern di
-    // app/(app)/lavori/page.tsx (Dashboard) — scoped a lg: in su per lo
-    // stesso motivo lì documentato (min-width automatico di <main> come
-    // flex item nel root layout).
-    <div className="lg:relative lg:left-1/2 lg:w-screen lg:-translate-x-1/2">
-      <div className="lg:px-12">
-        <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori conclusi</h1>
+    // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
+    // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
+    // le pagine principali (Dashboard, Clienti, Fornitori, dettaglio Lavoro).
+    <div className={CONTENITORE_LARGO}>
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori conclusi</h1>
 
-        {/* Filtro per stato (Sprint E, 2026-08-03): tab via searchParams, pagina
-            resta un Server Component puro, nessun client component necessario —
-            stesso pattern già in uso per la ricerca di app/(app)/clienti/page.tsx. */}
-        <div className="mb-4 flex gap-2">
-          {FILTRI.map((f) => {
-            const attivo = f.valore === filtroAttivo
-            return (
-              <Link
-                key={f.label}
-                href={f.valore ? `/statistiche?stato=${f.valore}` : '/statistiche'}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  attivo ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {f.label}
-              </Link>
-            )
-          })}
-        </div>
-
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
-
-        {!lavori || lavori.length === 0 ? (
-          <p className="text-sm text-gray-500">Nessun lavoro trovato per questo filtro.</p>
-        ) : (
-          <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-            {lavori.map((l) => (
-              <li key={l.id}>
-                <Link href={`/lavori/${l.id}`} className="block px-4 py-3 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
-                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                      {STATO_LABEL[l.stato] ?? l.stato}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between gap-3">
-                    <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
-                    {l.data_lavoro && (
-                      <p className="text-xs text-gray-500">{new Date(`${l.data_lavoro}T00:00:00`).toLocaleDateString('it-IT')}</p>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* Filtro per stato (Sprint E, 2026-08-03): tab via searchParams, pagina
+          resta un Server Component puro, nessun client component necessario —
+          stesso pattern già in uso per la ricerca di app/(app)/clienti/page.tsx. */}
+      <div className="mb-4 flex gap-2">
+        {FILTRI.map((f) => {
+          const attivo = f.valore === filtroAttivo
+          return (
+            <Link
+              key={f.label}
+              href={f.valore ? `/statistiche?stato=${f.valore}` : '/statistiche'}
+              className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                attivo ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {f.label}
+            </Link>
+          )
+        })}
       </div>
+
+      <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
+
+      {!lavori || lavori.length === 0 ? (
+        <p className="text-sm text-gray-500">Nessun lavoro trovato per questo filtro.</p>
+      ) : (
+        <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
+          {lavori.map((l) => (
+            <li key={l.id}>
+              <Link href={`/lavori/${l.id}`} className="block px-4 py-3 hover:bg-gray-50 transition-colors">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-gray-900">{l.titolo}</p>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                    {STATO_LABEL[l.stato] ?? l.stato}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
+                  {l.data_lavoro && (
+                    <p className="text-xs text-gray-500">{new Date(`${l.data_lavoro}T00:00:00`).toLocaleDateString('it-IT')}</p>
+                  )}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { FornitoreForm } from '@/components/fornitore-form'
 import { FornitoreSedi } from '@/components/fornitore-sedi'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 export default async function FornitoreDettaglioPage({
   params,
@@ -47,7 +48,10 @@ export default async function FornitoreDettaglioPage({
   }))
 
   return (
-    <div>
+    // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
+    // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
+    // le pagine principali (Dashboard, Clienti, dettaglio Lavoro, Conclusi).
+    <div className={CONTENITORE_LARGO}>
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">{fornitore.ragione_sociale}</h1>
         <p className="mt-1 text-sm text-gray-500">Modifica i dati del fornitore</p>

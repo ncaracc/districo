@@ -12,6 +12,7 @@ import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
 import { SatelliteChiusura } from '@/components/satellite-chiusura'
 import { POSIZIONE_ATTIVITA } from '@/lib/lavori/attivita-ordine'
+import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import {
   STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
@@ -452,7 +453,12 @@ export default async function LavoroDettaglioPage({
   const chiusuraEsiste = chiusuraSatelliti.length > 0
 
   return (
-    <div>
+    // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
+    // vedi CLAUDE.md e lib/layout-container.ts): prima questa pagina restava
+    // sul solo max-w-2xl implicito del layout condiviso, l'unica tra le
+    // pagine principali a non condividere la larghezza usata da
+    // Dashboard/Clienti/Fornitori/Conclusi.
+    <div className={CONTENITORE_LARGO}>
       {/* Sezione 1 (Torna alla dashboard), Sezione 2 (Informazioni
           generali) e Sezioni 3/4 (tabella attività + pillola "Aggiungi
           attività"): wrapper client comune (sessione rifinitura
