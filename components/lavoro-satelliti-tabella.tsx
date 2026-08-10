@@ -130,7 +130,13 @@ export function LavoroSatelliteTabella({
   // qui si sceglie solo quale mostrare, nessun override a runtime.
   const contenutoDaMostrare = rigaAperta && (apertaInSolaLettura ? rigaAperta.contenutoLettura : rigaAperta.contenutoModifica)
   const titoloModale = rigaAperta?.titoloConPallino ? (
-    <span className="flex items-center gap-2">
+    // text-base (16px, restyling Appuntamento/Briefing 2026-08-10, vedi
+    // CLAUDE.md): stessa dimensione del titolo già validata nella Modal di
+    // test, sovrascrive il text-sm (14px) ereditato dall'header del Modal
+    // condiviso — scoped a questo span (solo le righe con titoloConPallino,
+    // oggi i tre sottotipi di Appuntamento), nessuna modifica a
+    // components/modal.tsx.
+    <span className="flex items-center gap-2 text-base">
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[rigaAperta.colore]}`} />
       {rigaAperta.nome}
     </span>

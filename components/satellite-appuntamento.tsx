@@ -1,40 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import { IconaGraffetta } from '@/components/icons'
-import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
-import { inputClass } from '@/lib/input-class'
+import type { Satellite, SatelliteAllegato, SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
+import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
-import { SalvaFlottante } from '@/components/salva-flottante'
+import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
+import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI } from '@/lib/date-utils'
 
-function aDatetimeLocal(iso: string | null): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+// Restyling 2026-08-10 (vedi CLAUDE.md): Briefing diventa il TEMPLATE DI
+// RIFERIMENTO per il restyling degli altri satelliti (sostituisce quello
+// del 4/8, superato). Riferimento di stile: la Modal di test
+// (components/test/modal-test.tsx) — header con titolo+semaforo (il
+// pallino vive nel titolo passato al Modal condiviso, vedi
+// lavoro-satelliti-tabella.tsx: `titoloConPallino`, font-size allineato lì
+// a 16px), controllo data/ora diviso in due campi separati, textarea
+// descrizione auto-crescente. Rimossa l'impostazione precedente (link
+// "📎 Allegati (n)" che apriva una vista separata nascondendo Data/
+// Descrizione): tutto è ora visibile in un unico flusso continuo,
+// Salva/Annulla sono pillole flottanti (vedi PilloleSalvaAnnulla) invece
+// della barra Salva a piena larghezza.
+//
+// Etichette per sottotipo (Briefing/Verifica misure/Montaggio condividono
+// questo stesso componente — non tecnicamente separabile senza biforcarlo,
+// stessa conclusione già raggiunta il 4/8): la richiesta descrive la
+// formulazione solo per Briefing ("...raccolti durante il briefing"),
+// declinata qui per tutti e tre i sottotipi con lo stesso registro.
+const LABEL_CONCLUSO: Record<SottotipoAppuntamento, string> = {
+  briefing: 'Contrassegna il briefing come concluso',
+  verifica_misure: 'Contrassegna la verifica misure come conclusa',
+  montaggio: 'Contrassegna il montaggio come concluso',
 }
 
-// Template di riferimento per il restyling dei modali satellite (2026-08-04,
-// vedi CLAUDE.md — applicato qui prima, sugli altri tipi in un intervento
-// successivo): il pallino di stato si è spostato nell'header del Modal
-// generico (insieme al titolo, vedi lavoro-satelliti-tabella.tsx), eliminando
-// la riga che qui lo ripeteva. Sotto, una riga a due elementi che cambia
-// contenuto con la vista corrente (corretto lo stesso giorno: la prima
-// versione teneva "Concluso" fisso lì sempre e infilava un secondo link
-// "← Generale" più sotto, nel corpo — una riga a sé stante non richiesta):
-// vista Generale → sinistra "Allegati (n)" (switch a vista Allegati), destra
-// "Concluso"; vista Allegati → sinistra "Generale" (torna indietro), destra
-// "+ Aggiungi allegato" (apre lo stesso flusso di upload a modale di sempre,
-// solo spostato qui). "Salva" resta visibile in entrambe le viste: upload/
-// eliminazione allegati sono già auto-salvanti, ma "Concluso" — pur non
-// visibile mentre si guarda la vista Allegati — resta comunque nello stato
-// locale del form, quindi "Salva" da lì lo persiste comunque se cambiato
-// prima di passare a quella vista.
+const LABEL_ALLEGATI: Record<SottotipoAppuntamento, string> = {
+  briefing: 'Puoi allegare foto e documenti raccolti durante il briefing',
+  verifica_misure: 'Puoi allegare foto e documenti raccolti durante la verifica misure',
+  montaggio: 'Puoi allegare foto e documenti raccolti durante il montaggio',
+}
+
 export function SatelliteAppuntamento({
   satellite,
   lavoroId,
@@ -47,26 +55,42 @@ export function SatelliteAppuntamento({
   isOwner: boolean
 }) {
   const router = useRouter()
-  const [vista, setVista] = useState<'generale' | 'allegati'>('generale')
-  const [data, setData] = useState(aDatetimeLocal(satellite.data_appuntamento))
+  const iniziale = aDataOraLocal(satellite.data_appuntamento)
+  const [dataLocal, setDataLocal] = useState(iniziale.data)
+  const [oraLocal, setOraLocal] = useState(iniziale.ora)
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
+  const descrizioneRef = useRef<HTMLTextAreaElement>(null)
 
-  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
-  // snapshot dei soli campi che "Salva" invia davvero — qui coincide con
-  // l'intero form (nessun campo di questo satellite si auto-salva).
-  const { dirty, segnaSalvato } = useDirtyForm({ data, descrizione, concluso })
+  // Auto-crescita del textarea sul proprio contenuto (stesso pattern della
+  // Modal di test): l'altezza segue scrollHeight, nessuna scrollbar interna
+  // — un testo lungo allunga il corpo della Modal (già scrollabile) invece
+  // di introdurre un doppio scroll annidato.
+  useEffect(() => {
+    const el = descrizioneRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [descrizione])
+
+  // Dirty-state: gli stessi 4 campi che "Salva" invia davvero.
+  const { dirty, segnaSalvato } = useDirtyForm({ dataLocal, oraLocal, descrizione, concluso })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
+
+  // Sempre valorizzato per le righe che istanziano questo componente
+  // (page.tsx filtra esplicitamente per tipo_appuntamento prima di
+  // renderizzarlo) — fallback difensivo a 'briefing', mai atteso in pratica.
+  const tipo: SottotipoAppuntamento = satellite.tipo_appuntamento ?? 'briefing'
 
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
 
     const result = await aggiornaAppuntamento(satellite.id, lavoroId, {
-      data: data ? new Date(data).toISOString() : null,
+      data: combinaDataOraLocale(dataLocal, oraLocal),
       descrizione: descrizione.trim() || null,
       concluso,
     })
@@ -79,6 +103,16 @@ export function SatelliteAppuntamento({
     segnaSalvato()
     router.refresh()
     return true
+  }
+
+  // Standard di comportamento salvataggio (2026-08-10, vedi CLAUDE.md, da
+  // applicare anche agli altri satelliti in sessioni future): "Salva" salva
+  // ma non chiude (handleSalva sopra, invariato in questo — resta aperta);
+  // "Annulla" scarta e chiude direttamente, nessuna conferma (è già
+  // un'azione esplicita di scarto). Il tentativo di chiusura indiretto
+  // (X/backdrop/Esc) resta protetto dal dialog esistente sotto, invariato.
+  function handleAnnulla() {
+    chiudiReale()
   }
 
   async function handleSalvaEEsci() {
@@ -94,100 +128,109 @@ export function SatelliteAppuntamento({
   }
 
   return (
-    // Frammento, non un unico div: SalvaFlottante deve essere sibling del
-    // div a bordo (non annidato dentro), altrimenti la sua "sticky" resta
-    // vincolata all'altezza di QUESTO div (che si dimensiona sul proprio
-    // contenuto) invece che all'altezza piena dell'area scrollabile della
-    // Modal — scoperto durante la verifica visiva del pilota (Sprint UI-2,
-    // vedi CLAUDE.md): su mobile (Modal a h-[92vh] fissa) la barra restava
-    // incollata subito sotto l'ultimo campo invece di scendere in fondo allo
-    // schermo, per un form corto come questo.
+    // Frammento, non un unico div: PilloleSalvaAnnulla deve restare fuori
+    // da qualunque wrapper con un proprio `position` (relative/absolute/
+    // fixed) — è `absolute` e deve risalire fino al box del Modal
+    // condiviso (il primo antenato posizionato), non fermarsi a un
+    // contenitore locale. Il div sotto riserva spazio in fondo (pb-24,
+    // solo quando le pillole sono visibili) perché la lista allegati non
+    // finisca coperta durante lo scroll.
     <>
-      <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          {vista === 'generale' ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setVista('allegati')}
-                className="flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                <IconaGraffetta className="h-4 w-4" />
-                Allegati ({allegati.length})
-              </button>
-              {isOwner && (
-                <label className="flex items-center gap-1.5 text-sm text-gray-700">
+      <div className={dirty ? 'pb-24' : ''}>
+        <div className="rounded-lg border border-gray-200 p-4">
+          {isOwner ? (
+            <div className="space-y-4">
+              {/* Riga 1 — Data e Ora: 50%/50% affiancate, impilate sotto sm:
+                  (stesso controllo della Modal di test, qui con lo stacking
+                  responsive in più richiesto per Briefing). */}
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="min-w-0 sm:flex-1">
+                  <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
+                    Data
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={concluso}
-                    onChange={(e) => setConcluso(e.target.checked)}
-                    className="accent-primary"
+                    id={`app-data-${satellite.id}`}
+                    type="date"
+                    value={dataLocal}
+                    onChange={(e) => setDataLocal(e.target.value)}
+                    className={`${inputClassFisso()} w-full`}
                   />
-                  Concluso
+                </div>
+                <div className="min-w-0 sm:flex-1">
+                  <label htmlFor={`app-ora-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
+                    Ora
+                  </label>
+                  <select
+                    id={`app-ora-${satellite.id}`}
+                    value={oraLocal}
+                    onChange={(e) => setOraLocal(e.target.value)}
+                    className={`${inputClassFisso()} w-full`}
+                  >
+                    <option value="">--</option>
+                    {SLOT_ORARI.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Riga 2 — Descrizione */}
+              <div>
+                <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
+                  Descrizione
                 </label>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => setVista('generale')}
-                className="text-sm font-medium text-gray-700 hover:text-gray-900"
-              >
-                Generale
-              </button>
-              {isOwner && (
-                <AllegatoTrigger
-                  satelliteId={satellite.id}
-                  lavoroId={lavoroId}
-                  isOwner={isOwner}
-                  iconClassName="h-5 w-5"
-                  iconaConBadge
+                <textarea
+                  ref={descrizioneRef}
+                  id={`app-descrizione-${satellite.id}`}
+                  value={descrizione}
+                  onChange={(e) => setDescrizione(e.target.value)}
+                  rows={3}
+                  className={`${inputClass()} resize-none overflow-hidden`}
                 />
-              )}
-            </>
+              </div>
+
+              {/* Riga 3 — Concluso: etichetta esplicita per esteso, non solo
+                  un'icona/testo criptico. */}
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={concluso}
+                  onChange={(e) => setConcluso(e.target.checked)}
+                  className="accent-primary"
+                />
+                {LABEL_CONCLUSO[tipo]}
+              </label>
+
+              {/* Riga 4 — Allegati: icona + etichetta esplicita, upload e
+                  lista direttamente qui (nessuna vista separata). Componente
+                  già esistente e già scoped per Attività (lavoro_satellite_
+                  allegato.satellite_id) — riusato as-is, non duplicato. */}
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <IconaGraffetta className="h-4 w-4 shrink-0 text-gray-500" />
+                  <span className="text-sm text-gray-700">{LABEL_ALLEGATI[tipo]}</span>
+                </div>
+                <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+                <div className="mt-1.5">
+                  <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 text-sm text-gray-700">
+              {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
+              {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
+              <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+            </div>
           )}
         </div>
-
-        {vista === 'allegati' ? (
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-        ) : isOwner ? (
-          <div className="space-y-3">
-            <div>
-              <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
-                Data
-              </label>
-              <input
-                id={`app-data-${satellite.id}`}
-                type="datetime-local"
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                className={inputClass()}
-              />
-            </div>
-
-            <div>
-              <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
-                Descrizione
-              </label>
-              <textarea
-                id={`app-descrizione-${satellite.id}`}
-                rows={8}
-                value={descrizione}
-                onChange={(e) => setDescrizione(e.target.value)}
-                className={inputClass()}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-1 text-sm text-gray-700">
-            {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
-            {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
-          </div>
-        )}
       </div>
 
-      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} />}
+      {isOwner && (
+        <PilloleSalvaAnnulla visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} onAnnulla={handleAnnulla} />
+      )}
 
       <DialogConferma
         aperto={confermaUscitaAperta}
