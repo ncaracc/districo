@@ -122,6 +122,41 @@ export async function impostaProgettoAccettato(satelliteId: string, lavoroId: st
   return { ok: true }
 }
 
+// Restyling 2026-08-11 (vedi CLAUDE.md — mappatura campi Progetto, stesso
+// template di Preventivo dello stesso giorno): Data (data_creazione, NOT
+// NULL a schema, resa editabile per la prima volta — stesso pattern di
+// aggiornaPreventivo(), il chiamante deve garantire una stringa non vuota)
+// e Descrizione (descrizione_libera, colonna già condivisa con Costruzione/
+// Campionatura/Noleggio/Preventivo, mai usata dal Progetto finora, nessuna
+// nuova colonna). Nessun side-effect su data_presentazione qui (a
+// differenza di aggiornaPreventivo): per il Progetto quella colonna si
+// valorizza al primo allegato caricato (lib/lavori/allegati.ts), non al
+// salvataggio di questi campi — invariato, fuori scope di questa sessione.
+export async function aggiornaProgetto(
+  satelliteId: string,
+  lavoroId: string,
+  fields: { dataCreazione: string; descrizione: string | null },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({ data_creazione: fields.dataCreazione, descrizione_libera: fields.descrizione })
+    .eq('id', satelliteId)
+
+  if (error) {
+    console.error('aggiornaProgetto: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
 // Restyling 2026-08-11 (vedi CLAUDE.md — verifica schema + mappatura campi
 // Preventivo): sostituisce aggiornaValorePreventivo() (solo Valore), unico
 // chiamante — nessun altro punto del codice la referenziava, rinominata
