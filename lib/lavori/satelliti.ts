@@ -307,6 +307,73 @@ export async function impostaPreventivoDecisione(
   return { ok: true }
 }
 
+// --- Acconto (2026-08-11, vedi CLAUDE.md) ---
+// Ripetibile come Campionatura: creazione senza alcun parametro, righe
+// indipendenti (nessuna catena/raggruppamento), numerazione "Acconto N" in
+// UI quando ce n'è più di una — stesso pattern di creaCampione()/
+// creaCostruzione()/creaNoleggio(). Intenzionalmente NON collegata a
+// chiusura_acconti (Chiusura Lavoro): due meccanismi indipendenti, vedi
+// CLAUDE.md.
+export async function creaAcconto(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'acconto' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaAcconto: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
+// Salva i 4 campi editabili in un solo update, inclusa la checkbox
+// "Incassato" — a differenza delle checkbox auto-salvanti di Preventivo/
+// Progetto (che pilotano lavoro.stato o riusano un flag preesistente),
+// qui non c'è alcun effetto collaterale su lavoro.stato da confermare
+// atomicamente: stesso trattamento della checkbox "Concluso" di
+// Appuntamento (Briefing/Verifica misure/Montaggio), il template di
+// riferimento primario per questa modale — parte del dirty-state
+// tracciato da Salva/Annulla, non un'azione a sé.
+export async function aggiornaAcconto(
+  satelliteId: string,
+  lavoroId: string,
+  fields: { data: string | null; valore: number | null; note: string | null; incassato: boolean },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({
+      acconto_data: fields.data,
+      valore_complessivo: fields.valore,
+      descrizione_libera: fields.note,
+      acconto_incassato: fields.incassato,
+    })
+    .eq('id', satelliteId)
+
+  if (error) {
+    console.error('aggiornaAcconto: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
 // --- Campione ---
 // Sprint D (produzione) 2026-08-02: ogni riga è un'istanza indipendente
 // (vedi CLAUDE.md) — creazione senza alcun parametro, come

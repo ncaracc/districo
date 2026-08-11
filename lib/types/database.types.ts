@@ -249,7 +249,7 @@ export type Database = {
       lavoro_satellite: {
         Row: {
           id: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto'
           // Per tipo='preventivo' (dal 1/8) e tipo='progetto' (dal 2/8) questa
           // colonna è legacy: non più letta/scritta dall'app, sostituita da
           // preventivo_accettato/preventivo_rifiutato e progetto_accettato.
@@ -285,11 +285,16 @@ export type Database = {
           // Pagamento separata), etichetta/data/importo per riga.
           chiusura_conclusa: boolean; chiusura_data: string | null
           chiusura_acconti: { etichetta: string; data: string | null; importo: number }[]
+          // Acconto (2026-08-11, vedi CLAUDE.md): intenzionalmente indipendente
+          // da chiusura_acconti sopra (due meccanismi distinti, vedi nota nel
+          // file CLAUDE.md). Importo riusa valore_complessivo, Note riusa
+          // descrizione_libera — nessuna colonna dedicata per quei due.
+          acconto_data: string | null; acconto_incassato: boolean
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
           id?: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto'
           stato?: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
@@ -312,6 +317,7 @@ export type Database = {
           ordinato?: boolean
           chiusura_conclusa?: boolean; chiusura_data?: string | null
           chiusura_acconti?: { etichetta: string; data: string | null; importo: number }[]
+          acconto_data?: string | null; acconto_incassato?: boolean
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>

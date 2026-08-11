@@ -10,6 +10,7 @@ export type ChiaveAttivita =
   | 'briefing'
   | 'progetto'
   | 'preventivo'
+  | 'acconto'
   | 'campionatura'
   | 'verifica_misure'
   | 'acquisto'
@@ -22,6 +23,10 @@ export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
   'briefing',
   'progetto',
   'preventivo',
+  // Acconto (2026-08-11, vedi CLAUDE.md): posizionata subito dopo
+  // Preventivo su richiesta esplicita, nessun vincolo condizionale (non
+  // subordinata all'accettazione del Preventivo).
+  'acconto',
   'campionatura',
   'verifica_misure',
   'acquisto',
@@ -39,6 +44,7 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
   briefing: 'Briefing',
   progetto: 'Progetto',
   preventivo: 'Preventivo',
+  acconto: 'Acconto',
   campionatura: 'Campionatura',
   verifica_misure: 'Verifica misure',
   acquisto: 'Acquisto',
@@ -53,11 +59,13 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
 // già (Chiusura aggiunta il 3/8, auto-creata come Preventivo — l'opzione
 // resta comunque per i Lavori vecchi creati prima di questa modifica).
 // Tutte le altre sono ripetibili — sempre proposte, indipendentemente da
-// quante istanze esistano già.
+// quante istanze esistano già. Acconto (2026-08-11) è ripetibile come
+// Campionatura, sempre proposta, nessun vincolo su un Preventivo accettato.
 export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   briefing: true,
   progetto: false,
   preventivo: false,
+  acconto: true,
   campionatura: true,
   verifica_misure: true,
   acquisto: true,

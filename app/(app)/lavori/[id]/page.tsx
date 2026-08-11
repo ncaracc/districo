@@ -6,6 +6,7 @@ import { type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
 import { SatelliteAppuntamento } from '@/components/satellite-appuntamento'
 import { SatellitePreventivo } from '@/components/satellite-preventivo'
 import { SatelliteProgetto } from '@/components/satellite-progetto'
+import { SatelliteAcconto } from '@/components/satellite-acconto'
 import { SatelliteCampione } from '@/components/satellite-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
@@ -16,12 +17,14 @@ import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import {
   STATO_COSTRUZIONE_LABEL,
   costruisciCatena,
+  coloreAcconto,
   coloreAcquisti,
   coloreAppuntamento,
   coloreCampione,
   coloreCostruzione,
   colorePreventivo,
   coloreProgetto,
+  labelStatoAcconto,
   labelStatoAcquisti,
   labelStatoAppuntamento,
   labelStatoCampione,
@@ -88,6 +91,9 @@ export default async function LavoroDettaglioPage({
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const progettoSatelliti = satelliti.filter((s) => s.tipo === 'progetto')
   const preventivoSatelliti = satelliti.filter((s) => s.tipo === 'preventivo')
+  const accontoSatelliti = satelliti
+    .filter((s) => s.tipo === 'acconto')
+    .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
   const campioneSatelliti = satelliti
     .filter((s) => s.tipo === 'campione')
     .sort((a, b) => a.data_creazione.localeCompare(b.data_creazione))
@@ -249,6 +255,26 @@ export default async function LavoroDettaglioPage({
       ),
     })
   }
+
+  // Acconto (2026-08-11, vedi CLAUDE.md): ripetibile come Campionatura,
+  // ogni riga un'istanza indipendente, stesso pattern di numerazione.
+  accontoSatelliti.forEach((s, i) => {
+    const nome = accontoSatelliti.length > 1 ? `Acconto ${i + 1}` : 'Acconto'
+    righeTabella.push({
+      satelliteId: s.id,
+      nome,
+      colore: coloreAcconto(s.acconto_data, s.valore_complessivo, s.acconto_incassato),
+      statoLabel: labelStatoAcconto(s.acconto_data, s.valore_complessivo, s.acconto_incassato),
+      posizione: POSIZIONE_ATTIVITA.acconto,
+      titoloConPallino: true,
+      contenutoModifica: (
+        <SatelliteAcconto satellite={s} allegati={allegatiById[s.id] ?? []} isOwner={isOwnerEffettivo} lavoroId={lavoro.id} />
+      ),
+      contenutoLettura: (
+        <SatelliteAcconto satellite={s} allegati={allegatiById[s.id] ?? []} isOwner={false} lavoroId={lavoro.id} />
+      ),
+    })
+  })
 
   // Ogni riga è un'istanza indipendente (Sprint D, produzione, 2/8, vedi
   // CLAUDE.md): niente più raggruppamento per serie/revisione_di — una riga

@@ -7,6 +7,7 @@ export type TipoSatellite =
   | 'costruzione'
   | 'noleggio'
   | 'chiusura'
+  | 'acconto'
 
 export type Acconto = { etichetta: string; data: string | null; importo: number }
 
@@ -50,6 +51,11 @@ export type Satellite = {
   chiusura_conclusa: boolean
   chiusura_data: string | null
   chiusura_acconti: Acconto[]
+  // Acconto (2026-08-11, vedi CLAUDE.md): intenzionalmente indipendente da
+  // chiusura_acconti sopra, due meccanismi distinti. Importo riusa
+  // valore_complessivo, Note riusa descrizione_libera (già nel tipo).
+  acconto_data: string | null
+  acconto_incassato: boolean
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -214,6 +220,7 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
   chiusura: 'Chiusura Lavoro',
+  acconto: 'Acconto',
 }
 
 // Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
@@ -284,4 +291,27 @@ export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
 // lib/lavori/satelliti.ts).
 export function labelStatoChiusura(concluso: boolean): string {
   return concluso ? 'Concluso' : 'Da chiudere'
+}
+
+// --- Acconto (2026-08-11, vedi CLAUDE.md) ---
+// Semaforo dedicato, non riusa nessuna funzione degli altri tipi: verde ha
+// priorità massima (incassato=true, indipendentemente dagli altri campi —
+// stessa priorità già in uso per Preventivo/Progetto/Campione/Chiusura),
+// rosso finché Data e Importo non sono ENTRAMBI valorizzati (non basta
+// uno solo), giallo quando entrambi presenti ma non ancora incassato.
+// `not incassato` esplicito nel rosso (non solo implicito nell'ordine dei
+// controlli) per restare coerente con l'equivalente SQL in
+// lavori_dashboard() (migration 0038), dove rosso/verde sono due espressioni
+// booleane indipendenti e devono restare mutuamente esclusive per non
+// contare due volte la stessa riga.
+export function coloreAcconto(dataAcconto: string | null, valoreComplessivo: number | null, incassato: boolean): ColoreSemaforo {
+  if (incassato) return 'green'
+  if (!dataAcconto || valoreComplessivo == null) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoAcconto(dataAcconto: string | null, valoreComplessivo: number | null, incassato: boolean): string {
+  if (incassato) return 'Incassato'
+  if (!dataAcconto || valoreComplessivo == null) return 'Da completare'
+  return 'In attesa'
 }

@@ -7,6 +7,7 @@ import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCestino, IconaMatita } from '@/components/icons'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
+  creaAcconto,
   creaAppuntamento,
   creaCampione,
   creaChiusura,
@@ -197,6 +198,9 @@ export function LavoroSatelliteTabella({
         return
       case 'preventivo':
         creaEApri(chiave, () => creaPreventivo(lavoroId))
+        return
+      case 'acconto':
+        creaEApri(chiave, () => creaAcconto(lavoroId))
         return
       case 'costruzione':
         creaEApri(chiave, () => creaCostruzione(lavoroId))
