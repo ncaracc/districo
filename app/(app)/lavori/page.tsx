@@ -79,6 +79,13 @@ export default async function LavoriPage() {
   ])
   const kpi = kpiGrezzo?.[0] ?? null
 
+  // Indicatore "* almeno un acconto incassato" sul Valore (vedi CLAUDE.md):
+  // ha_acconto_incassato arriva già calcolato da lavori_dashboard() (stesso
+  // join laterale usato per i conteggi rosso/giallo/verde, nessuna query
+  // aggiuntiva per riga) — qui solo la condizione per mostrare la nota
+  // sotto la tabella/le card, solo se almeno una riga visibile la richiede.
+  const mostraNotaAccontoIncassato = (lavori ?? []).some((l) => l.ha_acconto_incassato)
+
   const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
 
   const { data: clienti } =
@@ -152,6 +159,7 @@ export default async function LavoriPage() {
                   <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
                     <span className="text-base font-bold text-gray-900">
                       {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
+                      {l.ha_acconto_incassato && <sup className="text-red-500">*</sup>}
                     </span>
                     <div className="flex items-center gap-2">
                       <LavoroDocumentoBottone grande />
@@ -216,6 +224,7 @@ export default async function LavoriPage() {
                     <td className="p-0">
                       <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-right text-gray-700 transition-colors group-hover:bg-gray-50">
                         {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
+                        {l.ha_acconto_incassato && <sup className="text-red-500">*</sup>}
                       </Link>
                     </td>
                     <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
@@ -229,6 +238,13 @@ export default async function LavoriPage() {
               </tbody>
             </table>
             </div>
+
+            {/* Nota fuori dal bordo/contenitore di card e tabella (non una
+                riga aggiuntiva) — condivisa tra le due viste, visibile solo
+                se almeno una riga mostra l'asterisco. */}
+            {mostraNotaAccontoIncassato && (
+              <p className="mt-2 text-xs text-gray-500">* Il lavoro ha almeno un acconto incassato.</p>
+            )}
           </>
         )}
       </div>

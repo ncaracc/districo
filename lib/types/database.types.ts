@@ -358,6 +358,7 @@ export type Database = {
           satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number
           valore_preventivo_accettato: number | null
           ha_appuntamento_scaduto: boolean
+          ha_acconto_incassato: boolean
         }[]
       }
       kpi_dashboard: {
