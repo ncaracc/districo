@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaAppuntamento } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
-import { IconaGraffetta } from '@/components/icons'
 import type { Satellite, SatelliteAllegato, SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
@@ -38,9 +37,9 @@ const LABEL_CONCLUSO: Record<SottotipoAppuntamento, string> = {
 }
 
 const LABEL_ALLEGATI: Record<SottotipoAppuntamento, string> = {
-  briefing: 'Puoi allegare foto e documenti raccolti durante il briefing',
-  verifica_misure: 'Puoi allegare foto e documenti raccolti durante la verifica misure',
-  montaggio: 'Puoi allegare foto e documenti raccolti durante il montaggio',
+  briefing: 'Puoi allegare foto e documenti raccolti durante il briefing (file di immagine e PDF).',
+  verifica_misure: 'Puoi allegare foto e documenti raccolti durante la verifica misure (file di immagine e PDF).',
+  montaggio: 'Puoi allegare foto e documenti raccolti durante il montaggio (file di immagine e PDF).',
 }
 
 export function SatelliteAppuntamento({
@@ -200,22 +199,21 @@ export function SatelliteAppuntamento({
                   onChange={(e) => setConcluso(e.target.checked)}
                   className="accent-primary"
                 />
-                {LABEL_CONCLUSO[tipo]}
+                {LABEL_CONCLUSO[tipo]}.
               </label>
 
-              {/* Riga 4 — Allegati: icona + etichetta esplicita, upload e
-                  lista direttamente qui (nessuna vista separata). Componente
-                  già esistente e già scoped per Attività (lavoro_satellite_
-                  allegato.satellite_id) — riusato as-is, non duplicato. */}
+              {/* Riga 4 — Allegati: un solo fermaglio, quello a inizio frase,
+                  ora è l'unico trigger dell'upload (era decorativo, duplicato
+                  con un secondo fermaglio-bottone in fondo — rimosso il
+                  2026-08-11). Componente già esistente e già scoped per
+                  Attività (lavoro_satellite_allegato.satellite_id) — riusato
+                  as-is, non duplicato. */}
               <div>
                 <div className="mb-2 flex items-center gap-2">
-                  <IconaGraffetta className="h-4 w-4 shrink-0 text-gray-500" />
+                  <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
                   <span className="text-sm text-gray-700">{LABEL_ALLEGATI[tipo]}</span>
                 </div>
                 <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-                <div className="mt-1.5">
-                  <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
-                </div>
               </div>
             </div>
           ) : (
