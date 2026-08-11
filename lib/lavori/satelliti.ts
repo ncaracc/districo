@@ -122,26 +122,41 @@ export async function impostaProgettoAccettato(satelliteId: string, lavoroId: st
   return { ok: true }
 }
 
-// data_presentazione: nel vecchio modello a stati scattava alla prima
-// transizione a "presentato" — con il Preventivo ridotto a due flag
-// (revisione satelliti del 1/8, vedi impostaPreventivoDecisione più sotto)
-// il momento analogo è la prima volta che viene inserito un valore (diventa
-// "presentabile" al cliente, semaforo giallo). Valorizzata una sola volta,
-// mai sovrascritta, per non perdere il dato storico usato dal KPI "tempo di
-// preventivazione".
-export async function aggiornaValorePreventivo(
+// Restyling 2026-08-11 (vedi CLAUDE.md — verifica schema + mappatura campi
+// Preventivo): sostituisce aggiornaValorePreventivo() (solo Valore), unico
+// chiamante — nessun altro punto del codice la referenziava, rinominata
+// invece di mantenuta come alias morto. Salva insieme i tre campi editabili
+// dalla modale: Data (data_creazione — colonna già esistente, NOT NULL a
+// schema, mai stata scrivibile prima d'ora: il chiamante deve garantire una
+// stringa non vuota, un valore vuoto qui violerebbe il vincolo), Valore
+// (valore_complessivo, invariato) e Note (descrizione_libera — colonna già
+// condivisa con Costruzione/Campionatura/Noleggio, mai usata dal Preventivo
+// finora, nessuna nuova colonna). data_presentazione (colonna distinta,
+// write-only/dead KPI dalla 0034 — vedi CLAUDE.md) resta invariata, fuori
+// scope di questa sessione: stesso side-effect "leggi poi scrivi" di prima,
+// solo la prima volta che viene inserito un valore.
+export async function aggiornaPreventivo(
   satelliteId: string,
   lavoroId: string,
-  valore: number | null,
+  fields: { dataCreazione: string; valore: number | null; note: string | null },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
-  const updatePayload: { valore_complessivo: number | null; data_presentazione?: string } = { valore_complessivo: valore }
+  const updatePayload: {
+    data_creazione: string
+    valore_complessivo: number | null
+    descrizione_libera: string | null
+    data_presentazione?: string
+  } = {
+    data_creazione: fields.dataCreazione,
+    valore_complessivo: fields.valore,
+    descrizione_libera: fields.note,
+  }
 
-  if (valore != null) {
+  if (fields.valore != null) {
     const { data: corrente } = await supabase
       .from('lavoro_satellite')
       .select('data_presentazione')
@@ -156,7 +171,7 @@ export async function aggiornaValorePreventivo(
   const { error } = await supabase.from('lavoro_satellite').update(updatePayload).eq('id', satelliteId)
 
   if (error) {
-    console.error('aggiornaValorePreventivo: update fallito', error)
+    console.error('aggiornaPreventivo: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 
