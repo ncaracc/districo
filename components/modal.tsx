@@ -11,34 +11,27 @@ type Guardia = () => void
 // components/test/modal-test.tsx, BREAKPOINT_SM).
 const BREAKPOINT_SM = 640
 
-// Fix Finding C dell'audit iOS Safari/WebKit (docs/audit-ios.md, 2026-08-07):
-// su mobile, `max-h-[92vh]` si calcola contro il viewport "massimo" (barra
-// degli indirizzi collassata), non contro l'area REALMENTE visibile in quel
-// momento — se il satellite si apre con la barra ancora espansa, o con la
-// tastiera virtuale aperta, il box può risultare più alto dello spazio
-// visibile, con la pagina sottostante bloccata (document.body.style.overflow
-// = 'hidden' mentre la Modal è aperta) quindi senza alcun modo per l'utente
-// di raggiungere la parte tagliata.
-//
-// Porting MINIMALE e ISOLATO da useTastieraBox (components/test/modal-test.tsx):
-// solo la parte di MISURAZIONE (window.visualViewport.height, che si
-// restringe sia per il collasso della barra sia per la tastiera — a
-// differenza di `dvh`, che copre solo il primo caso), NON la parte di
-// riposizionamento top/bottom del box. Questo componente resta centrato via
-// flex (`items-center justify-center` sul contenitore, invariato) — qui si
-// limita solo l'altezza massima allo spazio realmente visibile, senza
-// riposizionare il box: risolve la "tagliata fuori dallo schermo" senza
-// cambiare il modello di posizionamento della Modal in produzione (che tocca
-// tutti gli 8 satelliti reali), scelta deliberata per restare il fix più
-// sicuro/meno invasivo possibile qui — il riposizionamento completo (box
-// `fixed`+inset dinamico) resta nello scope dello sprint di propagazione del
-// design dalla Modal di test (Finding A, non ancora iniziato, vedi CLAUDE.md).
+// Fix Finding C dell'audit iOS Safari/WebKit (docs/audit-ios.md, 2026-08-07),
+// RICALIBRATO l'11/8 per l'allineamento dimensioni/margini alla Modal di
+// test (vedi il commento sul box più sotto — mobile è passato da
+// `max-h-[92vh]` a `fixed inset-5`, che essendo a pixel fissi non soffre più
+// del bug `vh`/`dvh` che questo hook risolveva in origine — vedi audit-ios.md
+// §7, che aveva già notato come `inset-5` sidesteppasse il problema in
+// modal-test.tsx). Questo hook resta comunque utile come rete di sicurezza
+// per il caso tastiera virtuale (che `inset-5` da solo non gestisce, essendo
+// fisso rispetto al layout viewport, non a quello visibile quando la
+// tastiera è aperta): limita l'altezza allo spazio REALMENTE visibile meno
+// gli stessi 20px+20px di margine di `inset-5`, così il box non finisce mai
+// più alto dell'area visibile — senza però riposizionarlo (resta lo stesso
+// porting MINIMALE e ISOLATO da useTastieraBox di modal-test.tsx: solo
+// misurazione via window.visualViewport, non il riposizionamento top/bottom
+// dinamico — quello resta fuori scope, come già deciso il 7/8).
 //
 // Attivo solo sotto BREAKPOINT_SM (torna `undefined` su desktop, dove
-// max-h-[85vh]/85dvh resta l'unica fonte di verità) e solo quando
-// window.visualViewport è disponibile — altrimenti (SSR, primo render prima
-// dell'effect, browser senza l'API) il fallback CSS max-h-[92dvh]/92vh sotto
-// si applica da solo, nessun salto visivo.
+// max-h-[80vh] resta l'unica fonte di verità, nessun bug vh lì) e solo
+// quando window.visualViewport è disponibile — altrimenti (SSR, primo
+// render prima dell'effect, browser senza l'API) `inset-5` da solo si
+// applica correttamente, nessun salto visivo.
 function useAltezzaMassimaMobile(): number | undefined {
   const [altezzaMassima, setAltezzaMassima] = useState<number | undefined>(undefined)
 
@@ -51,9 +44,12 @@ function useAltezzaMassimaMobile(): number | undefined {
         setAltezzaMassima(undefined)
         return
       }
-      // 92%: stessa percentuale della classe max-h-[92vh]/[92dvh] di
-      // fallback, qui applicata però all'altezza VISIBILE reale.
-      setAltezzaMassima(Math.round(vv!.height * 0.92))
+      // -40px: stesso margine di inset-5 (20px sopra + 20px sotto), qui
+      // sottratto dall'altezza VISIBILE reale invece che dal layout
+      // viewport — così il tetto resta coerente con inset-5 nel caso
+      // comune, e si stringe ulteriormente solo quando la tastiera (o la
+      // barra indirizzi espansa) riduce davvero lo spazio visibile.
+      setAltezzaMassima(Math.round(vv!.height) - 40)
     }
 
     aggiorna()
@@ -119,10 +115,11 @@ export function useProteggiChiusuraModal(dirty: boolean, onTentativoChiusura: ()
 // max-h-[92vh] introdotto dallo Sprint UI-2 un form corto rendeva quel
 // bottom-sheet visibile per la prima volta, con un vuoto sopra — l'utente ha
 // confermato di preferire il centraggio uniforme, non di voler ripristinare
-// il vecchio comportamento). Su mobile può comunque arrivare quasi a schermo
-// intero per un form lungo (tetto 92vh, comodo per scrivere note lunghe con
-// la tastiera aperta), su desktop resta più stretta (max-w-lg). Monta i
-// figli così come sono — non introduce una modalità "sola lettura" propria,
+// il vecchio comportamento). Su mobile occupa lo schermo meno un margine
+// fisso di 20px per lato (`inset-5`, allineato l'11/8 alla Modal di test —
+// vedi commento sul box più sotto), su desktop resta più stretta
+// (max-w-[640px]/max-h-[80vh]). Monta i figli così come sono — non
+// introduce una modalità "sola lettura" propria,
 // il componente satellite esistente resta l'unica fonte di verità su
 // editabile/sola lettura in base al ruolo.
 export function Modal({
@@ -194,31 +191,38 @@ export function Modal({
       <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
         <div className="fixed inset-0 bg-black/40" onClick={richiediChiusura} aria-hidden="true" />
 
-        {/* max-h, non h-: stesso principio già in uso da sempre su desktop
-            (sm:max-h-[85vh]), esteso a mobile durante lo Sprint UI-2 (bottone
-            Salva flottante, vedi CLAUDE.md) — con un'altezza fissa, un form
-            corto (es. Appuntamento: Data+Descrizione) lasciava un vuoto sotto
-            la barra Salva invece di restarle incollata (sticky non "aggancia"
-            nulla se il contenuto non arriva a richiedere scroll). Con max-h
-            la Modal si dimensiona sul contenuto fino al tetto del 92%
-            viewport (ancora "full-screen" per un form lungo, come da intento
-            originale del 31/7 — "comodo per scrivere note lunghe" — semplicemente
-            non più forzato anche quando il contenuto è breve).
+        {/* Allineamento dimensioni/margini alla Modal di test (2026-08-11,
+            vedi CLAUDE.md — verifica e allineamento modali satellite):
+            componente/wrapper condiviso da tutti gli 8 satelliti reali, ora
+            sulla stessa identica classe della Modal di test invece di un
+            pattern divergente (prima: bordo a bordo su mobile, max-w-lg/
+            max-h-[85vh] su desktop).
 
-            dvh accanto a vh (fix Finding C, docs/audit-ios.md): `vh` su iOS
-            Safari si calcola contro il viewport "massimo" (barra indirizzi
-            collassata), non l'area realmente visibile — `dvh` la ricalcola
-            dal vero stato del browser. `supports-[height:100dvh]:` (non un
-            semplice passaggio a dvh puro) mantiene `vh` come fallback per i
-            browser che non supportano ancora `dvh`: se il `@supports` non
-            matcha, la dichiarazione `max-h-[…dvh]` è invalida e viene
-            scartata per intero dal browser, la classe `vh` precedente resta
-            l'unica applicata — nessuna regressione lì. `style` inline
-            (altezzaMassimaMobile, solo mobile) vince comunque su entrambe le
-            classi quando disponibile: risolve anche il caso tastiera
-            virtuale, che `dvh` da solo NON copre su iOS Safari. */}
+            Mobile: `fixed inset-5` — margine assoluto di 20px su tutti e 4 i
+            lati (1.25rem esatti in Tailwind), fisso indipendentemente dalla
+            dimensione dello schermo. `fixed` toglie il box dal flusso, quindi
+            il centraggio flex del contenitore genitore (`items-center
+            justify-center`) non lo riguarda più su mobile — stesso principio
+            di modal-test.tsx. Essendo a pixel fissi (non `vh`), sidesteppa
+            da solo il bug iOS Safari `vh`-vs-viewport-massimo che il vecchio
+            `max-h-[92vh]`/`dvh` risolveva (vedi docs/audit-ios.md §7, che
+            aveva già notato come modal-test.tsx non fosse esposto a quel
+            bug proprio per questo) — `useAltezzaMassimaMobile()` sopra resta
+            comunque come rete di sicurezza per il solo caso tastiera
+            virtuale (che i pixel fissi di `inset-5` da soli non coprono).
+
+            Desktop (sm:): torna al centraggio flex normale
+            (`sm:relative sm:inset-auto`), `sm:max-w-[640px]`/`sm:max-h-[80vh]`
+            — stessi valori esatti della Modal di test (non più `max-w-lg`/
+            `85vh`), scelti lì "a metà del range 600-700px indicato" più
+            un'altezza in vh coerente (nessun bug vh sul desktop, dove il
+            problema del toolbar collassabile non esiste).
+
+            `rounded-2xl` non più condizionato a `sm:`: la Modal di test è
+            arrotondata anche su mobile (il vecchio bordo-a-bordo non lo era,
+            essendo `w-full` senza margine). */}
         <div
-          className="relative flex max-h-[92vh] supports-[height:100dvh]:max-h-[92dvh] w-full flex-col overflow-hidden bg-white sm:max-h-[85vh] sm:supports-[height:100dvh]:max-h-[85dvh] sm:w-full sm:max-w-lg sm:rounded-2xl"
+          className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]"
           style={altezzaMassimaMobile !== undefined ? { maxHeight: altezzaMassimaMobile } : undefined}
         >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
