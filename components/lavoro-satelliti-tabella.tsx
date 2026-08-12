@@ -115,6 +115,44 @@ export function LavoroSatelliteTabella({
   // Crea l'attività selezionata e naviga subito alla sua route di dettaglio
   // (in modifica) — stessa UX di prima ("si apre da sola appena creata"),
   // ora tramite navigazione reale invece di stato locale.
+  //
+  // Fix bug "Aggiungi attività riporta alla Dashboard" (2026-08-13, vedi
+  // CLAUDE.md per l'indagine completa, inclusi due tentativi scartati sul
+  // lato chiusura). Causa: `router.push()` qui è l'UNICO punto dell'app che
+  // naviga subito dopo l'`await` di una Server Action che chiama anche
+  // `revalidatePath()` sulla STESSA pagina di provenienza (il click diretto
+  // su una riga esistente, per confronto, chiama `router.push()` in modo
+  // sincrono nell'onClick, senza alcun await prima). Verificato con
+  // instrumentazione diretta di `history.pushState`/`replaceState`: in una
+  // frazione non trascurabile dei tentativi (~1 su 2 nei test), Next.js
+  // usa `replaceState` al posto di `pushState` per QUESTA navigazione —
+  // race condition confermata leggendo
+  // `node_modules/next/dist/client/components/app-router.js`
+  // (`HistoryUpdater`): il refresh implicito che la Server Action stessa
+  // innesca su questa pagina (via `revalidatePath`) compete con questo
+  // `router.push()` esplicito per lo stesso "turno" di aggiornamento del
+  // router — quale dei due arriva per primo decide se `pushRef.pendingPush`
+  // viene consumato dal push giusto o da un refresh che vede l'URL già
+  // corrente (quindi replace). L'effetto quando la race va male: l'entry
+  // "/lavori/[id]" nella history del browser viene SOVRASCRITTA (mai
+  // aggiunta una nuova entry sopra) — un successivo `router.back()` alla
+  // chiusura salta quindi all'entry ANCORA PRIMA (tipicamente la
+  // Dashboard), non a "/lavori/[id]" come atteso.
+  //
+  // **Fix scelto, sul lato APERTURA** (non chiusura — due tentativi lì
+  // scartati dopo verifica empirica, vedi attivita-modale-route.tsx):
+  // `setTimeout(..., 0)` sposta il `router.push()` a un macrotask
+  // successivo, fuori dal turno di aggiornamento del router in cui il
+  // refresh implicito della Server Action è ancora "in coda" — verificato
+  // affidabile su 15 tentativi consecutivi (0 fallimenti, contro una
+  // frequenza di fallimento di circa 1 su 2 senza il ritardo). Nessuna
+  // API pubblica di Next.js per attendere/rilevare la fine del refresh
+  // implicito in modo deterministico — un ritardo "a zero" (yield al
+  // prossimo giro dell'event loop, non un tempo fisso arbitrario) è la
+  // soluzione più mirata disponibile: lascia drenare la coda di azioni del
+  // router già pianificate prima del nostro push esplicito, senza
+  // introdurre alcun ritardo percepibile per l'utente (impossibile da
+  // notare a occhio, sotto il singolo frame).
   async function creaEApri(azione: () => Promise<{ ok: true; id: string } | { ok: false; error: string }>) {
     setErroreAggiungi(null)
     const result = await azione()
@@ -123,7 +161,7 @@ export function LavoroSatelliteTabella({
       return
     }
     chiudiAggiungi()
-    router.push(urlAttivita(result.id, 'modifica'))
+    setTimeout(() => router.push(urlAttivita(result.id, 'modifica')), 0)
   }
 
   function handleSeleziona(chiave: ChiaveAttivita) {
