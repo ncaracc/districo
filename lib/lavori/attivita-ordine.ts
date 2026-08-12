@@ -14,13 +14,13 @@ export type ChiaveAttivita =
   | 'progetto'
   | 'preventivo'
   | 'acconto'
+  | 'spesa_non_preventivata'
   | 'campionatura'
   | 'verifica_misure'
   | 'acquisto'
   | 'costruzione'
   | 'noleggio'
   | 'montaggio'
-  | 'spesa_non_preventivata'
   | 'chiusura'
 
 export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
@@ -31,17 +31,16 @@ export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
   // Preventivo su richiesta esplicita, nessun vincolo condizionale (non
   // subordinata all'accettazione del Preventivo).
   'acconto',
+  // "Attività non preventivate" (2026-08-13, vedi CLAUDE.md; posizione
+  // corretta il 2026-08-13 — spostata da "subito prima di Chiusura" a
+  // "subito dopo Acconto" su richiesta esplicita).
+  'spesa_non_preventivata',
   'campionatura',
   'verifica_misure',
   'acquisto',
   'costruzione',
   'noleggio',
   'montaggio',
-  // "Attività non preventivate" (2026-08-13, vedi CLAUDE.md): nessuna
-  // posizione esplicitamente richiesta — collocata subito prima di
-  // Chiusura (di cui alimenta direttamente il calcolo "Valore
-  // complessivo"), dopo tutte le attività di esecuzione.
-  'spesa_non_preventivata',
   'chiusura',
 ]
 
@@ -54,13 +53,13 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
   progetto: 'Progetto',
   preventivo: 'Preventivo',
   acconto: 'Acconto',
+  spesa_non_preventivata: 'Attività non preventivate',
   campionatura: 'Campionatura',
   verifica_misure: 'Verifica misure',
   acquisto: 'Acquisto',
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
   montaggio: 'Montaggio',
-  spesa_non_preventivata: 'Attività non preventivate',
   chiusura: 'Chiusura Lavoro',
 }
 
@@ -92,12 +91,12 @@ export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   progetto: false,
   preventivo: false,
   acconto: true,
+  spesa_non_preventivata: true,
   campionatura: true,
   verifica_misure: true,
   acquisto: true,
   costruzione: false,
   noleggio: true,
   montaggio: false,
-  spesa_non_preventivata: true,
   chiusura: false,
 }
