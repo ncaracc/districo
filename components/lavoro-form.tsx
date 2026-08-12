@@ -144,18 +144,12 @@ export function LavoroForm({
           </label>
           <input id="lavoro-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
         </div>
-        <div>
-          <label htmlFor="lavoro-nazione" className="mb-1 block text-sm font-medium text-gray-700">
-            Nazione
-          </label>
-          <select id="lavoro-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
-            {PAESI.map((p) => (
-              <option key={p.nome} value={p.nome}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Ordine Città → Provincia → Nazione (sessione rifinitura
+            2026-08-12, vedi CLAUDE.md — prima Città → Nazione → Provincia):
+            l'ordine nel markup è quello che conta per la griglia a 2
+            colonne con auto-placement riga per riga, quindi va rispettato
+            anche quando i campi vanno a capo su una riga propria, non solo
+            quando sono affiancati. */}
         <div>
           <label htmlFor="lavoro-sigla-provincia" className="mb-1 block text-sm font-medium text-gray-700">
             {labelProvincia ?? 'Sigla provincia'}
@@ -167,6 +161,18 @@ export function LavoroForm({
             placeholder="Es. BO"
             className={inputClass()}
           />
+        </div>
+        <div>
+          <label htmlFor="lavoro-nazione" className="mb-1 block text-sm font-medium text-gray-700">
+            Nazione
+          </label>
+          <select id="lavoro-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
+            {PAESI.map((p) => (
+              <option key={p.nome} value={p.nome}>
+                {p.nome}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

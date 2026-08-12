@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { aggiornaCostruzione } from '@/lib/lavori/satelliti'
 import type { Satellite, SatelliteAllegato, SessioneLavoro } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
-import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI } from '@/lib/date-utils'
+import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, CAMPO_DATA_ORA_CLASSI } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
@@ -195,17 +195,17 @@ export function SatelliteCostruzione({
 
                     <div>
                       <p className="mb-1 text-xs font-medium text-gray-700">Inizio</p>
-                      <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className={`${RIGA_DATA_ORA_CLASSI} gap-2`}>
                         <input
                           type="date"
                           value={s.inizioData}
                           onChange={(e) => aggiornaSessione(i, 'inizioData', e.target.value)}
-                          className={`${inputClassFisso()} w-full sm:flex-1`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
                         />
                         <select
                           value={s.inizioOra}
                           onChange={(e) => aggiornaSessione(i, 'inizioOra', e.target.value)}
-                          className={`${inputClassFisso()} w-full sm:flex-1`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
                         >
                           <option value="">--</option>
                           {SLOT_ORARI.map((o) => (
@@ -219,17 +219,17 @@ export function SatelliteCostruzione({
 
                     <div>
                       <p className="mb-1 text-xs font-medium text-gray-700">Fine</p>
-                      <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className={`${RIGA_DATA_ORA_CLASSI} gap-2`}>
                         <input
                           type="date"
                           value={s.fineData}
                           onChange={(e) => aggiornaSessione(i, 'fineData', e.target.value)}
-                          className={`${inputClassFisso()} w-full sm:flex-1`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
                         />
                         <select
                           value={s.fineOra}
                           onChange={(e) => aggiornaSessione(i, 'fineOra', e.target.value)}
-                          className={`${inputClassFisso()} w-full sm:flex-1`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
                         >
                           <option value="">--</option>
                           {SLOT_ORARI.map((o) => (

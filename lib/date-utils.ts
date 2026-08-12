@@ -60,3 +60,20 @@ export const SLOT_ORARI: string[] = (() => {
   }
   return slot
 })()
+
+// Sessione rifinitura 2026-08-12 (vedi CLAUDE.md): classi Tailwind condivise
+// per il layout Data+Ora affiancato — prima passava a riga singola solo da
+// `sm:` (640px) in su, quindi restava impilato su qualunque smartphone
+// (360-412px inclusi, ben sotto quella soglia). Verificato con Playwright a
+// 360/390/412px (Samsung S24 e simili) che 340px di larghezza disponibile
+// bastino a contenere i due campi affiancati senza troncare/sovrapporre
+// nulla — sotto quella soglia (schermi molto stretti, es. iPhone SE 1a
+// gen a 320px) resta l'impilamento verticale, l'unico modo di non far
+// traboccare i controlli. `min-[340px]:` invece di un breakpoint Tailwind
+// nominale (nessuno di quelli standard cade così in basso) — sintassi a
+// valore arbitrario supportata nativamente da Tailwind v4. Riusate da tutti
+// i controlli Data+Ora dell'app (oggi: Appuntamento, elenco sessioni di
+// Costruzione) per restare automaticamente coerenti se un futuro satellite
+// (es. Montaggio) ne aggiungesse un altro.
+export const RIGA_DATA_ORA_CLASSI = 'flex flex-col min-[340px]:flex-row'
+export const CAMPO_DATA_ORA_CLASSI = 'min-w-0 min-[340px]:flex-1'

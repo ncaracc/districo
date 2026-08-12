@@ -10,7 +10,7 @@ import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
-import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI } from '@/lib/date-utils'
+import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, CAMPO_DATA_ORA_CLASSI } from '@/lib/date-utils'
 
 // Restyling 2026-08-10 (vedi CLAUDE.md): Briefing diventa il TEMPLATE DI
 // RIFERIMENTO per il restyling degli altri satelliti (sostituisce quello
@@ -168,11 +168,12 @@ export function SatelliteAppuntamento({
         <div className="rounded-lg border border-gray-200 p-4">
           {isOwner ? (
             <div className="space-y-4">
-              {/* Riga 1 — Data e Ora: 50%/50% affiancate, impilate sotto sm:
-                  (stesso controllo della Modal di test, qui con lo stacking
-                  responsive in più richiesto per Briefing). */}
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="min-w-0 sm:flex-1">
+              {/* Riga 1 — Data e Ora: 50%/50% affiancate anche su mobile
+                  (sessione rifinitura 2026-08-12, vedi CLAUDE.md — prima
+                  impilate sotto sm:/640px, ben oltre la larghezza di uno
+                  smartphone), impilate solo sotto ~340px. */}
+              <div className={`${RIGA_DATA_ORA_CLASSI} gap-3`}>
+                <div className={CAMPO_DATA_ORA_CLASSI}>
                   <label htmlFor={`app-data-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
                     Data
                   </label>
@@ -184,7 +185,7 @@ export function SatelliteAppuntamento({
                     className={`${inputClassFisso()} w-full`}
                   />
                 </div>
-                <div className="min-w-0 sm:flex-1">
+                <div className={CAMPO_DATA_ORA_CLASSI}>
                   <label htmlFor={`app-ora-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
                     Ora
                   </label>
