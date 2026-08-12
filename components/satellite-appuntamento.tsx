@@ -25,33 +25,32 @@ import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, 
 // Salva/Annulla sono pillole flottanti (vedi PilloleSalvaAnnulla) invece
 // della barra Salva a piena larghezza.
 //
-// Etichette per sottotipo (Briefing/Verifica misure/Montaggio condividono
-// questo stesso componente — non tecnicamente separabile senza biforcarlo,
-// stessa conclusione già raggiunta il 4/8): la richiesta descrive la
-// formulazione solo per Briefing ("...raccolti durante il briefing"),
-// declinata qui per tutti e tre i sottotipi con lo stesso registro.
+// Etichette per sottotipo (Briefing/Verifica misure condividono questo
+// stesso componente — non tecnicamente separabile senza biforcarlo, stessa
+// conclusione già raggiunta il 4/8; Montaggio, un tempo un terzo sottotipo
+// qui, è un tipo satellite autonomo dal 2026-08-12, vedi CLAUDE.md — non più
+// gestito da questo componente): la richiesta originale del 10/8 descriveva
+// la formulazione solo per Briefing ("...raccolti durante il briefing"),
+// declinata qui per entrambi i sottotipi rimasti con lo stesso registro.
 const LABEL_CONCLUSO: Record<SottotipoAppuntamento, string> = {
   briefing: 'Contrassegna il briefing come concluso',
   verifica_misure: 'Contrassegna la verifica misure come conclusa',
-  montaggio: 'Contrassegna il montaggio come concluso',
 }
 
 const LABEL_ALLEGATI: Record<SottotipoAppuntamento, string> = {
   briefing: 'Puoi allegare foto e documenti raccolti durante il briefing (file di immagine e PDF).',
   verifica_misure: 'Puoi allegare foto e documenti raccolti durante la verifica misure (file di immagine e PDF).',
-  montaggio: 'Puoi allegare foto e documenti raccolti durante il montaggio (file di immagine e PDF).',
 }
 
 // 2026-08-12 (vedi CLAUDE.md — due nuove caselle sulla modale Verifica
 // misure): il campo Descrizione esistente (colonna `descrizione`, condivisa
-// da tutti e 3 i sottotipi) si rietichetta per Verifica misure invece di
+// dai due sottotipi rimasti) si rietichetta per Verifica misure invece di
 // introdurre un campo duplicato — stesso pattern già in uso per
-// LABEL_CONCLUSO/LABEL_ALLEGATI sopra. Briefing/Montaggio restano
-// "Descrizione", invariati.
+// LABEL_CONCLUSO/LABEL_ALLEGATI sopra. Briefing resta "Descrizione",
+// invariato.
 const LABEL_DESCRIZIONE: Record<SottotipoAppuntamento, string> = {
   briefing: 'Descrizione',
   verifica_misure: 'Attività propedeutiche alla verifica',
-  montaggio: 'Descrizione',
 }
 
 export function SatelliteAppuntamento({
@@ -72,8 +71,8 @@ export function SatelliteAppuntamento({
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
   // Informazioni raccolte (2026-08-12, vedi CLAUDE.md): solo Verifica
   // misure la mostra/modifica, ma lo stato vive qui incondizionatamente
-  // (semplice, innocuo per Briefing/Montaggio — quei sottotipi non hanno
-  // mai un modo di cambiarlo, il round-trip al salvataggio resta un no-op).
+  // (semplice, innocuo per Briefing — quel sottotipo non ha mai un modo di
+  // cambiarlo, il round-trip al salvataggio resta un no-op).
   const [informazioni, setInformazioni] = useState(satellite.descrizione_libera ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
   const [loading, setLoading] = useState(false)
@@ -117,9 +116,9 @@ export function SatelliteAppuntamento({
       data: combinaDataOraLocale(dataLocal, oraLocal),
       descrizione: descrizione.trim() || null,
       concluso,
-      // undefined per Briefing/Montaggio (il campo non è renderizzato per
-      // quei sottotipi, nessuna modifica alla colonna) — solo Verifica
-      // misure lo invia davvero.
+      // undefined per Briefing (il campo non è renderizzato per quel
+      // sottotipo, nessuna modifica alla colonna) — solo Verifica misure lo
+      // invia davvero.
       informazioniRaccolte: tipo === 'verifica_misure' ? informazioni.trim() || null : undefined,
     })
 
@@ -209,7 +208,7 @@ export function SatelliteAppuntamento({
               </div>
 
               {/* Riga 2 — Descrizione (rietichettata per Verifica misure, vedi
-                  LABEL_DESCRIZIONE sopra — Briefing/Montaggio invariati). */}
+                  LABEL_DESCRIZIONE sopra — Briefing invariato). */}
               <div>
                 <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
                   {LABEL_DESCRIZIONE[tipo]}
@@ -227,7 +226,7 @@ export function SatelliteAppuntamento({
               {/* Riga 2bis — Informazioni raccolte: solo Verifica misure
                   (2026-08-12, vedi CLAUDE.md), riusa descrizione_libera
                   (colonna generica mai toccata da Appuntamento finora,
-                  nessun conflitto con Briefing/Montaggio). */}
+                  nessun conflitto con Briefing). */}
               {tipo === 'verifica_misure' && (
                 <div>
                   <label htmlFor={`app-informazioni-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">

@@ -249,7 +249,7 @@ export type Database = {
       lavoro_satellite: {
         Row: {
           id: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto' | 'montaggio'
           // Per tipo='preventivo' (dal 1/8) e tipo='progetto' (dal 2/8) questa
           // colonna è legacy: non più letta/scritta dall'app, sostituita da
           // preventivo_accettato/preventivo_rifiutato e progetto_accettato.
@@ -259,7 +259,7 @@ export type Database = {
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
             | 'da_iniziare' | 'in_corso' | 'completata'
-          descrizione: string | null; tipo_appuntamento: 'briefing' | 'verifica_misure' | 'montaggio' | null
+          descrizione: string | null; tipo_appuntamento: 'briefing' | 'verifica_misure' | null
           concluso: boolean
           data_appuntamento: string | null
           revisione_di: string | null; valore_complessivo: number | null
@@ -301,13 +301,13 @@ export type Database = {
         }
         Insert: {
           id?: string; lavoro_id: string
-          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto'
+          tipo: 'appuntamento' | 'preventivo' | 'progetto' | 'acquisti' | 'campione' | 'costruzione' | 'noleggio' | 'chiusura' | 'acconto' | 'montaggio'
           stato?: null
             | 'in_preparazione' | 'presentato' | 'necessaria_revisione' | 'accettato' | 'non_necessario'
             | 'consegnato' | 'necessario_nuovo_campione' | 'approvato'
             | 'da_acquistare' | 'acquistato' | 'ricevuto'
             | 'da_iniziare' | 'in_corso' | 'completata'
-          descrizione?: string | null; tipo_appuntamento?: 'briefing' | 'verifica_misure' | 'montaggio' | null
+          descrizione?: string | null; tipo_appuntamento?: 'briefing' | 'verifica_misure' | null
           concluso?: boolean
           data_appuntamento?: string | null
           revisione_di?: string | null; valore_complessivo?: number | null

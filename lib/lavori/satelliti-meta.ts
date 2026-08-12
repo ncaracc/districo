@@ -8,22 +8,26 @@ export type TipoSatellite =
   | 'noleggio'
   | 'chiusura'
   | 'acconto'
+  | 'montaggio'
 
 export type Acconto = { etichetta: string; data: string | null; importo: number }
 
 // Costruzione (2026-08-12, vedi CLAUDE.md): sostituisce il vecchio
 // stato/data_inizio/data_fine con un elenco libero di sessioni di lavoro.
 // Nome del tipo generico ("SessioneLavoro", non "SessioneCostruzione"):
-// stessa colonna sessioni_lavoro verrà riusata identica da Montaggio in
-// una sessione futura dedicata.
+// stessa colonna sessioni_lavoro riusata identica da Montaggio (promosso a
+// tipo autonomo il 2026-08-12, vedi CLAUDE.md — non più un sottotipo di
+// Appuntamento).
 export type SessioneLavoro = { inizio: string; fine: string | null }
 
-export type SottotipoAppuntamento = 'briefing' | 'verifica_misure' | 'montaggio'
+// Montaggio rimosso da qui il 2026-08-12 (promosso a tipo autonomo,
+// tipo='montaggio' — vedi CLAUDE.md): restano solo i due sottotipi che
+// condividono ancora data_appuntamento/concluso/descrizione.
+export type SottotipoAppuntamento = 'briefing' | 'verifica_misure'
 
 export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string> = {
   briefing: 'Briefing',
   verifica_misure: 'Verifica misure',
-  montaggio: 'Montaggio',
 }
 
 export type Satellite = {
@@ -217,7 +221,7 @@ export function labelStatoAcquisti(ordinato: boolean, haFornitore: boolean, haRi
   return 'In preparazione'
 }
 
-// --- Costruzione ---
+// --- Costruzione / Montaggio ---
 // Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Costruzione):
 // SOSTITUISCE il vecchio stato a 3 valori testuali (da_iniziare/in_corso/
 // completata) + STATO_COSTRUZIONE_LABEL/azioniPossibiliCostruzione,
@@ -226,14 +230,18 @@ export function labelStatoAcquisti(ordinato: boolean, haFornitore: boolean, haRi
 // giallo con almeno una sessione (aperta o chiusa) ma non ancora conclusa,
 // verde quando `concluso=true` (priorità massima, indipendente dalle
 // sessioni — stessa priorità già in uso per Preventivo/Progetto/Campione/
-// Acconto/Chiusura).
-export function coloreCostruzione(sessioni: SessioneLavoro[], conclusa: boolean): ColoreSemaforo {
+// Acconto/Chiusura). Rinominate da coloreCostruzione/labelStatoCostruzione a
+// nomi generici lo stesso giorno, quando Montaggio è stato promosso a tipo
+// autonomo (tipo='montaggio', vedi CLAUDE.md): stessa identica logica,
+// stesso riuso della colonna sessioni_lavoro — nessuna duplicazione, un solo
+// consumer condiviso da entrambi i tipi.
+export function coloreSessioniLavoro(sessioni: SessioneLavoro[], conclusa: boolean): ColoreSemaforo {
   if (conclusa) return 'green'
   if (sessioni.length === 0) return 'red'
   return 'yellow'
 }
 
-export function labelStatoCostruzione(sessioni: SessioneLavoro[], conclusa: boolean): string {
+export function labelStatoSessioniLavoro(sessioni: SessioneLavoro[], conclusa: boolean): string {
   if (conclusa) return 'Conclusa'
   if (sessioni.length === 0) return 'Da iniziare'
   return 'In corso'
@@ -249,13 +257,14 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   noleggio: 'Noleggio',
   chiusura: 'Chiusura Lavoro',
   acconto: 'Acconto',
+  montaggio: 'Montaggio',
 }
 
 // Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
 // serie per il Campione (più catene indipendenti possono essere bloccanti
 // contemporaneamente), la categoria per gli Acquisti quando presente (ora
 // testo libero, mostrato così com'è), e il sottotipo specifico per gli
-// Appuntamenti (Briefing/Verifica misure/Montaggio — più istanze dello
+// Appuntamenti (Briefing/Verifica misure — più istanze dello
 // stesso sottotipo possono essere bloccanti contemporaneamente, l'etichetta
 // generica "Appuntamento" non basterebbe a distinguerle).
 export function satelliteTipoLabelBreve(s: Satellite): string {

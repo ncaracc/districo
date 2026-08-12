@@ -2,10 +2,13 @@
 // 2026-08-02, vedi CLAUDE.md) — unica fonte di verità per: (a) l'ordine di
 // visualizzazione nella tabella attività del Lavoro, (b) l'ordine delle
 // opzioni nel modale "Aggiungi attività". Non corrisponde 1:1 a `tipo` di
-// `lavoro_satellite`: l'Appuntamento si divide in tre voci distinte
-// (Briefing/Verifica misure/Montaggio, uno per `tipo_appuntamento`), e i nomi
-// "campionatura"/"acquisto" sono solo l'etichetta UI dei `tipo` DB
-// "campione"/"acquisti" (invariati a schema, vedi CLAUDE.md).
+// `lavoro_satellite`: l'Appuntamento si divide in due voci distinte
+// (Briefing/Verifica misure, uno per `tipo_appuntamento`) — Montaggio, un
+// tempo un terzo sottotipo di Appuntamento, è un `ChiaveAttivita`/`tipo` DB
+// autonomo dal 2026-08-12 (vedi CLAUDE.md), semplicemente non più derivato
+// da alcun `tipo_appuntamento`. I nomi "campionatura"/"acquisto" restano
+// solo l'etichetta UI dei `tipo` DB "campione"/"acquisti" (invariati a
+// schema, vedi CLAUDE.md).
 export type ChiaveAttivita =
   | 'briefing'
   | 'progetto'

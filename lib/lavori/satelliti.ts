@@ -17,9 +17,9 @@ type CreazioneResult = { ok: true; id: string } | { ok: false; error: string }
 // modale Verifica misure): riusa `descrizione_libera`, colonna generica mai
 // toccata finora da nessun sottotipo di Appuntamento (verificato in
 // migrations/codice prima di procedere — nessuna nuova colonna). Campo
-// opzionale: `undefined` per Briefing/Montaggio (il componente non lo invia
-// affatto per quei sottotipi, colonna resta quindi quella che era, non
-// forzata a null).
+// opzionale: `undefined` per Briefing (il componente non lo invia affatto
+// per quel sottotipo, colonna resta quindi quella che era, non forzata a
+// null).
 export async function aggiornaAppuntamento(
   satelliteId: string,
   lavoroId: string,
@@ -690,6 +690,63 @@ export async function aggiornaCostruzione(
 
   if (error) {
     console.error('aggiornaCostruzione: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
+// --- Montaggio ---
+// Promosso da sottotipo di Appuntamento (tipo='appuntamento',
+// tipo_appuntamento='montaggio') a tipo autonomo il 2026-08-12 (vedi
+// CLAUDE.md — mappatura completa), replica esattamente il pattern appena
+// sopra di Costruzione: stesso riuso di sessioni_lavoro/descrizione_libera/
+// concluso, nessuna colonna nuova.
+export async function creaMontaggio(lavoroId: string): Promise<CreazioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertLavoroModificabile(supabase, lavoroId)
+  if (bloccato) return bloccato
+
+  const { data, error } = await supabase
+    .from('lavoro_satellite')
+    .insert({ lavoro_id: lavoroId, tipo: 'montaggio' })
+    .select('id')
+    .single()
+
+  if (error) {
+    console.error('creaMontaggio: insert fallito', error)
+    return { ok: false, error: 'Errore nella creazione, riprova' }
+  }
+
+  revalidatePath(`/lavori/${lavoroId}`)
+  revalidatePath('/lavori')
+  return { ok: true, id: data.id }
+}
+
+export async function aggiornaMontaggio(
+  satelliteId: string,
+  lavoroId: string,
+  fields: { sessioni: SessioneLavoro[]; note: string | null; conclusa: boolean },
+): Promise<AzioneResult> {
+  const supabase = await createClient()
+
+  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
+  if (bloccato) return bloccato
+
+  const { error } = await supabase
+    .from('lavoro_satellite')
+    .update({
+      sessioni_lavoro: fields.sessioni,
+      descrizione_libera: fields.note,
+      concluso: fields.conclusa,
+    })
+    .eq('id', satelliteId)
+
+  if (error) {
+    console.error('aggiornaMontaggio: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 

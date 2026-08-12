@@ -12,6 +12,7 @@ import {
   creaCampione,
   creaChiusura,
   creaCostruzione,
+  creaMontaggio,
   creaNoleggio,
   creaPreventivo,
   creaProgetto,
@@ -128,7 +129,6 @@ export function LavoroSatelliteTabella({
       switch (chiave) {
         case 'briefing':
         case 'verifica_misure':
-        case 'montaggio':
           return () => creaAppuntamento(lavoroId, chiave)
         case 'progetto':
           return () => creaProgetto(lavoroId)
@@ -138,6 +138,11 @@ export function LavoroSatelliteTabella({
           return () => creaAcconto(lavoroId)
         case 'costruzione':
           return () => creaCostruzione(lavoroId)
+        case 'montaggio':
+          // Promosso a tipo autonomo il 2026-08-12 (vedi CLAUDE.md): non più
+          // creaAppuntamento(lavoroId, 'montaggio'), creaMontaggio() dedicata
+          // — stesso pattern di creaCostruzione().
+          return () => creaMontaggio(lavoroId)
         case 'noleggio':
           return () => creaNoleggio(lavoroId)
         case 'campionatura':

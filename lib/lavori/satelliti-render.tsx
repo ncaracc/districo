@@ -6,7 +6,7 @@ import {
   coloreAcquisti,
   coloreAppuntamento,
   coloreCampione,
-  coloreCostruzione,
+  coloreSessioniLavoro,
   colorePreventivo,
   coloreProgetto,
   labelStatoAcconto,
@@ -14,7 +14,7 @@ import {
   labelStatoAppuntamento,
   labelStatoCampione,
   labelStatoChiusura,
-  labelStatoCostruzione,
+  labelStatoSessioniLavoro,
   labelStatoNoleggio,
   labelStatoPreventivo,
   labelStatoProgetto,
@@ -30,6 +30,7 @@ import { SatelliteAcconto } from '@/components/satellite-acconto'
 import { SatelliteCampione } from '@/components/satellite-campione'
 import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
+import { SatelliteMontaggio } from '@/components/satellite-montaggio'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
 import { SatelliteChiusura } from '@/components/satellite-chiusura'
 
@@ -85,7 +86,10 @@ function raggruppaSatelliti(satelliti: Satellite[]): Gruppi {
     acconto: satelliti.filter((s) => s.tipo === 'acconto').sort(perData),
     campione: satelliti.filter((s) => s.tipo === 'campione').sort(perData),
     verificaMisure: satelliti.filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'verifica_misure').sort(perData),
-    montaggio: satelliti.filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'montaggio').sort(perData),
+    // Montaggio promosso a tipo autonomo il 2026-08-12 (vedi CLAUDE.md): non
+    // più derivato da tipo_appuntamento, stesso filtro diretto su `tipo`
+    // già in uso per costruzione/noleggio/ecc. poco più sotto.
+    montaggio: satelliti.filter((s) => s.tipo === 'montaggio').sort(perData),
     acquisti: satelliti.filter((s) => s.tipo === 'acquisti').sort(perData),
     costruzione: satelliti.filter((s) => s.tipo === 'costruzione').sort(perData),
     noleggio: satelliti.filter((s) => s.tipo === 'noleggio').sort(perData),
@@ -203,8 +207,8 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
     voci.push({
       satelliteId: s.id,
       nome: nomeNumerato(g.costruzione, s.id, 'Costruzione'),
-      colore: coloreCostruzione(s.sessioni_lavoro, s.concluso),
-      statoLabel: labelStatoCostruzione(s.sessioni_lavoro, s.concluso),
+      colore: coloreSessioniLavoro(s.sessioni_lavoro, s.concluso),
+      statoLabel: labelStatoSessioniLavoro(s.sessioni_lavoro, s.concluso),
       posizione: POSIZIONE_ATTIVITA.costruzione,
     })
   })
@@ -223,8 +227,8 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
     voci.push({
       satelliteId: s.id,
       nome: nomeNumerato(g.montaggio, s.id, 'Montaggio'),
-      colore: coloreAppuntamento(s.concluso, s.data_appuntamento),
-      statoLabel: labelStatoAppuntamento(s.concluso, s.data_appuntamento),
+      colore: coloreSessioniLavoro(s.sessioni_lavoro, s.concluso),
+      statoLabel: labelStatoSessioniLavoro(s.sessioni_lavoro, s.concluso),
       posizione: POSIZIONE_ATTIVITA.montaggio,
     })
   })
@@ -271,16 +275,11 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
         contenuto: <SatelliteAppuntamento satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
       }
     }
-    if (satellite.tipo_appuntamento === 'verifica_misure') {
-      return {
-        nome: nomeNumerato(g.verificaMisure, satelliteId, 'Verifica misure'),
-        colore: coloreAppuntamento(satellite.concluso, satellite.data_appuntamento),
-        contenuto: <SatelliteAppuntamento satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
-      }
-    }
-    // montaggio (fallback difensivo, mai atteso altrimenti)
+    // verifica_misure (unico altro sottotipo rimasto — montaggio promosso a
+    // tipo autonomo il 2026-08-12, vedi CLAUDE.md, gestito nel proprio ramo
+    // `satellite.tipo === 'montaggio'` più sotto).
     return {
-      nome: nomeNumerato(g.montaggio, satelliteId, 'Montaggio'),
+      nome: nomeNumerato(g.verificaMisure, satelliteId, 'Verifica misure'),
       colore: coloreAppuntamento(satellite.concluso, satellite.data_appuntamento),
       contenuto: <SatelliteAppuntamento satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
     }
@@ -349,8 +348,16 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
   if (satellite.tipo === 'costruzione') {
     return {
       nome: nomeNumerato(g.costruzione, satelliteId, 'Costruzione'),
-      colore: coloreCostruzione(satellite.sessioni_lavoro, satellite.concluso),
+      colore: coloreSessioniLavoro(satellite.sessioni_lavoro, satellite.concluso),
       contenuto: <SatelliteCostruzione satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
+    }
+  }
+
+  if (satellite.tipo === 'montaggio') {
+    return {
+      nome: nomeNumerato(g.montaggio, satelliteId, 'Montaggio'),
+      colore: coloreSessioniLavoro(satellite.sessioni_lavoro, satellite.concluso),
+      contenuto: <SatelliteMontaggio satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
     }
   }
 
