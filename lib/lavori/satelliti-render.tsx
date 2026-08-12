@@ -415,6 +415,8 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
         margine={dati.margine}
         accontiComplessivi={dati.accontiComplessivi}
         importoDaIncassare={dati.importoDaIncassare}
+        tutteAttivitaVerdi={dati.tutteAttivitaVerdi}
+        attivitaNonVerdiCount={dati.attivitaNonVerdiCount}
       />
     ),
   }

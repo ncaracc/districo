@@ -7,7 +7,12 @@
 // cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { type SessioneLavoro, type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
+import {
+  attivitaRilevantiPerChiusura,
+  coloreQualsiasiSatellite,
+  type SessioneLavoro,
+  type SottotipoAppuntamento,
+} from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 // `info` opzionale (2026-08-13, vedi CLAUDE.md — lifecycle Chiusura Lavoro):
@@ -990,6 +995,45 @@ export async function creaChiusura(lavoroId: string): Promise<CreazioneResult> {
 // insieme al resto non appena lavoro.stato diventa 'completato'
 // (assertSatelliteModificabile, invariato) — l'unico sblocco resta "Riapri
 // lavoro" sulla tabella lavoro.
+// Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+// CLAUDE.md): ri-verifica difensiva lato server prima di permettere
+// `conclusa=true` — la disabilitazione del checkbox in
+// `satellite-chiusura.tsx` è solo la guardia UX primaria (calcolata a sua
+// volta da `dettaglio-lavoro-data.ts`, non riletta da qui per non fidarsi
+// di un valore potenzialmente stale arrivato dal client). Fetch dedicato
+// (non riusa `caricaDatiLavoroSatelliti()`, pensato per il data-loading di
+// pagina con molti più campi/query non necessari qui) — solo satelliti +
+// conteggio allegati/righe per le sole righe progetto/acquisti che
+// realmente li richiedono (`coloreQualsiasiSatellite`).
+async function tutteAttivitaVerdi(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lavoroId: string,
+): Promise<boolean> {
+  const { data: satellitiGrezzi } = await supabase.from('lavoro_satellite').select('*').eq('lavoro_id', lavoroId)
+  const satelliti = satellitiGrezzi ?? []
+  const rilevanti = attivitaRilevantiPerChiusura(satelliti)
+
+  const progettoIds = rilevanti.filter((s) => s.tipo === 'progetto').map((s) => s.id)
+  const acquistiIds = rilevanti.filter((s) => s.tipo === 'acquisti').map((s) => s.id)
+
+  const [{ data: allegatiGrezzi }, { data: righeGrezze }] = await Promise.all([
+    progettoIds.length > 0
+      ? supabase.from('lavoro_satellite_allegato').select('satellite_id').in('satellite_id', progettoIds)
+      : Promise.resolve({ data: [] as { satellite_id: string }[] }),
+    acquistiIds.length > 0
+      ? supabase.from('lavoro_satellite_articolo').select('satellite_id').in('satellite_id', acquistiIds)
+      : Promise.resolve({ data: [] as { satellite_id: string }[] }),
+  ])
+
+  const idsConAllegati = new Set((allegatiGrezzi ?? []).map((a) => a.satellite_id))
+  const idsConRighe = new Set((righeGrezze ?? []).map((r) => r.satellite_id))
+
+  return rilevanti.every(
+    (s) =>
+      coloreQualsiasiSatellite(s, { haAllegati: idsConAllegati.has(s.id), haRighe: idsConRighe.has(s.id) }) === 'green',
+  )
+}
+
 export async function aggiornaChiusuraFlags(
   satelliteId: string,
   lavoroId: string,
@@ -999,6 +1043,13 @@ export async function aggiornaChiusuraFlags(
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
+
+  if (fields.conclusa) {
+    const tutteVerdi = await tutteAttivitaVerdi(supabase, lavoroId)
+    if (!tutteVerdi) {
+      return { ok: false, error: 'Non tutte le attività del lavoro sono ancora concluse' }
+    }
+  }
 
   const entrambi = fields.incassata && fields.conclusa
 

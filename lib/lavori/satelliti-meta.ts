@@ -403,3 +403,60 @@ export function labelStatoSpesaNonPreventivata(dataSpesa: string | null, valoreC
   if (!dataSpesa || valoreComplessivo == null) return 'Da completare'
   return 'In attesa'
 }
+
+// --- Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+// CLAUDE.md) ---
+// Dispatcher per tipo, delega alle singole funzioni colore* sopra (nessuna
+// logica nuova, solo un unico punto richiamabile con un satellite
+// qualsiasi) — usato per il controllo "tutte le Attività sono verdi" che
+// abilita la checkbox "Chiuso" di Chiusura Lavoro, sia lato dati
+// (dettaglio-lavoro-data.ts, per il calcolo mostrato in UI e per
+// l'eventuale reset automatico) sia lato server action
+// (aggiornaChiusuraFlags, come ri-verifica difensiva prima di salvare —
+// stesso principio già in uso per il controllo "lavoro accettato" lì).
+// `extra.haAllegati`/`haRighe` sono richiesti solo da progetto/acquisti
+// rispettivamente (coloreProgetto/coloreAcquisti), opzionali per gli altri
+// tipi (ignorati). Il chiamante deve escludere a monte: (a) `tipo ===
+// 'chiusura'` stessa (non fa parte del controllo su se stessa), (b) le
+// righe Preventivo storiche superate da una revisione più recente (stesso
+// criterio "rilevante" già in uso in lavori_dashboard()/kpi_dashboard() —
+// `not exists altra riga con revisione_di = questo id`).
+export function coloreQualsiasiSatellite(s: Satellite, extra: { haAllegati?: boolean; haRighe?: boolean } = {}): ColoreSemaforo {
+  switch (s.tipo) {
+    case 'appuntamento':
+      return coloreAppuntamento(s.concluso, s.data_appuntamento)
+    case 'progetto':
+      return coloreProgetto(s.progetto_accettato, extra.haAllegati ?? false)
+    case 'preventivo':
+      return colorePreventivo(s.preventivo_accettato, s.preventivo_rifiutato, s.valore_complessivo)
+    case 'acconto':
+      return coloreAcconto(s.acconto_data, s.valore_complessivo, s.acconto_incassato)
+    case 'campione':
+      return coloreCampione(s.campione_data_consegna, s.campione_consegnato)
+    case 'acquisti':
+      return coloreAcquisti(s.ordinato, !!s.fornitore_sede_id, extra.haRighe ?? false)
+    case 'costruzione':
+    case 'montaggio':
+      return coloreSessioniLavoro(s.sessioni_lavoro, s.concluso)
+    case 'noleggio':
+      return s.prenotazione_effettuata ? 'green' : 'red'
+    case 'spesa_non_preventivata':
+      return coloreSpesaNonPreventivata(s.spesa_data, s.valore_complessivo, s.spesa_accettata)
+    case 'chiusura':
+      return coloreChiusura(s.chiusura_incassata, s.chiusura_conclusa)
+  }
+}
+
+// Sottoinsieme "rilevante" per il controllo sopra: esclude Chiusura stessa
+// (non fa parte del controllo su se stessa) e le righe Preventivo storiche
+// superate da una revisione più recente (stesso criterio "rilevante" già
+// in uso in lavori_dashboard()/kpi_dashboard()/costruisciVociAttivita —
+// quest'ultima mostra sempre e solo la revisione corrente come riga
+// visibile in tabella, mai le superate).
+export function attivitaRilevantiPerChiusura(satelliti: Satellite[]): Satellite[] {
+  return satelliti.filter((s) => {
+    if (s.tipo === 'chiusura') return false
+    const superata = satelliti.some((altro) => altro.revisione_di === s.id)
+    return !superata
+  })
+}

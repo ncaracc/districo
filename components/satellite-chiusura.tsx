@@ -25,6 +25,20 @@ import { DialogConferma } from '@/components/dialog-conferma'
 // Nessuna riga allegati (rimossa, come da nuova struttura richiesta — 0
 // allegati reali su Chiusura in produzione al momento della modifica,
 // verificato prima di rimuoverla).
+//
+// Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+// CLAUDE.md): la checkbox "Chiuso" è disabilitata finché non TUTTE le
+// Attività del Lavoro (Chiusura esclusa) sono verdi — `tutteAttivitaVerdi`/
+// `attivitaNonVerdiCount` arrivano già calcolati da dettaglio-lavoro-data.ts
+// (dove sono già disponibili allegatiById/righePerSatellite necessari per
+// Progetto/Acquisti), nessun ricalcolo qui. Ri-verificato anche lato
+// server in `aggiornaChiusuraFlags()` (difensivo, la disabilitazione qui è
+// solo la guardia UX primaria). Reset automatico (scelta esplicita
+// dell'utente): se `chiusura_conclusa` era già `true` ma nel frattempo
+// qualcosa non è più verde, il valore arriva già corretto a `false` da
+// dettaglio-lavoro-data.ts (side-effect al caricamento dati, non qui) —
+// questo componente si limita a inizializzare `conclusa` dal valore già
+// coerente ricevuto.
 export function SatelliteChiusura({
   satellite,
   lavoroId,
@@ -34,6 +48,8 @@ export function SatelliteChiusura({
   margine,
   accontiComplessivi,
   importoDaIncassare,
+  tutteAttivitaVerdi,
+  attivitaNonVerdiCount,
 }: {
   satellite: Satellite
   lavoroId: string
@@ -43,6 +59,12 @@ export function SatelliteChiusura({
   margine: number
   accontiComplessivi: number
   importoDaIncassare: number
+  // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+  // CLAUDE.md): calcolati server-side (dettaglio-lavoro-data.ts, dove sono
+  // già disponibili allegatiById/righePerSatellite necessari per
+  // Progetto/Acquisti) — nessun ricalcolo qui, solo lettura.
+  tutteAttivitaVerdi: boolean
+  attivitaNonVerdiCount: number
 }) {
   const router = useRouter()
   const [incassata, setIncassata] = useState(satellite.chiusura_incassata)
@@ -134,15 +156,28 @@ export function SatelliteChiusura({
                 Contrassegna tutti gli importi come incassati.
               </label>
 
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={conclusa}
-                  onChange={(e) => setConclusa(e.target.checked)}
-                  className="accent-primary"
-                />
-                Contrassegna il lavoro come chiuso.
-              </label>
+              <div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={conclusa}
+                    disabled={!tutteAttivitaVerdi}
+                    onChange={(e) => setConclusa(e.target.checked)}
+                    className="accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  Contrassegna il lavoro come chiuso.
+                </label>
+                {/* Vincolo "tutte le Attività verdi" (2026-08-13, vedi
+                    CLAUDE.md): indicazione visiva del motivo quando
+                    disabilitato, stesso stile grigio secondario già in uso
+                    per le altre didascalie dell'app. */}
+                {!tutteAttivitaVerdi && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Disponibile quando tutte le attività del lavoro sono concluse ({attivitaNonVerdiCount}{' '}
+                    {attivitaNonVerdiCount === 1 ? 'attività non ancora conclusa' : 'attività non ancora concluse'}).
+                  </p>
+                )}
+              </div>
             </div>
           ) : (
             <div className="mt-4 space-y-1 border-t border-gray-100 pt-4 text-sm text-gray-700">

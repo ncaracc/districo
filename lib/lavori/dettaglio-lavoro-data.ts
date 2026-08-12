@@ -1,4 +1,11 @@
-import { costruisciCatena, type Satellite, type SatelliteAllegato, type SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
+import {
+  attivitaRilevantiPerChiusura,
+  coloreQualsiasiSatellite,
+  costruisciCatena,
+  type Satellite,
+  type SatelliteAllegato,
+  type SatelliteArticolo,
+} from '@/lib/lavori/satelliti-meta'
 import type { createClient } from '@/lib/supabase/server'
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>
@@ -64,6 +71,12 @@ export type DatiLavoroSatelliti = {
   margine: number
   accontiComplessivi: number
   importoDaIncassare: number
+  // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+  // CLAUDE.md): true solo se TUTTE le Attività esistenti del Lavoro
+  // (Chiusura esclusa) sono verdi — usato da SatelliteChiusura per
+  // disabilitare la checkbox e mostrare il conteggio di quelle mancanti.
+  tutteAttivitaVerdi: boolean
+  attivitaNonVerdiCount: number
   progettoEsiste: boolean
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
@@ -183,6 +196,44 @@ export async function caricaDatiLavoroSatelliti(
   const margine = valoreComplessivo - speseComplessive
   const importoDaIncassare = valoreComplessivo - accontiComplessivi
 
+  // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
+  // CLAUDE.md): abilitabile solo se TUTTE le Attività esistenti (Chiusura
+  // esclusa, revisioni Preventivo storiche superate escluse) sono verdi.
+  // Reset automatico (scelta esplicita dell'utente tra due opzioni
+  // presentate, non ambigua): se chiusura_conclusa era già `true` ma nel
+  // frattempo qualcosa non è più verde (es. una nuova "Attività non
+  // preventivate" appena creata, ancora rossa), il flag viene corretto a
+  // `false` qui — al primo caricamento successivo alla regressione, non
+  // solo bloccato per nuove modifiche. Mutazione in-place dell'oggetto
+  // dentro `satelliti` (stesso riferimento restituito da `.find`): i
+  // consumatori a valle (tabella, contenuto del satellite) vedono già il
+  // valore corretto senza una seconda query. Gated su `isOwner`: un ospite
+  // in sola lettura non avrebbe comunque permesso di scrittura via RLS —
+  // degrado accettabile (il vincolo che conta davvero, impedire
+  // lavoro.stato='completato' con attività non verdi, è comunque
+  // ri-verificato in modo indipendente e autoritativo da
+  // aggiornaChiusuraFlags() al momento del salvataggio). Scrittura
+  // best-effort: un errore qui non deve mai bloccare il caricamento della
+  // pagina, semplicemente non si corregge in questo giro.
+  const chiusuraSatellite = satelliti.find((s) => s.tipo === 'chiusura') ?? null
+  const attivitaRilevanti = attivitaRilevantiPerChiusura(satelliti)
+  const attivitaNonVerdiCount = attivitaRilevanti.filter(
+    (s) =>
+      coloreQualsiasiSatellite(s, {
+        haAllegati: (allegatiById[s.id] ?? []).length > 0,
+        haRighe: (righePerSatellite[s.id] ?? []).length > 0,
+      }) !== 'green',
+  ).length
+  const tutteAttivitaVerdi = attivitaNonVerdiCount === 0
+
+  if (isOwner && chiusuraSatellite?.chiusura_conclusa && !tutteAttivitaVerdi) {
+    const { error: resetErr } = await supabase
+      .from('lavoro_satellite')
+      .update({ chiusura_conclusa: false })
+      .eq('id', chiusuraSatellite.id)
+    if (!resetErr) chiusuraSatellite.chiusura_conclusa = false
+  }
+
   return {
     lavoro,
     clienteNome: cliente?.nome ?? null,
@@ -201,6 +252,8 @@ export async function caricaDatiLavoroSatelliti(
     margine,
     accontiComplessivi,
     importoDaIncassare,
+    tutteAttivitaVerdi,
+    attivitaNonVerdiCount,
     progettoEsiste: satelliti.some((s) => s.tipo === 'progetto'),
     preventivoEsiste: preventivoSatelliti.length > 0,
     chiusuraEsiste: satelliti.some((s) => s.tipo === 'chiusura'),
