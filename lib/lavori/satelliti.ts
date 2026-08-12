@@ -13,24 +13,36 @@ import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lav
 type AzioneResult = { ok: true } | { ok: false; error: string }
 type CreazioneResult = { ok: true; id: string } | { ok: false; error: string }
 
+// informazioniRaccolte (2026-08-12, vedi CLAUDE.md — due nuove caselle sulla
+// modale Verifica misure): riusa `descrizione_libera`, colonna generica mai
+// toccata finora da nessun sottotipo di Appuntamento (verificato in
+// migrations/codice prima di procedere — nessuna nuova colonna). Campo
+// opzionale: `undefined` per Briefing/Montaggio (il componente non lo invia
+// affatto per quei sottotipi, colonna resta quindi quella che era, non
+// forzata a null).
 export async function aggiornaAppuntamento(
   satelliteId: string,
   lavoroId: string,
-  fields: { data: string | null; descrizione: string | null; concluso: boolean },
+  fields: { data: string | null; descrizione: string | null; concluso: boolean; informazioniRaccolte?: string | null },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
-  const { error } = await supabase
-    .from('lavoro_satellite')
-    .update({
-      data_appuntamento: fields.data,
-      descrizione: fields.descrizione,
-      concluso: fields.concluso,
-    })
-    .eq('id', satelliteId)
+  const update: {
+    data_appuntamento: string | null
+    descrizione: string | null
+    concluso: boolean
+    descrizione_libera?: string | null
+  } = {
+    data_appuntamento: fields.data,
+    descrizione: fields.descrizione,
+    concluso: fields.concluso,
+  }
+  if (fields.informazioniRaccolte !== undefined) update.descrizione_libera = fields.informazioniRaccolte
+
+  const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
 
   if (error) {
     console.error('aggiornaAppuntamento: update fallito', error)

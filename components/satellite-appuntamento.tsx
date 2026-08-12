@@ -42,6 +42,18 @@ const LABEL_ALLEGATI: Record<SottotipoAppuntamento, string> = {
   montaggio: 'Puoi allegare foto e documenti raccolti durante il montaggio (file di immagine e PDF).',
 }
 
+// 2026-08-12 (vedi CLAUDE.md — due nuove caselle sulla modale Verifica
+// misure): il campo Descrizione esistente (colonna `descrizione`, condivisa
+// da tutti e 3 i sottotipi) si rietichetta per Verifica misure invece di
+// introdurre un campo duplicato — stesso pattern già in uso per
+// LABEL_CONCLUSO/LABEL_ALLEGATI sopra. Briefing/Montaggio restano
+// "Descrizione", invariati.
+const LABEL_DESCRIZIONE: Record<SottotipoAppuntamento, string> = {
+  briefing: 'Descrizione',
+  verifica_misure: 'Attività propedeutiche alla verifica',
+  montaggio: 'Descrizione',
+}
+
 export function SatelliteAppuntamento({
   satellite,
   lavoroId,
@@ -58,10 +70,16 @@ export function SatelliteAppuntamento({
   const [dataLocal, setDataLocal] = useState(iniziale.data)
   const [oraLocal, setOraLocal] = useState(iniziale.ora)
   const [descrizione, setDescrizione] = useState(satellite.descrizione ?? '')
+  // Informazioni raccolte (2026-08-12, vedi CLAUDE.md): solo Verifica
+  // misure la mostra/modifica, ma lo stato vive qui incondizionatamente
+  // (semplice, innocuo per Briefing/Montaggio — quei sottotipi non hanno
+  // mai un modo di cambiarlo, il round-trip al salvataggio resta un no-op).
+  const [informazioni, setInformazioni] = useState(satellite.descrizione_libera ?? '')
   const [concluso, setConcluso] = useState(satellite.concluso)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
   const descrizioneRef = useRef<HTMLTextAreaElement>(null)
+  const informazioniRef = useRef<HTMLTextAreaElement>(null)
 
   // Auto-crescita del textarea sul proprio contenuto (stesso pattern della
   // Modal di test): l'altezza segue scrollHeight, nessuna scrollbar interna
@@ -74,8 +92,15 @@ export function SatelliteAppuntamento({
     el.style.height = `${el.scrollHeight}px`
   }, [descrizione])
 
-  // Dirty-state: gli stessi 4 campi che "Salva" invia davvero.
-  const { dirty, segnaSalvato } = useDirtyForm({ dataLocal, oraLocal, descrizione, concluso })
+  useEffect(() => {
+    const el = informazioniRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [informazioni])
+
+  // Dirty-state: gli stessi campi che "Salva" invia davvero.
+  const { dirty, segnaSalvato } = useDirtyForm({ dataLocal, oraLocal, descrizione, concluso, informazioni })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
@@ -92,6 +117,10 @@ export function SatelliteAppuntamento({
       data: combinaDataOraLocale(dataLocal, oraLocal),
       descrizione: descrizione.trim() || null,
       concluso,
+      // undefined per Briefing/Montaggio (il campo non è renderizzato per
+      // quei sottotipi, nessuna modifica alla colonna) — solo Verifica
+      // misure lo invia davvero.
+      informazioniRaccolte: tipo === 'verifica_misure' ? informazioni.trim() || null : undefined,
     })
 
     setLoading(false)
@@ -175,10 +204,11 @@ export function SatelliteAppuntamento({
                 </div>
               </div>
 
-              {/* Riga 2 — Descrizione */}
+              {/* Riga 2 — Descrizione (rietichettata per Verifica misure, vedi
+                  LABEL_DESCRIZIONE sopra — Briefing/Montaggio invariati). */}
               <div>
                 <label htmlFor={`app-descrizione-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
-                  Descrizione
+                  {LABEL_DESCRIZIONE[tipo]}
                 </label>
                 <textarea
                   ref={descrizioneRef}
@@ -189,6 +219,26 @@ export function SatelliteAppuntamento({
                   className={`${inputClass()} resize-none overflow-hidden`}
                 />
               </div>
+
+              {/* Riga 2bis — Informazioni raccolte: solo Verifica misure
+                  (2026-08-12, vedi CLAUDE.md), riusa descrizione_libera
+                  (colonna generica mai toccata da Appuntamento finora,
+                  nessun conflitto con Briefing/Montaggio). */}
+              {tipo === 'verifica_misure' && (
+                <div>
+                  <label htmlFor={`app-informazioni-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
+                    Informazioni raccolte
+                  </label>
+                  <textarea
+                    ref={informazioniRef}
+                    id={`app-informazioni-${satellite.id}`}
+                    value={informazioni}
+                    onChange={(e) => setInformazioni(e.target.value)}
+                    rows={3}
+                    className={`${inputClass()} resize-none overflow-hidden`}
+                  />
+                </div>
+              )}
 
               {/* Riga 3 — Concluso: etichetta esplicita per esteso, non solo
                   un'icona/testo criptico. */}
@@ -220,6 +270,9 @@ export function SatelliteAppuntamento({
             <div className="space-y-3 text-sm text-gray-700">
               {satellite.data_appuntamento && <p>{new Date(satellite.data_appuntamento).toLocaleString('it-IT')}</p>}
               {satellite.descrizione && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione}</p>}
+              {tipo === 'verifica_misure' && satellite.descrizione_libera && (
+                <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>
+              )}
               <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
             </div>
           )}
