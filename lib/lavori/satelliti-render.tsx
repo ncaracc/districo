@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import type { DatiLavoroSatelliti } from '@/lib/lavori/dettaglio-lavoro-data'
 import { POSIZIONE_ATTIVITA } from '@/lib/lavori/attivita-ordine'
 import {
-  STATO_COSTRUZIONE_LABEL,
   coloreAcconto,
   coloreAcquisti,
   coloreAppuntamento,
@@ -15,6 +14,7 @@ import {
   labelStatoAppuntamento,
   labelStatoCampione,
   labelStatoChiusura,
+  labelStatoCostruzione,
   labelStatoNoleggio,
   labelStatoPreventivo,
   labelStatoProgetto,
@@ -200,12 +200,11 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
   })
 
   g.costruzione.forEach((s) => {
-    const stato = s.stato ?? 'da_iniziare'
     voci.push({
       satelliteId: s.id,
       nome: nomeNumerato(g.costruzione, s.id, 'Costruzione'),
-      colore: coloreCostruzione(stato),
-      statoLabel: STATO_COSTRUZIONE_LABEL[stato] ?? stato,
+      colore: coloreCostruzione(s.sessioni_lavoro, s.concluso),
+      statoLabel: labelStatoCostruzione(s.sessioni_lavoro, s.concluso),
       posizione: POSIZIONE_ATTIVITA.costruzione,
     })
   })
@@ -348,10 +347,9 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
   }
 
   if (satellite.tipo === 'costruzione') {
-    const stato = satellite.stato ?? 'da_iniziare'
     return {
       nome: nomeNumerato(g.costruzione, satelliteId, 'Costruzione'),
-      colore: coloreCostruzione(stato),
+      colore: coloreCostruzione(satellite.sessioni_lavoro, satellite.concluso),
       contenuto: <SatelliteCostruzione satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
     }
   }

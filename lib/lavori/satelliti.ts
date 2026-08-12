@@ -7,7 +7,7 @@
 // cambio di stato (bug scoperto in produzione, vedi CLAUDE.md).
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { type Acconto, type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
+import { type Acconto, type SessioneLavoro, type SottotipoAppuntamento } from '@/lib/lavori/satelliti-meta'
 import { assertLavoroModificabile, assertSatelliteModificabile } from '@/lib/lavori/lavoro-modificabile'
 
 type AzioneResult = { ok: true } | { ok: false; error: string }
@@ -644,9 +644,12 @@ export async function creaCostruzione(lavoroId: string): Promise<CreazioneResult
   const bloccato = await assertLavoroModificabile(supabase, lavoroId)
   if (bloccato) return bloccato
 
+  // Restyling 2026-08-12 (vedi CLAUDE.md): niente più `stato: 'da_iniziare'`
+  // alla creazione — sessioni_lavoro parte dal proprio default a schema
+  // ('[]'::jsonb), concluso dal proprio (false).
   const { data, error } = await supabase
     .from('lavoro_satellite')
-    .insert({ lavoro_id: lavoroId, tipo: 'costruzione', stato: 'da_iniziare' })
+    .insert({ lavoro_id: lavoroId, tipo: 'costruzione' })
     .select('id')
     .single()
 
@@ -660,10 +663,16 @@ export async function creaCostruzione(lavoroId: string): Promise<CreazioneResult
   return { ok: true, id: data.id }
 }
 
-export async function aggiornaDescrizioneCostruzione(
+// Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Costruzione):
+// sostituisce aggiornaDescrizioneCostruzione()/avanzaStatoCostruzione()
+// (nessun altro chiamante), stesso pattern di aggiornaAcconto()/
+// aggiornaCampione() — tutti i campi editabili salvati in un solo update.
+// `sessioni` arriva già filtrata dal componente (righe con inizio vuoto,
+// es. una "Aggiungi sessione" mai completata, escluse prima della chiamata).
+export async function aggiornaCostruzione(
   satelliteId: string,
   lavoroId: string,
-  descrizioneLibera: string | null,
+  fields: { sessioni: SessioneLavoro[]; note: string | null; conclusa: boolean },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
@@ -672,39 +681,15 @@ export async function aggiornaDescrizioneCostruzione(
 
   const { error } = await supabase
     .from('lavoro_satellite')
-    .update({ descrizione_libera: descrizioneLibera })
+    .update({
+      sessioni_lavoro: fields.sessioni,
+      descrizione_libera: fields.note,
+      concluso: fields.conclusa,
+    })
     .eq('id', satelliteId)
 
   if (error) {
-    console.error('aggiornaDescrizioneCostruzione: update fallito', error)
-    return { ok: false, error: 'Errore nel salvataggio, riprova' }
-  }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  revalidatePath('/lavori')
-  return { ok: true }
-}
-
-// da_iniziare -> in_corso imposta data_inizio=now(); in_corso -> completata imposta
-// data_fine=now() — tracciamento automatico del tempo trascorso richiesto dallo schema.
-export async function avanzaStatoCostruzione(
-  satelliteId: string,
-  lavoroId: string,
-  nuovoStato: 'in_corso' | 'completata',
-): Promise<AzioneResult> {
-  const supabase = await createClient()
-
-  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
-  if (bloccato) return bloccato
-
-  const update: { stato: 'in_corso' | 'completata'; data_inizio?: string; data_fine?: string } = { stato: nuovoStato }
-  if (nuovoStato === 'in_corso') update.data_inizio = new Date().toISOString()
-  if (nuovoStato === 'completata') update.data_fine = new Date().toISOString()
-
-  const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
-
-  if (error) {
-    console.error('avanzaStatoCostruzione: update fallito', error)
+    console.error('aggiornaCostruzione: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 

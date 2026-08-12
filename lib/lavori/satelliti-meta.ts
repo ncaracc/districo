@@ -11,6 +11,13 @@ export type TipoSatellite =
 
 export type Acconto = { etichetta: string; data: string | null; importo: number }
 
+// Costruzione (2026-08-12, vedi CLAUDE.md): sostituisce il vecchio
+// stato/data_inizio/data_fine con un elenco libero di sessioni di lavoro.
+// Nome del tipo generico ("SessioneLavoro", non "SessioneCostruzione"):
+// stessa colonna sessioni_lavoro verrà riusata identica da Montaggio in
+// una sessione futura dedicata.
+export type SessioneLavoro = { inizio: string; fine: string | null }
+
 export type SottotipoAppuntamento = 'briefing' | 'verifica_misure' | 'montaggio'
 
 export const SOTTOTIPO_APPUNTAMENTO_LABEL: Record<SottotipoAppuntamento, string> = {
@@ -56,6 +63,11 @@ export type Satellite = {
   // valore_complessivo, Note riusa descrizione_libera (già nel tipo).
   acconto_data: string | null
   acconto_incassato: boolean
+  // Costruzione (2026-08-12, vedi CLAUDE.md): sostituisce stato/data_inizio/
+  // data_fine (colonne legacy, non droppate, non più lette/scritte per
+  // questo tipo) — concluso (già nel tipo sopra, colonna condivisa con
+  // Appuntamento) riusato come flag "conclusa".
+  sessioni_lavoro: SessioneLavoro[]
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -206,22 +218,25 @@ export function labelStatoAcquisti(ordinato: boolean, haFornitore: boolean, haRi
 }
 
 // --- Costruzione ---
-export const STATO_COSTRUZIONE_LABEL: Record<string, string> = {
-  da_iniziare: 'Da iniziare',
-  in_corso: 'In corso',
-  completata: 'Completata',
-}
-
-export function coloreCostruzione(stato: string): ColoreSemaforo {
-  if (stato === 'da_iniziare') return 'red'
-  if (stato === 'completata') return 'green'
+// Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Costruzione):
+// SOSTITUISCE il vecchio stato a 3 valori testuali (da_iniziare/in_corso/
+// completata) + STATO_COSTRUZIONE_LABEL/azioniPossibiliCostruzione,
+// rimossi insieme (nessun altro consumer). Stesso pattern di
+// Campionatura/Acconto: rosso finché nessuna sessione è stata avviata,
+// giallo con almeno una sessione (aperta o chiusa) ma non ancora conclusa,
+// verde quando `concluso=true` (priorità massima, indipendente dalle
+// sessioni — stessa priorità già in uso per Preventivo/Progetto/Campione/
+// Acconto/Chiusura).
+export function coloreCostruzione(sessioni: SessioneLavoro[], conclusa: boolean): ColoreSemaforo {
+  if (conclusa) return 'green'
+  if (sessioni.length === 0) return 'red'
   return 'yellow'
 }
 
-export function azioniPossibiliCostruzione(statoAttuale: string): { stato: string; label: string }[] {
-  if (statoAttuale === 'da_iniziare') return [{ stato: 'in_corso', label: 'Segna come iniziata' }]
-  if (statoAttuale === 'in_corso') return [{ stato: 'completata', label: 'Segna come completata' }]
-  return []
+export function labelStatoCostruzione(sessioni: SessioneLavoro[], conclusa: boolean): string {
+  if (conclusa) return 'Conclusa'
+  if (sessioni.length === 0) return 'Da iniziare'
+  return 'In corso'
 }
 
 const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {

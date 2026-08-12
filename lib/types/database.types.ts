@@ -290,6 +290,13 @@ export type Database = {
           // file CLAUDE.md). Importo riusa valore_complessivo, Note riusa
           // descrizione_libera — nessuna colonna dedicata per quei due.
           acconto_data: string | null; acconto_incassato: boolean
+          // Costruzione (2026-08-12, vedi CLAUDE.md): sostituisce
+          // stato/data_inizio/data_fine per questo tipo (colonne legacy,
+          // non droppate) — array di {inizio, fine} (fine nullable, sessione
+          // ancora aperta). Nome generico: verrà riusata identica da
+          // Montaggio in una sessione futura dedicata. `concluso` sopra
+          // riusato come flag "conclusa".
+          sessioni_lavoro: { inizio: string; fine: string | null }[]
           data_creazione: string; data_ultimo_cambio_stato: string
         }
         Insert: {
@@ -318,6 +325,7 @@ export type Database = {
           chiusura_conclusa?: boolean; chiusura_data?: string | null
           chiusura_acconti?: { etichetta: string; data: string | null; importo: number }[]
           acconto_data?: string | null; acconto_incassato?: boolean
+          sessioni_lavoro?: { inizio: string; fine: string | null }[]
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_satellite']['Insert']>
