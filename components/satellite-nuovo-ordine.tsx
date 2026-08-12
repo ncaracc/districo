@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import { creaOrdine } from '@/lib/lavori/satelliti'
 import { Combobox } from '@/components/combobox'
+import { InputValuta } from '@/components/input-valuta'
 import { inputClass } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
@@ -179,14 +180,7 @@ export function SatelliteNuovoOrdine({
         <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
           Valore complessivo
         </label>
-        <input
-          id="ordine-valore"
-          type="number"
-          step="0.01"
-          value={valore}
-          onChange={(e) => setValore(e.target.value)}
-          className={inputClass()}
-        />
+        <InputValuta id="ordine-valore" value={valore} onChange={setValore} className={inputClass()} />
       </div>
 
       <div className="flex gap-2">

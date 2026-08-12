@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satelliti'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { InputValuta } from '@/components/input-valuta'
 import type { Acconto, Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
@@ -155,13 +156,11 @@ export function SatelliteChiusura({
                       onChange={(e) => aggiornaRiga(i, { data: e.target.value || null })}
                       className={`${inputClassFisso()} w-32`}
                     />
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={a.importo || ''}
-                      onChange={(e) => aggiornaRiga(i, { importo: e.target.value ? Number(e.target.value) : 0 })}
+                    <InputValuta
+                      value={a.importo ? String(a.importo) : ''}
+                      onChange={(v) => aggiornaRiga(i, { importo: v ? Number(v) : 0 })}
                       placeholder="Importo"
-                      className={`${inputClassFisso()} w-24`}
+                      className={`${inputClassFisso()} w-28`}
                     />
                     <button
                       type="button"

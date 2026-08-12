@@ -6,6 +6,7 @@ import { aggiornaNoleggio } from '@/lib/lavori/satelliti'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { InputValuta } from '@/components/input-valuta'
 import { Combobox } from '@/components/combobox'
 import { inputClass } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
@@ -147,14 +148,7 @@ export function SatelliteNoleggio({
               <label htmlFor="noleggio-costo" className="mb-1 block text-sm font-medium text-gray-700">
                 Costo
               </label>
-              <input
-                id="noleggio-costo"
-                type="number"
-                step="0.01"
-                value={costo}
-                onChange={(e) => setCosto(e.target.value)}
-                className={inputClass()}
-              />
+              <InputValuta id="noleggio-costo" value={costo} onChange={setCosto} className={inputClass()} />
             </div>
 
             <div>

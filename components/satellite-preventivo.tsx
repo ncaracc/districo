@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { aggiornaPreventivo, impostaPreventivoDecisione } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { InputValuta } from '@/components/input-valuta'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
@@ -166,14 +167,7 @@ export function SatellitePreventivo({
                 <label htmlFor={`prev-valore-${corrente.id}`} className="mb-1 block text-sm font-medium text-gray-700">
                   Valore
                 </label>
-                <input
-                  id={`prev-valore-${corrente.id}`}
-                  type="number"
-                  step="0.01"
-                  value={valore}
-                  onChange={(e) => setValore(e.target.value)}
-                  className={inputClass()}
-                />
+                <InputValuta id={`prev-valore-${corrente.id}`} value={valore} onChange={setValore} className={inputClass()} />
               </div>
 
               {/* Riga 3 — Note (descrizione_libera, colonna condivisa con

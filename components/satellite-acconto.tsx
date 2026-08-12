@@ -6,6 +6,7 @@ import { aggiornaAcconto } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { formattaValuta } from '@/lib/formato-valuta'
+import { InputValuta } from '@/components/input-valuta'
 import { inputClass } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
@@ -137,14 +138,7 @@ export function SatelliteAcconto({
                 <label htmlFor={`acc-importo-${satellite.id}`} className="mb-1 block text-sm font-medium text-gray-700">
                   Importo
                 </label>
-                <input
-                  id={`acc-importo-${satellite.id}`}
-                  type="number"
-                  step="0.01"
-                  value={valore}
-                  onChange={(e) => setValore(e.target.value)}
-                  className={inputClass()}
-                />
+                <InputValuta id={`acc-importo-${satellite.id}`} value={valore} onChange={setValore} className={inputClass()} />
               </div>
 
               {/* Riga 3 — Note (descrizione_libera, colonna condivisa con
