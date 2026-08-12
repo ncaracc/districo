@@ -98,13 +98,53 @@ const ModalContesto = createContext<{
 export function useProteggiChiusuraModal(dirty: boolean, onTentativoChiusura: () => void) {
   const ctx = useContext(ModalContesto)
 
+  // "Latest ref" per onTentativoChiusura (2026-08-12, vedi CLAUDE.md —
+  // refactor route parallele/intercettate): i componenti satellite passano
+  // quasi sempre una arrow function inline (`() => setConfermaUscitaAperta(true)`),
+  // una referenza NUOVA ad ogni render — se restasse nelle dipendenze
+  // dell'effect sotto, l'effect (e la sua cleanup) rieseguirebbe ad ogni
+  // render del satellite, non solo alle vere transizioni di `dirty`. Con la
+  // vecchia registraGuardia (solo `guardiaRef.current = guardia`, nessun
+  // effetto collaterale) questo era innocuo; da quando registraGuardia ha
+  // effetti collaterali sulla history (push/pop del "fantasma" per il
+  // blocco Back, vedi Modal più sotto) lo stesso schema di cleanup+re-run
+  // spurio genera transizioni false (guardia annullata e subito
+  // ripristinata) che disallineano il conteggio della history — bug reale
+  // scoperto testando "Annulla" nel dialog di conferma (un secondo render
+  // del satellite, es. per un motivo qualsiasi non legato a dirty, bastava
+  // a scatenare un push+pop fantasma extra). Fix qui, nell'hook condiviso,
+  // non nei satelliti (non toccati, come richiesto): l'effect sotto dipende
+  // ora solo da `[ctx, dirty]`, la guardia esposta legge sempre la versione
+  // più recente di onTentativoChiusura tramite questo ref.
+  const onTentativoChiusuraRef = useRef(onTentativoChiusura)
+  useEffect(() => {
+    onTentativoChiusuraRef.current = onTentativoChiusura
+  })
+
   useEffect(() => {
     if (!ctx) return
-    ctx.registraGuardia(dirty ? onTentativoChiusura : null)
+    ctx.registraGuardia(dirty ? () => onTentativoChiusuraRef.current() : null)
     return () => ctx.registraGuardia(null)
-  }, [ctx, dirty, onTentativoChiusura])
+  }, [ctx, dirty])
 
   return ctx?.onChiudi ?? (() => {})
+}
+
+// Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md):
+// variante "statica" del Provider, per la pagina piena di fallback
+// (attivita/[attivitaId]/page.tsx, apertura diretta dell'URL — nessun
+// overlay/portal/backdrop lì, è una pagina vera). I componenti satellite
+// esistenti chiamano comunque useProteggiChiusuraModal internamente (non
+// toccati, per requisito esplicito): senza un Provider nel loro albero,
+// ctx sarebbe null e i loro bottoni "Annulla"/"Salva ed esci"/"Esci senza
+// salvare" chiamerebbero un no-op — morti. Qui il Context esiste ma senza
+// alcuna delle meccaniche di Modal (guardiaRef/fantasma/popstate): non
+// c'è alcun X/backdrop/Esc/Back-fisico da intercettare su una pagina piena
+// normale, solo bottoni interni al satellite che devono poter navigare via
+// onChiudi — registraGuardia è quindi un no-op legittimo qui, non una
+// funzionalità mancante.
+export function ModalContestoStatico({ onChiudi, children }: { onChiudi: () => void; children: React.ReactNode }) {
+  return <ModalContesto.Provider value={{ onChiudi, registraGuardia: () => {} }}>{children}</ModalContesto.Provider>
 }
 
 // Modale generica riusata per la vista/modifica di un satellite (vedi
@@ -127,6 +167,7 @@ export function Modal({
   onChiudi,
   titolo,
   children,
+  bloccaBackConModifiche = false,
 }: {
   aperto: boolean
   onChiudi: () => void
@@ -137,29 +178,104 @@ export function Modal({
   // stringa, un ReactNode include già string.
   titolo?: React.ReactNode
   children: React.ReactNode
+  // Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md —
+  // punto delicato #1, blocco navigazione con modifiche non salvate):
+  // opt-in, default false — solo la nuova route di dettaglio attività lo
+  // passa a true, "Aggiungi attività" (nessun dirty-state da proteggere)
+  // resta invariata. Quando true, un tentativo di chiudere via tasto Back
+  // del browser (non solo X/backdrop/Esc, già coperti da guardiaRef) mentre
+  // c'è una guardia registrata (dirty) mostra lo stesso dialog di conferma
+  // invece di lasciare che la navigazione proceda — vedi la voce d'archivio
+  // per la spiegazione completa della tecnica ("storia fantasma").
+  bloccaBackConModifiche?: boolean
 }) {
   // Ref, non state: la guardia cambia spesso (ogni tasto digitato in un
   // campo del form aggiorna `dirty`) e non deve mai causare un re-render
   // della Modal stessa — viene solo letta al momento del tentativo di
-  // chiusura (X/backdrop/Esc).
+  // chiusura (X/backdrop/Esc/Back).
   const guardiaRef = useRef<Guardia | null>(null)
 
   // Fix Finding C (vedi commento della funzione sopra): altezza massima in
   // px calcolata sull'area realmente visibile, solo su mobile.
   const altezzaMassimaMobile = useAltezzaMassimaMobile()
 
+  // --- Blocco Back con modifiche non salvate (2026-08-12, vedi CLAUDE.md) ---
+  // Tecnica della "voce di history fantasma": l'App Router di Next.js non
+  // offre un blocco nativo per le navigazioni client-side (verificato: solo
+  // <Link onNavigate> esiste, e copre solo i click su Link, non il tasto
+  // Back — nessuna API stabile equivalente a un "router.block()" del vecchio
+  // Pages Router). Verificato leggendo il sorgente del router
+  // (node_modules/next/dist/client/components/app-router.js): Next intercetta
+  // popstate e, se `event.state.__NA` è assente, esegue un
+  // `window.location.reload()` — quindi non si può rispondere a un tentativo
+  // di back pushando uno state qualsiasi. Ma lo stesso file ha già la
+  // soluzione: `window.history.pushState`/`replaceState` sono monkey-patchati
+  // per copiare automaticamente `__NA`/l'albero interno di Next
+  // (`copyNextJsInternalHistoryState`) in QUALSIASI stato passato da codice
+  // esterno — quindi una pushState "esterna" come questa è già sicura e
+  // riconosciuta da Next.
+  //
+  // Quando la guardia passa da assente a presente (dirty diventa vero),
+  // pushiamo una voce di history duplicata con la STESSA URL corrente
+  // (`fantasmaAttivoRef`). Un primo tasto Back fisico pop-a quella voce senza
+  // alcun cambio di URL/route (Next non ha nulla da fare, la vede identica) —
+  // il nostro listener popstate lo intercetta e mostra il dialog di conferma
+  // esistente, la Modal resta montata con tutto lo stato in corso intatto
+  // (mai smontata, a differenza di un tentativo "preveni poi ripristina" che
+  // arriverebbe sempre troppo tardi). Se l'utente conferma di uscire, un
+  // `history.go(-2)` (fantasma + voce reale) porta via davvero in un colpo
+  // solo — go(-2) invece di due back() sequenziali per evitare qualunque
+  // rischio di ordinamento asincrono tra le due chiamate.
+  const fantasmaAttivoRef = useRef(false)
+  // true solo mentre siamo NOI a consumare il fantasma (dirty tornato pulito
+  // restando aperti, es. "Salva" senza uscire) — il conseguente popstate va
+  // ignorato, non è un tentativo di uscita dell'utente.
+  const consumandoFantasmaRef = useRef(false)
+
+  function registraGuardia(guardia: Guardia | null) {
+    const eraSporco = guardiaRef.current !== null
+    const oraSporco = guardia !== null
+    guardiaRef.current = guardia
+    if (!bloccaBackConModifiche) return
+
+    if (!eraSporco && oraSporco) {
+      fantasmaAttivoRef.current = true
+      window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+    } else if (eraSporco && !oraSporco && fantasmaAttivoRef.current) {
+      fantasmaAttivoRef.current = false
+      consumandoFantasmaRef.current = true
+      window.history.back()
+    }
+  }
+
+  // Chiusura "vera" unificata: se un fantasma è ancora sulla history (mai
+  // consumato da un back fisico, es. chiusura via X/backdrop/Esc/dialog con
+  // guardia ancora intatta), due passi indietro in un colpo solo; altrimenti
+  // il solo onChiudi del chiamante (router.back(), invariato). Usata sia dal
+  // ramo "nessuna guardia" di richiediChiusura sia come onChiudi esposto ai
+  // discendenti via Context — un solo punto che sa come "ripulire" il
+  // fantasma prima di uscire davvero.
+  function chiudiConPulizia() {
+    if (bloccaBackConModifiche && fantasmaAttivoRef.current) {
+      fantasmaAttivoRef.current = false
+      window.history.go(-2)
+      return
+    }
+    onChiudi()
+  }
+
   function richiediChiusura() {
     if (guardiaRef.current) guardiaRef.current()
-    else onChiudi()
+    else chiudiConPulizia()
   }
 
   // "Latest ref": aggiornata in un effect dopo ogni render (mai durante il
   // render stesso — il linting di questo progetto, react-hooks/refs, lo
-  // vieta esplicitamente), letta dal listener Esc sotto. L'effetto di
-  // mount/unmount del listener dipende solo da `aperto`, non deve
-  // ri-registrarsi ad ogni render — ma deve comunque invocare sempre la
-  // richiediChiusura più recente (che chiude sulla guardia/onChiudi
-  // correnti), non quella catturata al momento del mount.
+  // vieta esplicitamente), letta dai listener Esc/popstate sotto. Gli
+  // effetti di mount/unmount dei listener dipendono solo da `aperto`, non
+  // devono ri-registrarsi ad ogni render — ma devono comunque invocare
+  // sempre la richiediChiusura più recente (che chiude sulla guardia/
+  // onChiudi correnti), non quella catturata al momento del mount.
   const richiediChiusuraRef = useRef(richiediChiusura)
   useEffect(() => {
     richiediChiusuraRef.current = richiediChiusura
@@ -182,11 +298,49 @@ export function Modal({
     }
   }, [aperto])
 
+  // Listener popstate dedicato al tasto Back fisico — separato dal keydown
+  // Esc sopra perché deve poter distinguere il pop "fantasma" (silenzioso,
+  // nostro) da un vero tentativo dell'utente, e perché la sua stessa
+  // esistenza è condizionata a bloccaBackConModifiche (nessun listener
+  // aggiuntivo per "Aggiungi attività" o altri usi di Modal).
+  useEffect(() => {
+    if (!aperto || !bloccaBackConModifiche) return
+
+    function onPopState() {
+      if (consumandoFantasmaRef.current) {
+        // Pop auto-generato dalla pulizia in registraGuardia (dirty tornato
+        // pulito restando aperti) — nessun dialog, non è l'utente.
+        consumandoFantasmaRef.current = false
+        return
+      }
+      if (guardiaRef.current) {
+        // Il fantasma è stato appena consumato da QUESTO pop fisico: la
+        // Modal resta montata (stessa URL del fantasma), lo stato del form
+        // è intatto. Ri-armato SUBITO, prima ancora di sapere cosa deciderà
+        // l'utente nel dialog: se sceglie di restare (Annulla, stato locale
+        // interno al satellite — Modal non ne viene mai a conoscenza), un
+        // secondo Back deve trovare di nuovo un fantasma pronto ad
+        // assorbirlo, non passare "a vuoto" dritto alla navigazione reale.
+        // Se invece l'utente conferma l'uscita, chiudiConPulizia() lo
+        // consuma lui con go(-2) — coerente in entrambi i casi.
+        window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+        fantasmaAttivoRef.current = true
+        guardiaRef.current()
+      }
+      // else: nessuna guardia attiva — non c'era alcun fantasma da
+      // consumare (mai pushato), quindi questo è un back reale e Next lo
+      // gestisce da sé smontando questa route/Modal normalmente.
+    }
+
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [aperto, bloccaBackConModifiche])
+
   if (!aperto) return null
 
   return createPortal(
     <ModalContesto.Provider
-      value={{ onChiudi, registraGuardia: (guardia) => { guardiaRef.current = guardia } }}
+      value={{ onChiudi: chiudiConPulizia, registraGuardia }}
     >
       <div className="fixed inset-0 z-50 flex items-center justify-center sm:p-4">
         <div className="fixed inset-0 bg-black/40" onClick={richiediChiusura} aria-hidden="true" />

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
 import { PillolaFlottante } from '@/components/pillola-flottante'
@@ -17,76 +17,41 @@ import {
   creaProgetto,
   eliminaSatellite,
 } from '@/lib/lavori/satelliti'
-import { DOT_COLOR, type ColoreSemaforo } from '@/lib/lavori/satelliti-meta'
+import { DOT_COLOR } from '@/lib/lavori/satelliti-meta'
 import { LABEL_ATTIVITA, ORDINE_ATTIVITA, RIPETIBILE_ATTIVITA, type ChiaveAttivita } from '@/lib/lavori/attivita-ordine'
+import type { VoceAttivita } from '@/lib/lavori/satelliti-render'
 
-export type RigaSatellite = {
-  // Id del satellite da passare a eliminaSatellite e da usare come chiave
-  // sia React sia di selezione (apertura modale di dettaglio): per i tipi
-  // revisionabili (preventivo/progetto/campione) è sempre la revisione
-  // corrente/leaf della catena, mai una revisione storica — quindi sempre
-  // univoco per riga, nessun bisogno di una chiave sintetica separata.
-  satelliteId: string
-  nome: string
-  colore: ColoreSemaforo
-  statoLabel: string
-  // Template di riferimento (2026-08-04, vedi CLAUDE.md, per ora solo
-  // sull'attività Appuntamento — Briefing/Verifica misure/Montaggio, stesso
-  // componente condiviso): quando true, il titolo passato al Modal include
-  // il pallino di stato accanto al nome ("🟠 Briefing"), eliminando la riga
-  // duplicata che il componente satellite renderizzava al proprio interno.
-  // Opt-in per riga (non un default globale) apposta: applicarlo a ogni
-  // satellite senza anche rimuovere l'intestazione interna degli altri tipi
-  // (fuori scope in questo giro) produrrebbe un doppio pallino lì.
-  titoloConPallino?: boolean
-  // Due varianti pre-costruite server-side invece di una sola con un
-  // successivo tentativo di override client-side dell'isOwner via
-  // cloneElement (fix UX 2026-08-02 -> bug scoperto nello Sprint C, 2/8):
-  // cloneElement/isValidElement su un elemento React passato da un Server
-  // Component a un Client Component non sono affidabili — a seconda di come
-  // Next.js serializza quello specifico riferimento a Client Component
-  // attraverso il confine RSC, l'elemento può arrivare già "risolto" (clone
-  // funziona) o ancora avvolto in un riferimento lazy non ancora risolto
-  // (isValidElement torna false, l'override viene silenziosamente ignorato)
-  // — verificato che il comportamento diverga *tra tipi di satellite diversi
-  // nella stessa pagina* (Appuntamento/Progetto funzionavano, Preventivo no),
-  // quindi non è un problema di uno specifico componente ma della tecnica in
-  // sé. Costruire entrambe le varianti lato server elimina il problema alla
-  // radice: nessun override a runtime, solo una scelta tra due elementi già
-  // completamente validi.
-  contenutoModifica: ReactNode
-  contenutoLettura: ReactNode
-}
+// Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md): stesso
+// riepilogo di prima (satelliteId/nome/colore/statoLabel), senza più i due
+// campi JSX (contenutoModifica/contenutoLettura) e senza titoloConPallino
+// (sempre stato true per ogni riga reale dallo Sprint UI-4 del 6/8 — le
+// nuove route compongono sempre pallino+nome nel titolo, incondizionatamente,
+// nessuna eccezione rimasta da distinguere). Alias di VoceAttivita (stesso
+// modulo che costruisce anche il contenuto per le nuove route) invece di una
+// definizione duplicata.
+export type RigaSatellite = VoceAttivita
 
-// Tabella riepilogativa delle attività nel dettaglio Lavoro, al posto del
-// vecchio box discorsivo "Satelliti ancora da completare: ...". Il click sul
-// nome e la matita montano nella stessa modale lo stesso componente
-// satellite già esistente — ma non più con lo stesso prop isOwner (fix UX
-// 2026-08-02, vedi CLAUDE.md, sezione "Visualizzazione vs modifica"): il
-// nome apre sempre in sola lettura (clona l'elemento forzando isOwner a
-// false), solo la matita apre la modifica vera e propria (isOwner
-// invariato). Nessun componente satellite nuovo: tutti già distinguono
-// editabile/sola-lettura tramite lo stesso prop isOwner (era già usato per
-// il ruolo "ospite" e per un Lavoro completato) — qui lo forziamo a false
-// anche per un owner su un Lavoro aperto, quando la modale è stata aperta
-// dal nome invece che dalla matita.
+// Tabella riepilogativa delle attività nel dettaglio Lavoro. Il click sul
+// nome naviga in sola lettura, il click sulla matita naviga in modifica —
+// STESSA distinzione UX di sempre (fix UX 2026-08-02, vedi CLAUDE.md,
+// sezione "Visualizzazione vs modifica"), ma ora tramite router.push verso
+// l'URL dell'attività invece di stato locale: il tasto Back del browser
+// chiude la modale e torna qui, gestito dalla route intercettata
+// (@modal/(.)attivita/[attivitaId]), non più da questo componente. Nessuna
+// Modal di dettaglio satellite qui — vive nella nuova route.
 //
-// "Aggiungi attività" (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md):
-// sostituisce il vecchio "+ Aggiungi satellite" (tre mini-form separati) con
-// un unico modale che elenca le 9 tipologie nell'ordine di
-// lib/lavori/attivita-ordine.ts — le ripetibili sempre, Progetto/Preventivo
-// solo se non esistono già per questo Lavoro. Alla selezione, la maggior
-// parte dei tipi viene creata subito (stato iniziale di default) e si apre
-// direttamente la stessa modale di dettaglio della riga corrispondente,
-// appena questa compare tra le righe dopo il refresh — stesso principio già
-// in uso per le altre righe, nessuna modale "di compilazione" dedicata.
-// Campionatura seguiva questo stesso pattern generico fino al 1/8, poi ha
-// chiesto per un periodo il nome della serie prima di creare (rimosso nel
-// Sprint D produzione del 2/8, vedi CLAUDE.md: ogni Campionatura è tornata
-// un'istanza indipendente senza raggruppamento). Unica eccezione rimasta:
-// Acquisto apre il form di creazione già esistente (SatelliteNuovoOrdine)
-// perché il dettaglio di un Acquisto non permette di impostare
-// fornitore/categoria/righe/valore dopo la creazione.
+// "Aggiungi attività" (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md)
+// RESTA invece stato locale in questo componente, deliberatamente non
+// route-ificata in questo stesso refactor (vedi CLAUDE.md, voce
+// "Route parallele/intercettate" — valutato e scartato per contenere lo
+// scope di una sessione già ampia: l'obiettivo esplicito della sessione è
+// la modale di DETTAGLIO di un'attività, "Aggiungi attività" è un
+// selettore di creazione senza alcun dirty-state da proteggere, il gap
+// "Back non la chiude" è preesistente e non una regressione). Alla
+// creazione riuscita (creaEApri), naviga però verso la nuova route di
+// dettaglio dell'attività appena creata (invece di stato locale) — stesso
+// comportamento "si apre da sola in modifica" di prima, ora un vero
+// router.push.
 export function LavoroSatelliteTabella({
   righe,
   lavoroId,
@@ -102,9 +67,7 @@ export function LavoroSatelliteTabella({
   isOwner: boolean
   // Lavoro con stato 'completato': sola lettura su tutte le attività (modifica
   // ed eliminazione disabilitate, "+ Aggiungi attività" nascosto) — sblocco
-  // solo tramite "Riapri lavoro" (vedi CLAUDE.md). Il nome resta cliccabile:
-  // apre comunque la modale, ma in sola lettura (vedi isOwner effettivo passato
-  // al contenuto da app/(app)/lavori/[id]/page.tsx).
+  // solo tramite "Riapri lavoro" (vedi CLAUDE.md).
   completato: boolean
   progettoEsiste: boolean
   preventivoEsiste: boolean
@@ -112,11 +75,6 @@ export function LavoroSatelliteTabella({
   categorieAcquisto: { id: string; nome: string }[]
 }) {
   const router = useRouter()
-  const [apertoSatelliteId, setApertoSatelliteId] = useState<string | null>(null)
-  // true = aperta dal nome (sola lettura), false = aperta dalla matita
-  // (modifica) o da una creazione appena avvenuta (anch'essa modifica: l'utente
-  // ha appena creato l'attività, ha senso che la trovi subito compilabile).
-  const [apertaInSolaLettura, setApertaInSolaLettura] = useState(false)
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   const [mostraAggiungi, setMostraAggiungi] = useState(false)
@@ -124,26 +82,9 @@ export function LavoroSatelliteTabella({
   const [creandoChiave, setCreandoChiave] = useState<ChiaveAttivita | null>(null)
   const [erroreAggiungi, setErroreAggiungi] = useState<string | null>(null)
 
-  const rigaAperta = righe.find((r) => r.satelliteId === apertoSatelliteId) ?? null
-
-  // page.tsx costruisce entrambe le varianti (già con isOwner corretto
-  // ciascuna, incluso il caso ospite/Lavoro completato dove sono identiche):
-  // qui si sceglie solo quale mostrare, nessun override a runtime.
-  const contenutoDaMostrare = rigaAperta && (apertaInSolaLettura ? rigaAperta.contenutoLettura : rigaAperta.contenutoModifica)
-  const titoloModale = rigaAperta?.titoloConPallino ? (
-    // text-base (16px, restyling Appuntamento/Briefing 2026-08-10, vedi
-    // CLAUDE.md): stessa dimensione del titolo già validata nella Modal di
-    // test, sovrascrive il text-sm (14px) ereditato dall'header del Modal
-    // condiviso — scoped a questo span (solo le righe con titoloConPallino,
-    // oggi i tre sottotipi di Appuntamento), nessuna modifica a
-    // components/modal.tsx.
-    <span className="flex items-center gap-2 text-base">
-      <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[rigaAperta.colore]}`} />
-      {rigaAperta.nome}
-    </span>
-  ) : (
-    rigaAperta?.nome
-  )
+  function urlAttivita(satelliteId: string, vista: 'lettura' | 'modifica') {
+    return vista === 'modifica' ? `/lavori/${lavoroId}/attivita/${satelliteId}?vista=modifica` : `/lavori/${lavoroId}/attivita/${satelliteId}`
+  }
 
   async function handleElimina(riga: RigaSatellite) {
     if (!confirm('Eliminare definitivamente questa attività? L\'azione non è reversibile.')) return
@@ -163,60 +104,49 @@ export function LavoroSatelliteTabella({
     setErroreAggiungi(null)
   }
 
-  // Crea l'attività selezionata e, appena la riga corrispondente compare tra
-  // `righe` dopo il refresh, apre la sua modale di dettaglio — apertoSatelliteId
-  // resta impostato durante il refresh (stato locale del client component, non
-  // rimontato dal re-render del Server Component), quindi il Modal sottostante
-  // si apre da solo non appena `righe` include un satelliteId corrispondente.
-  async function creaEApri(
-    chiave: ChiaveAttivita,
-    azione: () => Promise<{ ok: true; id: string } | { ok: false; error: string }>,
-  ) {
-    setCreandoChiave(chiave)
+  // Crea l'attività selezionata e naviga subito alla sua route di dettaglio
+  // (in modifica) — stessa UX di prima ("si apre da sola appena creata"),
+  // ora tramite navigazione reale invece di stato locale.
+  async function creaEApri(azione: () => Promise<{ ok: true; id: string } | { ok: false; error: string }>) {
     setErroreAggiungi(null)
     const result = await azione()
-    setCreandoChiave(null)
     if (!result.ok) {
       setErroreAggiungi(result.error)
       return
     }
-    setApertoSatelliteId(result.id)
-    setApertaInSolaLettura(false)
     chiudiAggiungi()
-    router.refresh()
+    router.push(urlAttivita(result.id, 'modifica'))
   }
 
   function handleSeleziona(chiave: ChiaveAttivita) {
-    switch (chiave) {
-      case 'briefing':
-      case 'verifica_misure':
-      case 'montaggio':
-        creaEApri(chiave, () => creaAppuntamento(lavoroId, chiave))
-        return
-      case 'progetto':
-        creaEApri(chiave, () => creaProgetto(lavoroId))
-        return
-      case 'preventivo':
-        creaEApri(chiave, () => creaPreventivo(lavoroId))
-        return
-      case 'acconto':
-        creaEApri(chiave, () => creaAcconto(lavoroId))
-        return
-      case 'costruzione':
-        creaEApri(chiave, () => creaCostruzione(lavoroId))
-        return
-      case 'noleggio':
-        creaEApri(chiave, () => creaNoleggio(lavoroId))
-        return
-      case 'campionatura':
-        creaEApri(chiave, () => creaCampione(lavoroId))
-        return
-      case 'chiusura':
-        creaEApri(chiave, () => creaChiusura(lavoroId))
-        return
-      case 'acquisto':
-        setFormAcquistoAperto(true)
+    if (chiave === 'acquisto') {
+      setFormAcquistoAperto(true)
+      return
     }
+    setCreandoChiave(chiave)
+    const azione = (() => {
+      switch (chiave) {
+        case 'briefing':
+        case 'verifica_misure':
+        case 'montaggio':
+          return () => creaAppuntamento(lavoroId, chiave)
+        case 'progetto':
+          return () => creaProgetto(lavoroId)
+        case 'preventivo':
+          return () => creaPreventivo(lavoroId)
+        case 'acconto':
+          return () => creaAcconto(lavoroId)
+        case 'costruzione':
+          return () => creaCostruzione(lavoroId)
+        case 'noleggio':
+          return () => creaNoleggio(lavoroId)
+        case 'campionatura':
+          return () => creaCampione(lavoroId)
+        case 'chiusura':
+          return () => creaChiusura(lavoroId)
+      }
+    })()
+    creaEApri(azione).finally(() => setCreandoChiave(null))
   }
 
   // Ripetibili sempre proposte; le tre non ripetibili (progetto/preventivo/
@@ -246,10 +176,7 @@ export function LavoroSatelliteTabella({
                   <td className="px-4 py-2.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        setApertoSatelliteId(riga.satelliteId)
-                        setApertaInSolaLettura(true)
-                      }}
+                      onClick={() => router.push(urlAttivita(riga.satelliteId, 'lettura'))}
                       className="text-left font-medium text-gray-900 underline-offset-2 hover:underline"
                     >
                       {riga.nome}
@@ -266,10 +193,7 @@ export function LavoroSatelliteTabella({
                       <div className="flex items-center justify-end gap-1">
                         <button
                           type="button"
-                          onClick={() => {
-                            setApertoSatelliteId(riga.satelliteId)
-                            setApertaInSolaLettura(false)
-                          }}
+                          onClick={() => router.push(urlAttivita(riga.satelliteId, 'modifica'))}
                           disabled={completato}
                           aria-label="Modifica"
                           title={completato ? 'Riapri il lavoro per modificare' : 'Modifica'}
@@ -304,22 +228,17 @@ export function LavoroSatelliteTabella({
       )}
 
       {/* Bottone flottante (sessione affinamento UI 2026-08-08, vedi
-          CLAUDE.md): sostituisce il vecchio link testuale "+ Aggiungi
-          attività", stesso pattern "pillola" del bottone Salva validato nei
-          modali satellite — sempre visibile durante lo scroll della lista
-          attività. pb-24 sul contenitore radice (sotto) riserva lo spazio
-          perché non copra mai l'ultima riga della tabella.
-          Nascosta (sessione rifinitura 2026-08-08) quando è aperta la
-          modale di un satellite (rigaAperta, sola lettura o modifica —
-          stessa Modal in entrambi i casi) o la modale "Aggiungi attività"
-          stessa (mostraAggiungi — resterebbe visibile dietro alla propria
-          modale, stesso problema): in entrambi i casi è pura distrazione
-          dietro un backdrop semi-trasparente, nessuna azione sensata da
-          offrire in quel momento. Il caso "form di modifica del Lavoro
-          aperto" non richiede più una condizione qui: da questa stessa
-          sessione l'intera Sezione 3 (compresa questa pillola) non viene
-          più renderizzata in quel caso — vedi LavoroDettaglioSezioni. */}
-      {isOwner && !completato && !rigaAperta && !mostraAggiungi && (
+          CLAUDE.md): sempre visibile durante lo scroll della lista attività.
+          pb-24 sul contenitore radice (sotto) riserva lo spazio perché non
+          copra mai l'ultima riga della tabella. Nascosta solo quando
+          "Aggiungi attività" stessa è aperta (mostraAggiungi, stato locale
+          — resterebbe visibile dietro alla propria modale) — la modale di
+          dettaglio di un'attività ora vive in una route separata (z-50,
+          come questa stessa Modal), la pillola (z-30) sparisce già dietro
+          il suo backdrop per la sola differenza di z-index, senza bisogno
+          di una condizione esplicita qui (stesso principio già documentato
+          in pillola-flottante.tsx). */}
+      {isOwner && !completato && !mostraAggiungi && (
         <PillolaFlottante onClick={() => setMostraAggiungi(true)}>Aggiungi attività</PillolaFlottante>
       )}
 
@@ -350,10 +269,6 @@ export function LavoroSatelliteTabella({
             ))}
           </div>
         )}
-      </Modal>
-
-      <Modal aperto={!!rigaAperta} onChiudi={() => setApertoSatelliteId(null)} titolo={titoloModale}>
-        {contenutoDaMostrare}
       </Modal>
     </div>
   )
