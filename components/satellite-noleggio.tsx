@@ -17,6 +17,8 @@ import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
 type SedeSelezionata = { id: string; label: string }
 
+const LABEL_ALLEGATI = 'Puoi allegare foto e documenti inerenti il noleggio (file di immagine e PDF).'
+
 // La "compagnia" di noleggio è un Fornitore a tutti gli effetti (emette
 // fattura, va in contabilità), non un campo testo libero — stesso pattern di
 // ricerca già in uso in SatelliteNuovoOrdine per Acquisto, riusa la colonna
@@ -169,11 +171,22 @@ export function SatelliteNoleggio({
                 onChange={(e) => setPrenotazioneEffettuata(e.target.checked)}
                 className="accent-primary"
               />
-              Prenotazione effettuata
+              Contrassegna la prenotazione come effettuata.
             </label>
+
+            {/* Allegati: stesso pattern già in uso su Progetto/Preventivo/
+                Campionatura/Acconto — un solo fermaglio cliccabile, testo a
+                fianco, componente condiviso riusato as-is (non ricreato). */}
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
+                <span className="text-sm text-gray-700">{LABEL_ALLEGATI}</span>
+              </div>
+              <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+            </div>
           </div>
         ) : (
-          <div className="space-y-1 text-sm text-gray-700">
+          <div className="space-y-3 text-sm text-gray-700">
             {fornitoreSedeLabel && <p>{fornitoreSedeLabel}</p>}
             {(satellite.data_da || satellite.data_a) && (
               <p>
@@ -183,17 +196,9 @@ export function SatelliteNoleggio({
             )}
             {satellite.costo != null && <p>{formattaValuta(satellite.costo)}</p>}
             {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
+            <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
           </div>
         )}
-
-        {isOwner && (
-          <div className="mb-2">
-            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
-          </div>
-        )}
-        <div className="mb-2">
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-        </div>
       </div>
 
       {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} />}
