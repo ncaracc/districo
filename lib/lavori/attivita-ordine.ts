@@ -20,6 +20,7 @@ export type ChiaveAttivita =
   | 'costruzione'
   | 'noleggio'
   | 'montaggio'
+  | 'spesa_non_preventivata'
   | 'chiusura'
 
 export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
@@ -36,6 +37,11 @@ export const ORDINE_ATTIVITA: ChiaveAttivita[] = [
   'costruzione',
   'noleggio',
   'montaggio',
+  // "Attività non preventivate" (2026-08-13, vedi CLAUDE.md): nessuna
+  // posizione esplicitamente richiesta — collocata subito prima di
+  // Chiusura (di cui alimenta direttamente il calcolo "Valore
+  // complessivo"), dopo tutte le attività di esecuzione.
+  'spesa_non_preventivata',
   'chiusura',
 ]
 
@@ -54,13 +60,17 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
   costruzione: 'Costruzione',
   noleggio: 'Noleggio',
   montaggio: 'Montaggio',
+  spesa_non_preventivata: 'Attività non preventivate',
   chiusura: 'Chiusura Lavoro',
 }
 
 // Non ripetibili (al più un'istanza per Lavoro, escluse da "Aggiungi
 // attività" appena ne esiste già una): Progetto, Preventivo, Chiusura
-// (Chiusura aggiunta il 3/8, auto-creata come Preventivo — l'opzione resta
-// comunque per i Lavori vecchi creati prima di questa modifica), più
+// (Chiusura — il ciclo di vita di creazione è cambiato il 2026-08-13, vedi
+// CLAUDE.md: non più auto-creata alla nascita del Lavoro come Preventivo,
+// ma come conseguenza dell'accettazione — `creaChiusura()`/questa voce in
+// "Aggiungi attività" restano comunque come fallback manuale, stesso
+// principio già seguito per Preventivo/Progetto sui Lavori vecchi), più
 // Costruzione e Montaggio (cambiati da ripetibili a non ripetibili il
 // 2026-08-12, vedi CLAUDE.md — decisione presa quando entrambi hanno
 // guadagnato la gestione di sessioni multiple al proprio interno: non serve
@@ -71,7 +81,9 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
 // partenza, MA resta ripetibile — l'utente può servirsi di più briefing
 // successivi, es. manca un partecipante o servono nuove condizioni per
 // procedere), Campionatura, Acconto (2026-08-11, nessun vincolo su un
-// Preventivo accettato), Verifica misure, Noleggio.
+// Preventivo accettato), Verifica misure, Noleggio, "Attività non
+// preventivate" (2026-08-13, stesso trattamento di Acconto/Campionatura,
+// mai auto-creata).
 // Acquisto: ripetibilità lasciata invariata qui (`true`) — decisione
 // esplicitamente rimandata a una sessione futura dedicata (2026-08-12, vedi
 // CLAUDE.md), non toccata in questo giro.
@@ -86,5 +98,6 @@ export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   costruzione: false,
   noleggio: true,
   montaggio: false,
+  spesa_non_preventivata: true,
   chiusura: false,
 }

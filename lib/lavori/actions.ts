@@ -159,6 +159,14 @@ export async function eliminaLavoro(lavoroId: string): Promise<AzioneResult> {
 // preventivo_accettato/preventivo_rifiutato sul satellite Preventivo
 // (impostaPreventivoDecisione in lib/lavori/satelliti.ts), non più con
 // un'azione manuale diretta sulla pagina Lavoro.
+//
+// Lifecycle Chiusura Lavoro (2026-08-13, vedi CLAUDE.md): nessuna chiamata
+// di creazione/rimozione necessaria qui. 'completato' -> 'accettato': la
+// Chiusura esiste già (non viene mai rimossa entrando in 'completato', vedi
+// impostaPreventivoDecisione) — nessuna ricreazione necessaria. 'rifiutato'
+// -> 'opportunita': la Chiusura era già stata rimossa quando il Lavoro
+// aveva lasciato 'accettato' per diventare 'rifiutato' (stessa funzione), e
+// il target qui non è comunque 'accettato' — nessuna azione necessaria.
 export async function riapriLavoro(
   lavoroId: string,
   statoAttuale: 'completato' | 'rifiutato',

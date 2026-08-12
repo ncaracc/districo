@@ -2,74 +2,67 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { aggiornaChiusura, impostaChiusuraConclusa } from '@/lib/lavori/satelliti'
+import { aggiornaChiusuraFlags } from '@/lib/lavori/satelliti'
 import { formattaValuta } from '@/lib/formato-valuta'
-import { InputValuta } from '@/components/input-valuta'
-import type { Acconto, Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
-import { inputClass, inputClassFisso } from '@/lib/input-class'
-import { aDateLocal } from '@/lib/date-utils'
+import type { Satellite } from '@/lib/lavori/satelliti-meta'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
-import { SalvaFlottante } from '@/components/salva-flottante'
+import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
-import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
-const ACCONTO_VUOTO: Acconto = { etichetta: '', data: null, importo: 0 }
-
-// Nuova attività "Chiusura Lavoro" (2026-08-03, vedi CLAUDE.md): auto-creata
-// come Briefing/Preventivo, non ripetibile, sempre ultima nell'ordine. Il
-// suo semaforo verde (chiusura_conclusa) è il nuovo e unico meccanismo che
-// porta lavoro.stato a 'completato' — sostituisce il vecchio bottone
-// manuale "Segna lavoro completato". Nessuna tabella Pagamento separata: gli
-// acconti sono righe libere (chiusura_acconti, jsonb) dentro questo stesso
-// satellite, non un'entità normalizzata a sé — resta un'area dati semplice,
-// come richiesto esplicitamente.
+// Restyling calcoli economici (2026-08-13, vedi CLAUDE.md): SOSTITUISCE
+// interamente la vecchia struttura (Data + Acconti ricevuti liberi +
+// singola checkbox "Concluso" + allegati) — nessuno dei vecchi campi
+// editabili sopravvive. I 5 campi economici sono ora SOLA LETTURA,
+// calcolati server-side (dettaglio-lavoro-data.ts) dalle altre attività del
+// Lavoro (Preventivo, Attività non preventivate, Acquisti, Noleggi,
+// Acconto) — nessun input manuale, nessun salvataggio su questi campi.
+// Gli unici due campi editabili sono i flag "Incassato"/"Chiuso"
+// (chiusura_incassata/chiusura_conclusa), parte del dirty-state tracciato
+// da Salva/Annulla (PilloleSalvaAnnulla, standard 10/8 — questo restyling
+// migra anche Chiusura da SalvaFlottante) — lavoro.stato diventa
+// 'completato' solo quando ENTRAMBI sono true (vedi aggiornaChiusuraFlags).
+// Nessuna riga allegati (rimossa, come da nuova struttura richiesta — 0
+// allegati reali su Chiusura in produzione al momento della modifica,
+// verificato prima di rimuoverla).
 export function SatelliteChiusura({
   satellite,
   lavoroId,
-  allegati,
   isOwner,
-  valorePreventivo,
-  costiSostenuti,
+  valoreComplessivo,
+  speseComplessive,
+  margine,
+  accontiComplessivi,
+  importoDaIncassare,
 }: {
   satellite: Satellite
   lavoroId: string
-  allegati: SatelliteAllegato[]
   isOwner: boolean
-  valorePreventivo: number | null
-  costiSostenuti: number
+  valoreComplessivo: number
+  speseComplessive: number
+  margine: number
+  accontiComplessivi: number
+  importoDaIncassare: number
 }) {
   const router = useRouter()
-  const [data, setData] = useState(aDateLocal(satellite.chiusura_data))
-  const [acconti, setAcconti] = useState<Acconto[]>(satellite.chiusura_acconti.length > 0 ? satellite.chiusura_acconti : [])
+  const [incassata, setIncassata] = useState(satellite.chiusura_incassata)
+  const [conclusa, setConclusa] = useState(satellite.chiusura_conclusa)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
-  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
-  // snapshot di Data+Acconti, i due campi salvati da "Salva" — "Concluso"
-  // resta auto-salvante (fuori da questo tracking, il click è già il
-  // salvataggio) ma persiste anche lui Data/Acconti come effetto
-  // collaterale (vedi handleToggleConcluso sotto): richiama segnaSalvato()
-  // anche lì, altrimenti la barra resterebbe visibile con dati in realtà
-  // già persistiti.
-  const { dirty, segnaSalvato } = useDirtyForm({ data, acconti })
+  // Dirty-state: entrambi i flag, nessun campo economico (sola lettura, mai
+  // inviato al server) — stesso trattamento di "Concluso" in Costruzione/
+  // Montaggio, "Incassato" in Acconto: parte del Salva, non auto-salvante.
+  const { dirty, segnaSalvato } = useDirtyForm({ incassata, conclusa })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
-
-  const sommaAcconti = acconti.reduce((somma, a) => somma + (Number(a.importo) || 0), 0)
-  const valoreMenoAcconti = valorePreventivo != null ? valorePreventivo - sommaAcconti : null
-
-  function aggiornaRiga(i: number, patch: Partial<Acconto>) {
-    setAcconti((r) => r.map((riga, idx) => (idx === i ? { ...riga, ...patch } : riga)))
-  }
 
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
-    const result = await aggiornaChiusura(satellite.id, lavoroId, {
-      data: data || null,
-      acconti: acconti.filter((a) => a.etichetta.trim() || a.importo),
-    })
+
+    const result = await aggiornaChiusuraFlags(satellite.id, lavoroId, { incassata, conclusa })
+
     setLoading(false)
     if (!result.ok) {
       setErrore(result.error)
@@ -78,6 +71,13 @@ export function SatelliteChiusura({
     segnaSalvato()
     router.refresh()
     return true
+  }
+
+  // Standard di comportamento salvataggio (2026-08-10, vedi CLAUDE.md):
+  // "Salva" salva ma non chiude (resta aperta); "Annulla" scarta e chiude
+  // direttamente, nessuna conferma (è già un'azione esplicita di scarto).
+  function handleAnnulla() {
+    chiudiReale()
   }
 
   async function handleSalvaEEsci() {
@@ -92,142 +92,70 @@ export function SatelliteChiusura({
     chiudiReale()
   }
 
-  // Salva prima i campi correnti (il form può essere ancora "sporco" quando
-  // si spunta), poi imposta il flag — stesso pattern già in uso per il
-  // toggle "Ordinato" di Acquisto.
-  async function handleToggleConcluso(checked: boolean) {
-    setLoading(true)
-    setErrore(null)
-    const salvato = await aggiornaChiusura(satellite.id, lavoroId, {
-      data: data || null,
-      acconti: acconti.filter((a) => a.etichetta.trim() || a.importo),
-    })
-    if (!salvato.ok) {
-      setLoading(false)
-      setErrore(salvato.error)
-      return
-    }
-    segnaSalvato()
-    const result = await impostaChiusuraConclusa(satellite.id, lavoroId, checked)
-    setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
-  }
-
   return (
-    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
-    // non annidato dentro — stesso motivo già documentato in
-    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    // Frammento, non un unico div: PilloleSalvaAnnulla deve restare fuori
+    // da qualunque wrapper con un proprio `position` (relative/absolute/
+    // fixed) — stesso motivo già documentato in satellite-appuntamento.tsx.
     <>
-      <div className="rounded-lg border border-gray-200 p-4">
-        <div className="mb-3 space-y-1 text-sm text-gray-700">
-          <p>
-            Valore (preventivo): <span className="font-medium text-gray-900">{valorePreventivo != null ? formattaValuta(valorePreventivo) : '—'}</span>
-          </p>
-          <p>Riepilogo costi sostenuti: <span className="font-medium text-gray-900">{formattaValuta(costiSostenuti)}</span></p>
-          <p>
-            Valore - Acconti: <span className="font-medium text-gray-900">{valoreMenoAcconti != null ? formattaValuta(valoreMenoAcconti) : '—'}</span>
-          </p>
-        </div>
+      <div className={dirty ? 'pb-24' : ''}>
+        <div className="rounded-lg border border-gray-200 p-4">
+          <div className="space-y-2 text-sm text-gray-700">
+            <p className="flex items-center justify-between">
+              <span>Valore complessivo</span>
+              <span className="font-medium text-gray-900">{formattaValuta(valoreComplessivo)}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Spese complessive</span>
+              <span className="font-medium text-gray-900">{formattaValuta(speseComplessive)}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Margine</span>
+              <span className="font-medium text-gray-900">{formattaValuta(margine)}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Acconti complessivi</span>
+              <span className="font-medium text-gray-900">{formattaValuta(accontiComplessivi)}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Importo da incassare</span>
+              <span className="font-medium text-gray-900">{formattaValuta(importoDaIncassare)}</span>
+            </p>
+          </div>
 
-        {isOwner ? (
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="chiusura-data" className="mb-1 block text-sm font-medium text-gray-700">
-                Data
+          {isOwner ? (
+            <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={incassata}
+                  onChange={(e) => setIncassata(e.target.checked)}
+                  className="accent-primary"
+                />
+                Contrassegna tutti gli importi come incassati.
               </label>
-              <input id="chiusura-data" type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass()} />
+
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={conclusa}
+                  onChange={(e) => setConclusa(e.target.checked)}
+                  className="accent-primary"
+                />
+                Contrassegna il lavoro come chiuso.
+              </label>
             </div>
-
-            <div>
-              <span className="mb-1 block text-sm font-medium text-gray-700">Acconti ricevuti</span>
-              <div className="space-y-2">
-                {acconti.map((a, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-2">
-                    <input
-                      value={a.etichetta}
-                      onChange={(e) => aggiornaRiga(i, { etichetta: e.target.value })}
-                      placeholder="Es. Acconto alla firma"
-                      className={`${inputClass()} min-w-0 basis-full sm:flex-1 sm:basis-0`}
-                    />
-                    <input
-                      type="date"
-                      value={aDateLocal(a.data)}
-                      onChange={(e) => aggiornaRiga(i, { data: e.target.value || null })}
-                      className={`${inputClassFisso()} w-32`}
-                    />
-                    <InputValuta
-                      value={a.importo ? String(a.importo) : ''}
-                      onChange={(v) => aggiornaRiga(i, { importo: v ? Number(v) : 0 })}
-                      placeholder="Importo"
-                      className={`${inputClassFisso()} w-28`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setAcconti((r) => r.filter((_, idx) => idx !== i))}
-                      className="shrink-0 text-xs text-gray-400 hover:text-red-600"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button
-                type="button"
-                onClick={() => setAcconti((r) => [...r, { ...ACCONTO_VUOTO }])}
-                className="mt-2 text-xs font-medium text-gray-600 hover:text-gray-900"
-              >
-                + Aggiungi acconto
-              </button>
+          ) : (
+            <div className="mt-4 space-y-1 border-t border-gray-100 pt-4 text-sm text-gray-700">
+              <p>Importi incassati: {satellite.chiusura_incassata ? 'Sì' : 'No'}</p>
+              <p>Lavoro chiuso: {satellite.chiusura_conclusa ? 'Sì' : 'No'}</p>
             </div>
-
-            {errore && <p className="text-xs text-red-600">{errore}</p>}
-
-            <label className="flex items-center gap-1.5 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={satellite.chiusura_conclusa}
-                disabled={loading}
-                onChange={(e) => handleToggleConcluso(e.target.checked)}
-                className="accent-primary"
-              />
-              Concluso
-            </label>
-          </div>
-        ) : (
-          <div className="space-y-3 text-sm text-gray-700">
-            {satellite.chiusura_data && <p>Data: {new Date(satellite.chiusura_data).toLocaleDateString('it-IT')}</p>}
-
-            {acconti.length > 0 && (
-              <div>
-                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Acconti ricevuti</p>
-                <div className="space-y-1">
-                  {acconti.map((a, i) => (
-                    <div key={i} className="grid grid-cols-3 gap-2">
-                      <span className="text-left">{a.etichetta || '—'}</span>
-                      <span className="text-center text-gray-600">{a.data ? new Date(a.data).toLocaleDateString('it-IT') : '—'}</span>
-                      <span className="text-right">{formattaValuta(a.importo)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isOwner && (
-          <div className="mb-2">
-            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
-          </div>
-        )}
-        <div className="mb-2">
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
+          )}
         </div>
       </div>
 
-      {/* Nessun errore={errore} qui: è già mostrato sopra, dentro il div
-          (condiviso anche col toggle Concluso) — duplicherebbe altrimenti. */}
-      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={handleSalva} />}
+      {isOwner && (
+        <PilloleSalvaAnnulla visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} onAnnulla={handleAnnulla} />
+      )}
 
       <DialogConferma
         aperto={confermaUscitaAperta}

@@ -135,6 +135,11 @@ export function SatellitePreventivo({
       setErrore(result.error)
       return
     }
+    // Lifecycle Chiusura Lavoro (2026-08-13, vedi CLAUDE.md): notifica non
+    // bloccante quando questa transizione ha rimosso automaticamente la
+    // Chiusura Lavoro (il Lavoro non è più 'accettato') — l'azione
+    // principale (Accettato/Rifiutato) è comunque andata a buon fine.
+    if (result.info) alert(result.info)
     router.refresh()
   }
 

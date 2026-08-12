@@ -9,6 +9,7 @@ export type TipoSatellite =
   | 'chiusura'
   | 'acconto'
   | 'montaggio'
+  | 'spesa_non_preventivata'
 
 export type Acconto = { etichetta: string; data: string | null; importo: number }
 
@@ -62,6 +63,16 @@ export type Satellite = {
   chiusura_conclusa: boolean
   chiusura_data: string | null
   chiusura_acconti: Acconto[]
+  // Chiusura Lavoro (2026-08-13, vedi CLAUDE.md — restyling calcoli
+  // economici): secondo flag indipendente, "Contrassegna tutti gli importi
+  // come incassati." — chiusura_conclusa resta "Contrassegna il lavoro come
+  // chiuso.", concetto distinto (incassato completo ≠ lavoro chiuso).
+  // lavoro.stato diventa 'completato' solo quando ENTRAMBI sono true.
+  // chiusura_acconti sopra smette di essere letta/scritta per il calcolo
+  // "Acconti complessivi" (sostituita dalla somma degli Acconto satellite
+  // con acconto_incassato=true) — colonna non droppata, stesso trattamento
+  // già riservato a data_presentazione.
+  chiusura_incassata: boolean
   // Acconto (2026-08-11, vedi CLAUDE.md): intenzionalmente indipendente da
   // chiusura_acconti sopra, due meccanismi distinti. Importo riusa
   // valore_complessivo, Note riusa descrizione_libera (già nel tipo).
@@ -72,6 +83,12 @@ export type Satellite = {
   // questo tipo) — concluso (già nel tipo sopra, colonna condivisa con
   // Appuntamento) riusato come flag "conclusa".
   sessioni_lavoro: SessioneLavoro[]
+  // "Attività non preventivate" (2026-08-13, vedi CLAUDE.md): tipo interno
+  // 'spesa_non_preventivata', stesso schema di Acconto — Importo riusa
+  // valore_complessivo, Descrizione riusa descrizione_libera (già nel
+  // tipo), Data e il flag "accettata" sono dedicati come per Acconto.
+  spesa_data: string | null
+  spesa_accettata: boolean
   data_creazione: string
   data_ultimo_cambio_stato: string
 }
@@ -258,6 +275,7 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   chiusura: 'Chiusura Lavoro',
   acconto: 'Acconto',
   montaggio: 'Montaggio',
+  spesa_non_preventivata: 'Attività non preventivate',
 }
 
 // Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
@@ -322,12 +340,28 @@ export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
   return prenotazioneEffettuata ? 'Prenotato' : 'Da prenotare'
 }
 
-// Chiusura Lavoro (2026-08-03, vedi CLAUDE.md): semaforo binario come
-// Noleggio, nessun giallo. Verde = chiusura_conclusa=true, l'unico
-// meccanismo che porta lavoro.stato a 'completato' (impostaChiusuraConclusa,
-// lib/lavori/satelliti.ts).
-export function labelStatoChiusura(concluso: boolean): string {
-  return concluso ? 'Concluso' : 'Da chiudere'
+// Chiusura Lavoro — restyling calcoli economici (2026-08-13, vedi
+// CLAUDE.md): SOSTITUISCE il vecchio semaforo binario (solo
+// chiusura_conclusa) con un semaforo a 3 stati su DUE flag indipendenti —
+// chiusura_incassata ("Contrassegna tutti gli importi come incassati.") e
+// chiusura_conclusa ("Contrassegna il lavoro come chiuso."), concetti
+// distinti (incassato completo ≠ lavoro chiuso). Rosso di default (nessuno
+// dei due), giallo quando almeno uno dei due è true, verde quando ENTRAMBI
+// sono true — stessa priorità "verde quando la condizione più forte è
+// soddisfatta" già in uso ovunque nel progetto. Verde è anche l'unico
+// meccanismo che porta lavoro.stato a 'completato' (aggiornaChiusuraFlags,
+// lib/lavori/satelliti.ts) — era solo chiusura_conclusa, ora richiede
+// entrambi.
+export function coloreChiusura(incassata: boolean, conclusa: boolean): ColoreSemaforo {
+  if (incassata && conclusa) return 'green'
+  if (incassata || conclusa) return 'yellow'
+  return 'red'
+}
+
+export function labelStatoChiusura(incassata: boolean, conclusa: boolean): string {
+  if (incassata && conclusa) return 'Chiuso'
+  if (incassata || conclusa) return 'In corso'
+  return 'Da chiudere'
 }
 
 // --- Acconto (2026-08-11, vedi CLAUDE.md) ---
@@ -350,5 +384,22 @@ export function coloreAcconto(dataAcconto: string | null, valoreComplessivo: num
 export function labelStatoAcconto(dataAcconto: string | null, valoreComplessivo: number | null, incassato: boolean): string {
   if (incassato) return 'Incassato'
   if (!dataAcconto || valoreComplessivo == null) return 'Da completare'
+  return 'In attesa'
+}
+
+// --- Attività non preventivate (2026-08-13, vedi CLAUDE.md) ---
+// Stesso schema/semaforo di Acconto (tipo interno 'spesa_non_preventivata',
+// etichetta UI "Attività non preventivate"): verde ha priorità massima
+// (accettata=true), rosso finché Data e Importo non sono ENTRAMBI
+// valorizzati, giallo quando entrambi presenti ma non ancora accettata.
+export function coloreSpesaNonPreventivata(dataSpesa: string | null, valoreComplessivo: number | null, accettata: boolean): ColoreSemaforo {
+  if (accettata) return 'green'
+  if (!dataSpesa || valoreComplessivo == null) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoSpesaNonPreventivata(dataSpesa: string | null, valoreComplessivo: number | null, accettata: boolean): string {
+  if (accettata) return 'Accettata'
+  if (!dataSpesa || valoreComplessivo == null) return 'Da completare'
   return 'In attesa'
 }

@@ -45,13 +45,25 @@ export type DatiLavoroSatelliti = {
   righePerSatellite: Record<string, SatelliteArticolo[]>
   labelPerSedeId: Map<string, string>
   categorieAcquisto: { id: string; nome: string }[]
-  costiSostenuti: number
   // Preventivo "rilevante" (corrente, non superato da una revisione più
   // recente) — stessa logica già usata dal fix Valore Dashboard (0033) e dal
   // KPI 2 (0034). preventivoCatena è l'intera catena (più recente -> più
   // vecchia), serve a SatellitePreventivo per l'eventuale storico.
   valorePreventivo: number | null
   preventivoCatena: Satellite[]
+  // I 5 campi calcolati di Chiusura Lavoro (restyling 2026-08-13, vedi
+  // CLAUDE.md), tutti sola lettura, mai `null` (ogni componente è già
+  // coalesce-ato a 0 individualmente prima di combinarli — un Lavoro senza
+  // Preventivo valorizzato o senza Acconti incassati contribuisce comunque
+  // con un numero reale, non con un "dato mancante"). speseComplessive
+  // rinominato da costiSostenuti (unico consumer era già Chiusura Lavoro,
+  // nessun altro chiamante da preservare) per allinearsi al nome richiesto
+  // dalla nuova struttura della modale ("Spese complessive").
+  valoreComplessivo: number
+  speseComplessive: number
+  margine: number
+  accontiComplessivi: number
+  importoDaIncassare: number
   progettoEsiste: boolean
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
@@ -110,10 +122,11 @@ export async function caricaDatiLavoroSatelliti(
   const acquistiSatelliti = satelliti.filter((s) => s.tipo === 'acquisti')
   const noleggioSatelliti = satelliti.filter((s) => s.tipo === 'noleggio')
 
-  // Riepilogo costi sostenuti (Chiusura Lavoro, vedi CLAUDE.md): solo
-  // Acquisti già ordinato=true e Noleggi già prenotazione_effettuata=true —
-  // le voci non confermate non entrano nel riepilogo.
-  const costiSostenuti = satelliti.reduce((somma, s) => {
+  // "Spese complessive" (Chiusura Lavoro, vedi CLAUDE.md): solo Acquisti già
+  // ordinato=true e Noleggi già prenotazione_effettuata=true — le voci non
+  // confermate non entrano nel riepilogo. Invariata dal 3/8 (era
+  // "costiSostenuti"), solo rinominata.
+  const speseComplessive = satelliti.reduce((somma, s) => {
     if (s.tipo === 'acquisti' && s.ordinato) return somma + (s.valore_complessivo ?? 0)
     if (s.tipo === 'noleggio' && s.prenotazione_effettuata) return somma + (s.costo ?? 0)
     return somma
@@ -151,6 +164,25 @@ export async function caricaDatiLavoroSatelliti(
   const preventivoCorrente = preventivoCatena[0] ?? null
   const valorePreventivo = preventivoCorrente?.valore_complessivo ?? null
 
+  // Chiusura Lavoro — 5 campi calcolati (2026-08-13, vedi CLAUDE.md):
+  // Valore complessivo = Preventivo rilevante + Attività non preventivate
+  // accettate; Margine = Valore complessivo - Spese complessive; Acconti
+  // complessivi = somma degli Acconto con acconto_incassato=true; Importo
+  // da incassare = Valore complessivo - Acconti complessivi (normale che
+  // non sia zero finché non si incassa il saldo finale — gli Acconto
+  // tracciano solo pagamenti parziali, nessun avviso di incoerenza).
+  const speseNonPreventivateAccettate = satelliti.reduce((somma, s) => {
+    if (s.tipo === 'spesa_non_preventivata' && s.spesa_accettata) return somma + (s.valore_complessivo ?? 0)
+    return somma
+  }, 0)
+  const accontiComplessivi = satelliti.reduce((somma, s) => {
+    if (s.tipo === 'acconto' && s.acconto_incassato) return somma + (s.valore_complessivo ?? 0)
+    return somma
+  }, 0)
+  const valoreComplessivo = (valorePreventivo ?? 0) + speseNonPreventivateAccettate
+  const margine = valoreComplessivo - speseComplessive
+  const importoDaIncassare = valoreComplessivo - accontiComplessivi
+
   return {
     lavoro,
     clienteNome: cliente?.nome ?? null,
@@ -162,9 +194,13 @@ export async function caricaDatiLavoroSatelliti(
     righePerSatellite,
     labelPerSedeId,
     categorieAcquisto: categorieAcquisto ?? [],
-    costiSostenuti,
     valorePreventivo,
     preventivoCatena,
+    valoreComplessivo,
+    speseComplessive,
+    margine,
+    accontiComplessivi,
+    importoDaIncassare,
     progettoEsiste: satelliti.some((s) => s.tipo === 'progetto'),
     preventivoEsiste: preventivoSatelliti.length > 0,
     chiusuraEsiste: satelliti.some((s) => s.tipo === 'chiusura'),

@@ -6,9 +6,11 @@ import {
   coloreAcquisti,
   coloreAppuntamento,
   coloreCampione,
+  coloreChiusura,
   coloreSessioniLavoro,
   colorePreventivo,
   coloreProgetto,
+  coloreSpesaNonPreventivata,
   labelStatoAcconto,
   labelStatoAcquisti,
   labelStatoAppuntamento,
@@ -18,6 +20,7 @@ import {
   labelStatoNoleggio,
   labelStatoPreventivo,
   labelStatoProgetto,
+  labelStatoSpesaNonPreventivata,
   satelliteTipoLabelBreve,
   DOT_COLOR,
   type ColoreSemaforo,
@@ -32,6 +35,7 @@ import { SatelliteOrdine } from '@/components/satellite-ordine'
 import { SatelliteCostruzione } from '@/components/satellite-costruzione'
 import { SatelliteMontaggio } from '@/components/satellite-montaggio'
 import { SatelliteNoleggio } from '@/components/satellite-noleggio'
+import { SatelliteSpesaNonPreventivata } from '@/components/satellite-spesa-non-preventivata'
 import { SatelliteChiusura } from '@/components/satellite-chiusura'
 
 // Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md): estrae
@@ -75,6 +79,7 @@ type Gruppi = {
   acquisti: Satellite[]
   costruzione: Satellite[]
   noleggio: Satellite[]
+  speseNonPreventivate: Satellite[]
   chiusura: Satellite[]
 }
 
@@ -93,6 +98,7 @@ function raggruppaSatelliti(satelliti: Satellite[]): Gruppi {
     acquisti: satelliti.filter((s) => s.tipo === 'acquisti').sort(perData),
     costruzione: satelliti.filter((s) => s.tipo === 'costruzione').sort(perData),
     noleggio: satelliti.filter((s) => s.tipo === 'noleggio').sort(perData),
+    speseNonPreventivate: satelliti.filter((s) => s.tipo === 'spesa_non_preventivata').sort(perData),
     chiusura: satelliti.filter((s) => s.tipo === 'chiusura'),
   }
 }
@@ -233,13 +239,23 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
     })
   })
 
+  g.speseNonPreventivate.forEach((s) => {
+    voci.push({
+      satelliteId: s.id,
+      nome: nomeNumerato(g.speseNonPreventivate, s.id, 'Attività non preventivate'),
+      colore: coloreSpesaNonPreventivata(s.spesa_data, s.valore_complessivo, s.spesa_accettata),
+      statoLabel: labelStatoSpesaNonPreventivata(s.spesa_data, s.valore_complessivo, s.spesa_accettata),
+      posizione: POSIZIONE_ATTIVITA.spesa_non_preventivata,
+    })
+  })
+
   if (g.chiusura.length > 0) {
     const s = g.chiusura[0]
     voci.push({
       satelliteId: s.id,
       nome: 'Chiusura Lavoro',
-      colore: s.chiusura_conclusa ? 'green' : 'red',
-      statoLabel: labelStatoChiusura(s.chiusura_conclusa),
+      colore: coloreChiusura(s.chiusura_incassata, s.chiusura_conclusa),
+      statoLabel: labelStatoChiusura(s.chiusura_incassata, s.chiusura_conclusa),
       posizione: POSIZIONE_ATTIVITA.chiusura,
     })
   }
@@ -377,18 +393,28 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
     }
   }
 
+  if (satellite.tipo === 'spesa_non_preventivata') {
+    return {
+      nome: nomeNumerato(g.speseNonPreventivate, satelliteId, 'Attività non preventivate'),
+      colore: coloreSpesaNonPreventivata(satellite.spesa_data, satellite.valore_complessivo, satellite.spesa_accettata),
+      contenuto: <SatelliteSpesaNonPreventivata satellite={satellite} allegati={allegati} isOwner={isOwner} lavoroId={lavoroId} />,
+    }
+  }
+
   // chiusura
   return {
     nome: 'Chiusura Lavoro',
-    colore: satellite.chiusura_conclusa ? 'green' : 'red',
+    colore: coloreChiusura(satellite.chiusura_incassata, satellite.chiusura_conclusa),
     contenuto: (
       <SatelliteChiusura
         satellite={satellite}
         lavoroId={lavoroId}
-        allegati={allegati}
         isOwner={isOwner}
-        valorePreventivo={dati.valorePreventivo}
-        costiSostenuti={dati.costiSostenuti}
+        valoreComplessivo={dati.valoreComplessivo}
+        speseComplessive={dati.speseComplessive}
+        margine={dati.margine}
+        accontiComplessivi={dati.accontiComplessivi}
+        importoDaIncassare={dati.importoDaIncassare}
       />
     ),
   }

@@ -16,6 +16,7 @@ import {
   creaNoleggio,
   creaPreventivo,
   creaProgetto,
+  creaSpesaNonPreventivata,
   eliminaSatellite,
 } from '@/lib/lavori/satelliti'
 import { DOT_COLOR } from '@/lib/lavori/satelliti-meta'
@@ -153,6 +154,8 @@ export function LavoroSatelliteTabella({
           return () => creaNoleggio(lavoroId)
         case 'campionatura':
           return () => creaCampione(lavoroId)
+        case 'spesa_non_preventivata':
+          return () => creaSpesaNonPreventivata(lavoroId)
         case 'chiusura':
           return () => creaChiusura(lavoroId)
       }
