@@ -38,6 +38,8 @@ export function LavoroDettaglioSezioni({
   progettoEsiste,
   preventivoEsiste,
   chiusuraEsiste,
+  costruzioneEsiste,
+  montaggioEsiste,
   categorieAcquisto,
   children,
 }: {
@@ -53,6 +55,8 @@ export function LavoroDettaglioSezioni({
   progettoEsiste: boolean
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
+  costruzioneEsiste: boolean
+  montaggioEsiste: boolean
   categorieAcquisto: { id: string; nome: string }[]
   children?: React.ReactNode
 }) {
@@ -92,6 +96,8 @@ export function LavoroDettaglioSezioni({
           progettoEsiste={progettoEsiste}
           preventivoEsiste={preventivoEsiste}
           chiusuraEsiste={chiusuraEsiste}
+          costruzioneEsiste={costruzioneEsiste}
+          montaggioEsiste={montaggioEsiste}
           categorieAcquisto={categorieAcquisto}
         />
       )}

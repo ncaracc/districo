@@ -71,6 +71,8 @@ export default async function LavoroDettaglioPage({
         progettoEsiste={dati.progettoEsiste}
         preventivoEsiste={dati.preventivoEsiste}
         chiusuraEsiste={dati.chiusuraEsiste}
+        costruzioneEsiste={dati.costruzioneEsiste}
+        montaggioEsiste={dati.montaggioEsiste}
         categorieAcquisto={dati.categorieAcquisto}
       >
         {lavoro.stato === 'opportunita' && dati.preventivoEsiste && !dati.isOwner && (

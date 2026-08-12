@@ -57,13 +57,24 @@ export const LABEL_ATTIVITA: Record<ChiaveAttivita, string> = {
   chiusura: 'Chiusura Lavoro',
 }
 
-// Progetto, Preventivo e Chiusura sono le non ripetibili: al più un'istanza
-// per Lavoro, quindi compaiono in "Aggiungi attività" solo se non esistono
-// già (Chiusura aggiunta il 3/8, auto-creata come Preventivo — l'opzione
-// resta comunque per i Lavori vecchi creati prima di questa modifica).
-// Tutte le altre sono ripetibili — sempre proposte, indipendentemente da
-// quante istanze esistano già. Acconto (2026-08-11) è ripetibile come
-// Campionatura, sempre proposta, nessun vincolo su un Preventivo accettato.
+// Non ripetibili (al più un'istanza per Lavoro, escluse da "Aggiungi
+// attività" appena ne esiste già una): Progetto, Preventivo, Chiusura
+// (Chiusura aggiunta il 3/8, auto-creata come Preventivo — l'opzione resta
+// comunque per i Lavori vecchi creati prima di questa modifica), più
+// Costruzione e Montaggio (cambiati da ripetibili a non ripetibili il
+// 2026-08-12, vedi CLAUDE.md — decisione presa quando entrambi hanno
+// guadagnato la gestione di sessioni multiple al proprio interno: non serve
+// più creare istanze separate, una sola istanza copre già più sessioni di
+// lavoro discontinue).
+// Ripetibili (sempre proposte, indipendentemente da quante istanze esistano
+// già): Briefing (auto-creato alla creazione del Lavoro per comodità di
+// partenza, MA resta ripetibile — l'utente può servirsi di più briefing
+// successivi, es. manca un partecipante o servono nuove condizioni per
+// procedere), Campionatura, Acconto (2026-08-11, nessun vincolo su un
+// Preventivo accettato), Verifica misure, Noleggio.
+// Acquisto: ripetibilità lasciata invariata qui (`true`) — decisione
+// esplicitamente rimandata a una sessione futura dedicata (2026-08-12, vedi
+// CLAUDE.md), non toccata in questo giro.
 export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   briefing: true,
   progetto: false,
@@ -72,8 +83,8 @@ export const RIPETIBILE_ATTIVITA: Record<ChiaveAttivita, boolean> = {
   campionatura: true,
   verifica_misure: true,
   acquisto: true,
-  costruzione: true,
+  costruzione: false,
   noleggio: true,
-  montaggio: true,
+  montaggio: false,
   chiusura: false,
 }

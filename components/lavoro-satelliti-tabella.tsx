@@ -61,6 +61,8 @@ export function LavoroSatelliteTabella({
   progettoEsiste,
   preventivoEsiste,
   chiusuraEsiste,
+  costruzioneEsiste,
+  montaggioEsiste,
   categorieAcquisto,
 }: {
   righe: RigaSatellite[]
@@ -73,6 +75,10 @@ export function LavoroSatelliteTabella({
   progettoEsiste: boolean
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
+  // Costruzione/Montaggio non più ripetibili (2026-08-12, vedi CLAUDE.md),
+  // stesso trattamento di progetto/preventivo/chiusura sopra.
+  costruzioneEsiste: boolean
+  montaggioEsiste: boolean
   categorieAcquisto: { id: string; nome: string }[]
 }) {
   const router = useRouter()
@@ -154,12 +160,16 @@ export function LavoroSatelliteTabella({
     creaEApri(azione).finally(() => setCreandoChiave(null))
   }
 
-  // Ripetibili sempre proposte; le tre non ripetibili (progetto/preventivo/
-  // chiusura) solo se non esistono già per questo Lavoro.
+  // Ripetibili sempre proposte; le non ripetibili (progetto/preventivo/
+  // chiusura/costruzione/montaggio) solo se non esistono già per questo
+  // Lavoro — Costruzione/Montaggio aggiunte il 2026-08-12 (vedi CLAUDE.md),
+  // stesso trattamento delle prime tre.
   const esistente: Partial<Record<ChiaveAttivita, boolean>> = {
     progetto: progettoEsiste,
     preventivo: preventivoEsiste,
     chiusura: chiusuraEsiste,
+    costruzione: costruzioneEsiste,
+    montaggio: montaggioEsiste,
   }
   const opzioni = ORDINE_ATTIVITA.filter((chiave) => RIPETIBILE_ATTIVITA[chiave] || !esistente[chiave])
 

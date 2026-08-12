@@ -55,6 +55,12 @@ export type DatiLavoroSatelliti = {
   progettoEsiste: boolean
   preventivoEsiste: boolean
   chiusuraEsiste: boolean
+  // Costruzione/Montaggio non più ripetibili (2026-08-12, vedi CLAUDE.md) —
+  // stesso trattamento di progettoEsiste/preventivoEsiste/chiusuraEsiste,
+  // usati da LavoroSatelliteTabella per escluderli da "Aggiungi attività"
+  // appena esiste già un'istanza per il Lavoro.
+  costruzioneEsiste: boolean
+  montaggioEsiste: boolean
 }
 
 export async function caricaDatiLavoroSatelliti(
@@ -162,5 +168,7 @@ export async function caricaDatiLavoroSatelliti(
     progettoEsiste: satelliti.some((s) => s.tipo === 'progetto'),
     preventivoEsiste: preventivoSatelliti.length > 0,
     chiusuraEsiste: satelliti.some((s) => s.tipo === 'chiusura'),
+    costruzioneEsiste: satelliti.some((s) => s.tipo === 'costruzione'),
+    montaggioEsiste: satelliti.some((s) => s.tipo === 'montaggio'),
   }
 }
