@@ -129,21 +129,34 @@ export function labelStatoProgetto(accettato: boolean, haAllegati: boolean): str
 // Sprint D (produzione) 2026-08-02: ogni riga è un'istanza indipendente, non
 // più un gruppo di revisioni raggruppate per "serie" (vedi CLAUDE.md). Se una
 // campionatura "non va bene" se ne crea una nuova scollegata, non una
-// revisione — nessun uso di revisione_di per le nuove righe. Semaforo
-// derivato da descrizione/campione_consegnato invece del vecchio stato a 5
-// valori condiviso con Progetto (STATI_CAMPIONE/STATO_CAMPIONE_LABEL,
-// rimossi insieme al resto dell'apparato "revisionabile" — Preventivo/
-// Progetto ne erano già usciti l'1/8 e il 2/8, Campione era rimasto l'unico
-// tipo ancora su quel modello).
-export function coloreCampione(descrizione: string | null, consegnato: boolean): ColoreSemaforo {
+// revisione — nessun uso di revisione_di per le nuove righe.
+//
+// Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Campionatura,
+// sullo stesso template di Progetto/Acconto): semaforo ridisegnato,
+// SOSTITUISCE quello del 2/8 — non più derivato da `descrizione` ma da
+// `campione_data_consegna`, ora un campo Data liberamente editabile
+// dall'utente (come l'omonimo campo Data di Acconto), non più un
+// side-effect "leggi poi scrivi" legato alla transizione di
+// campione_consegnato (comportamento precedente rimosso in
+// aggiornaCampione() insieme a questo cambio). Rosso finché la Data non è
+// valorizzata, giallo quando la Data è presente ma non ancora consegnato,
+// verde quando consegnato=true (priorità massima, indipendente dagli altri
+// campi — stessa priorità già in uso per Preventivo/Progetto/Acconto/
+// Chiusura). Conseguenza accettata sui dati storici (verificato su
+// Supabase Cloud prima di scrivere la migration 0040): 2 righe reali con
+// descrizione già compilata ma nessuna data di consegna passano da giallo a
+// rosso — nessun backfill possibile/sensato (nessuna data equivalente da
+// cui derivarla), stesso principio già accettato per altri cambi di
+// semaforo su dati storici (es. Campione 2/8, Acquisto 3/8).
+export function coloreCampione(dataConsegna: string | null, consegnato: boolean): ColoreSemaforo {
   if (consegnato) return 'green'
-  if (!descrizione || !descrizione.trim()) return 'red'
+  if (!dataConsegna) return 'red'
   return 'yellow'
 }
 
-export function labelStatoCampione(descrizione: string | null, consegnato: boolean): string {
+export function labelStatoCampione(dataConsegna: string | null, consegnato: boolean): string {
   if (consegnato) return 'Consegnato'
-  if (!descrizione || !descrizione.trim()) return 'Descrizione da inserire'
+  if (!dataConsegna) return 'Data da inserire'
   return 'In attesa'
 }
 

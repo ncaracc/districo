@@ -402,45 +402,33 @@ export async function creaCampione(lavoroId: string): Promise<CreazioneResult> {
   return { ok: true, id: data.id }
 }
 
-// campione_data_consegna: valorizzata a now() solo alla transizione
-// false->true di campione_consegnato, azzerata alla transizione inversa —
-// letto lo stato attuale prima di scrivere (stesso pattern "leggi poi
-// scrivi" già in uso per data_presentazione/prima_accettazione_at), per non
-// perdere/falsare la data se il flag viene semplicemente ri-salvato invariato.
+// Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Campionatura,
+// stesso template di Progetto/Acconto): campione_data_consegna diventa un
+// campo Data liberamente editabile dall'utente (come acconto_data), non più
+// un side-effect "leggi poi scrivi" legato alla transizione di
+// campione_consegnato — il vecchio comportamento (valorizzata solo alla
+// transizione false->true, azzerata alla transizione inversa) è stato
+// rimosso: il chiamante invia ora tutti e 4 i campi in un solo update,
+// stesso pattern di aggiornaAcconto().
 export async function aggiornaCampione(
   satelliteId: string,
   lavoroId: string,
-  fields: { descrizione: string | null; consegnato: boolean; note: string | null },
+  fields: { data: string | null; descrizione: string | null; consegnato: boolean; note: string | null },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
-  const { data: attuale } = await supabase
+  const { error } = await supabase
     .from('lavoro_satellite')
-    .select('campione_consegnato')
+    .update({
+      campione_data_consegna: fields.data,
+      descrizione: fields.descrizione,
+      descrizione_libera: fields.note,
+      campione_consegnato: fields.consegnato,
+    })
     .eq('id', satelliteId)
-    .maybeSingle()
-
-  const update: {
-    descrizione: string | null
-    descrizione_libera: string | null
-    campione_consegnato: boolean
-    campione_data_consegna?: string | null
-  } = {
-    descrizione: fields.descrizione,
-    descrizione_libera: fields.note,
-    campione_consegnato: fields.consegnato,
-  }
-
-  if (fields.consegnato && !attuale?.campione_consegnato) {
-    update.campione_data_consegna = new Date().toISOString()
-  } else if (!fields.consegnato && attuale?.campione_consegnato) {
-    update.campione_data_consegna = null
-  }
-
-  const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
 
   if (error) {
     console.error('aggiornaCampione: update fallito', error)
@@ -891,7 +879,10 @@ export async function aggiornaChiusura(
 // richiesto ma verificato necessario prima di scrivere questa funzione.
 // chiusura_data valorizzata di default a now() alla prima transizione a
 // concluso (stesso pattern "leggi poi scrivi" già in uso per
-// campione_data_consegna), mai sovrascritta se già impostata — resta
+// data_presentazione/prima_accettazione_at — non più per
+// campione_data_consegna, diventata un campo liberamente editabile dal
+// restyling Campionatura del 12/8, vedi CLAUDE.md), mai sovrascritta se già
+// impostata — resta
 // comunque modificabile in seguito tramite aggiornaChiusura(). Bloccata
 // insieme a tutto il resto (fornitore/righe/ecc.) non appena lavoro.stato
 // diventa 'completato': assertSatelliteModificabile lo garantisce già,

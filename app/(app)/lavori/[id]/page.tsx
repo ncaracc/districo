@@ -285,8 +285,8 @@ export default async function LavoroDettaglioPage({
     righeTabella.push({
       satelliteId: s.id,
       nome,
-      colore: coloreCampione(s.descrizione, s.campione_consegnato),
-      statoLabel: labelStatoCampione(s.descrizione, s.campione_consegnato),
+      colore: coloreCampione(s.campione_data_consegna, s.campione_consegnato),
+      statoLabel: labelStatoCampione(s.campione_data_consegna, s.campione_consegnato),
       posizione: POSIZIONE_ATTIVITA.campionatura,
       titoloConPallino: true,
       contenutoModifica: (
