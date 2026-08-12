@@ -76,4 +76,24 @@ export const SLOT_ORARI: string[] = (() => {
 // Costruzione) per restare automaticamente coerenti se un futuro satellite
 // (es. Montaggio) ne aggiungesse un altro.
 export const RIGA_DATA_ORA_CLASSI = 'flex flex-col min-[340px]:flex-row'
-export const CAMPO_DATA_ORA_CLASSI = 'min-w-0 min-[340px]:flex-1'
+
+// Sessione rifinitura successiva, stesso giorno (vedi CLAUDE.md): erano
+// entrambi `flex-1` (`flex: 1 1 0%`), cioè 50%/50% equi — troppo stretto
+// per il controllo Data (deve contenere "gg/mm/aaaa" più l'icona
+// calendario nativa) su schermi da smartphone, dove il controllo Ora si
+// riduce a poche cifre ("07:30"). Proporzione 60/40 (Data/Ora) SOLO nella
+// fascia realmente stretta 340-639px (`min-[340px]:max-[639px]:`, range
+// esplicito e non sovrapponibile con `sm:` — evita qualunque ambiguità di
+// ordine nel foglio di stile compilato tra una variante a valore arbitrario
+// e un breakpoint nominale, stesso principio già imparato con altri bug
+// CSS del progetto, vedi CLAUDE.md), tornano 50/50 (`sm:flex-1`, invariato)
+// da 640px in su: verificato che lì lo spazio disponibile renda il 50/50
+// già adeguato, nessun bisogno della stessa asimmetria.
+// `flex-[3]`/`flex-[2]` (non una larghezza percentuale fissa tipo `w-[60%]`):
+// con un `gap` tra i due campi, una coppia di `width` percentuali che somma
+// esattamente 100% farebbe traboccare il contenitore esattamente della
+// larghezza del gap (il gap si somma alle percentuali, non le sottrae) —
+// il rapporto di crescita flex (`flex-grow`), applicato al solo spazio
+// REALMENTE disponibile dopo aver sottratto il gap, non ha questo problema.
+export const CAMPO_DATA_CLASSI = 'min-w-0 min-[340px]:max-[639px]:flex-[3] sm:flex-1'
+export const CAMPO_ORA_CLASSI = 'min-w-0 min-[340px]:max-[639px]:flex-[2] sm:flex-1'

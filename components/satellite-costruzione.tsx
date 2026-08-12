@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { aggiornaCostruzione } from '@/lib/lavori/satelliti'
 import type { Satellite, SatelliteAllegato, SessioneLavoro } from '@/lib/lavori/satelliti-meta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
-import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, CAMPO_DATA_ORA_CLASSI } from '@/lib/date-utils'
+import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, CAMPO_DATA_CLASSI, CAMPO_ORA_CLASSI } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
@@ -200,12 +200,12 @@ export function SatelliteCostruzione({
                           type="date"
                           value={s.inizioData}
                           onChange={(e) => aggiornaSessione(i, 'inizioData', e.target.value)}
-                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_CLASSI}`}
                         />
                         <select
                           value={s.inizioOra}
                           onChange={(e) => aggiornaSessione(i, 'inizioOra', e.target.value)}
-                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_ORA_CLASSI}`}
                         >
                           <option value="">--</option>
                           {SLOT_ORARI.map((o) => (
@@ -224,12 +224,12 @@ export function SatelliteCostruzione({
                           type="date"
                           value={s.fineData}
                           onChange={(e) => aggiornaSessione(i, 'fineData', e.target.value)}
-                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_CLASSI}`}
                         />
                         <select
                           value={s.fineOra}
                           onChange={(e) => aggiornaSessione(i, 'fineOra', e.target.value)}
-                          className={`${inputClassFisso()} w-full ${CAMPO_DATA_ORA_CLASSI}`}
+                          className={`${inputClassFisso()} w-full ${CAMPO_ORA_CLASSI}`}
                         >
                           <option value="">--</option>
                           {SLOT_ORARI.map((o) => (
