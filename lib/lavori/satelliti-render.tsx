@@ -8,6 +8,7 @@ import {
   coloreCampione,
   coloreChiusura,
   coloreSessioniLavoro,
+  coloreNoleggio,
   colorePreventivo,
   coloreProgetto,
   coloreSpesaNonPreventivata,
@@ -223,8 +224,8 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
     voci.push({
       satelliteId: s.id,
       nome: nomeNumerato(g.noleggio, s.id, 'Noleggio'),
-      colore: s.prenotazione_effettuata ? 'green' : 'red',
-      statoLabel: labelStatoNoleggio(s.prenotazione_effettuata),
+      colore: coloreNoleggio(s.data_da, s.data_a, s.prenotazione_effettuata),
+      statoLabel: labelStatoNoleggio(s.data_da, s.data_a, s.prenotazione_effettuata),
       posizione: POSIZIONE_ATTIVITA.noleggio,
     })
   })
@@ -380,7 +381,7 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
   if (satellite.tipo === 'noleggio') {
     return {
       nome: nomeNumerato(g.noleggio, satelliteId, 'Noleggio'),
-      colore: satellite.prenotazione_effettuata ? 'green' : 'red',
+      colore: coloreNoleggio(satellite.data_da, satellite.data_a, satellite.prenotazione_effettuata),
       contenuto: (
         <SatelliteNoleggio
           satellite={satellite}

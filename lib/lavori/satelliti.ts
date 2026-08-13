@@ -127,24 +127,6 @@ export async function creaProgetto(lavoroId: string): Promise<CreazioneResult> {
 // Preventivo, non ha alcun effetto su lavoro.stato — resta indipendente dal
 // gate, che dipende solo dal Preventivo (verificato esplicitamente: questa
 // funzione tocca solo la riga lavoro_satellite, mai la tabella lavoro).
-export async function impostaProgettoAccettato(satelliteId: string, lavoroId: string, accettato: boolean): Promise<AzioneResult> {
-  const supabase = await createClient()
-
-  const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
-  if (bloccato) return bloccato
-
-  const { error } = await supabase.from('lavoro_satellite').update({ progetto_accettato: accettato }).eq('id', satelliteId)
-
-  if (error) {
-    console.error('impostaProgettoAccettato: update fallito', error)
-    return { ok: false, error: 'Errore nel salvataggio, riprova' }
-  }
-
-  revalidatePath(`/lavori/${lavoroId}`)
-  revalidatePath('/lavori')
-  return { ok: true }
-}
-
 // Restyling 2026-08-11 (vedi CLAUDE.md — mappatura campi Progetto, stesso
 // template di Preventivo dello stesso giorno): Data (data_creazione, NOT
 // NULL a schema, resa editabile per la prima volta — stesso pattern di
@@ -155,19 +137,43 @@ export async function impostaProgettoAccettato(satelliteId: string, lavoroId: st
 // differenza di aggiornaPreventivo): per il Progetto quella colonna si
 // valorizza al primo allegato caricato (lib/lavori/allegati.ts), non al
 // salvataggio di questi campi — invariato, fuori scope di questa sessione.
+//
+// `accettato` aggiunto in sessione successiva (vedi CLAUDE.md/docs/audit):
+// sostituisce la vecchia impostaProgettoAccettato() (unico chiamante,
+// rimossa non lasciata come alias morto) — il flag "Accettato" non è più
+// auto-salvante (chiamata diretta sull'onChange), fa ora parte dello stesso
+// salvataggio esplicito di Data/Descrizione, coerente col principio "nessun
+// salvataggio implicito" già valido per ogni altro campo/checkbox dell'app.
+// Nessun side-effect da preservare (a differenza di Preventivo, che tocca
+// lavoro.stato): un semplice campo aggiuntivo nello stesso update.
 export async function aggiornaProgetto(
   satelliteId: string,
   lavoroId: string,
-  fields: { dataCreazione: string; descrizione: string | null },
+  fields: { dataCreazione: string; descrizione: string | null; accettato: boolean },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
+  // Ri-verifica difensiva lato server (stesso principio già in uso per il
+  // gate "Contrassegna il lavoro come chiuso." di Chiusura Lavoro): la
+  // disabilitazione del checkbox in satellite-progetto.tsx è solo la
+  // guardia UX primaria, non fidata da sola contro un payload arrivato
+  // aggirando la UI.
+  if (fields.accettato) {
+    const { count } = await supabase
+      .from('lavoro_satellite_allegato')
+      .select('id', { count: 'exact', head: true })
+      .eq('satellite_id', satelliteId)
+    if (!count) {
+      return { ok: false, error: 'Impossibile accettare il progetto senza almeno un allegato caricato' }
+    }
+  }
+
   const { error } = await supabase
     .from('lavoro_satellite')
-    .update({ data_creazione: fields.dataCreazione, descrizione_libera: fields.descrizione })
+    .update({ data_creazione: fields.dataCreazione, descrizione_libera: fields.descrizione, progetto_accettato: fields.accettato })
     .eq('id', satelliteId)
 
   if (error) {
@@ -944,6 +950,15 @@ export async function aggiornaNoleggio(
 
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
+
+  // Ri-verifica difensiva lato server (stesso principio già in uso per
+  // Progetto/Chiusura Lavoro): la disabilitazione del checkbox in
+  // satellite-noleggio.tsx è solo la guardia UX primaria. Qui basta
+  // controllare lo stesso payload (nessuna query aggiuntiva necessaria,
+  // a differenza di Progetto — le date arrivano nella stessa richiesta).
+  if (fields.prenotazioneEffettuata && (!fields.dataDa || !fields.dataA)) {
+    return { ok: false, error: 'Impossibile confermare la prenotazione senza entrambe le date (Da/A)' }
+  }
 
   const { error } = await supabase
     .from('lavoro_satellite')

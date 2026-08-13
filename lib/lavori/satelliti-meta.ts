@@ -338,8 +338,25 @@ export function labelStatoAppuntamento(concluso: boolean, dataAppuntamento: stri
   return dataNonAncoraPassata(dataAppuntamento) ? 'In programma' : 'Data scaduta'
 }
 
-export function labelStatoNoleggio(prenotazioneEffettuata: boolean): string {
-  return prenotazioneEffettuata ? 'Prenotato' : 'Da prenotare'
+// --- Noleggio (corretto in sessione successiva, vedi CLAUDE.md/docs/audit) ---
+// Prima binario (solo prenotazione_effettuata, calcolato inline in
+// satelliti-render.tsx invece che con una funzione condivisa, mai passato
+// da qui) — lo stato giallo non era mai raggiungibile. Stesso pattern degli
+// altri tipi a 3 stati: rosso alla creazione (nessuna data), giallo quando
+// ENTRAMBE le date sono state inserite (noleggio pianificato, coerente con
+// "Da"/"A" come intervallo — una sola data non basta a descrivere un
+// periodo), verde quando la prenotazione è confermata (priorità massima,
+// indipendente dalle date — stessa priorità già in uso ovunque).
+export function coloreNoleggio(dataDa: string | null, dataA: string | null, prenotazioneEffettuata: boolean): ColoreSemaforo {
+  if (prenotazioneEffettuata) return 'green'
+  if (!dataDa || !dataA) return 'red'
+  return 'yellow'
+}
+
+export function labelStatoNoleggio(dataDa: string | null, dataA: string | null, prenotazioneEffettuata: boolean): string {
+  if (prenotazioneEffettuata) return 'Prenotato'
+  if (!dataDa || !dataA) return 'Da pianificare'
+  return 'Pianificato'
 }
 
 // Chiusura Lavoro — restyling calcoli economici (2026-08-13, vedi
@@ -441,7 +458,7 @@ export function coloreQualsiasiSatellite(s: Satellite, extra: { haAllegati?: boo
     case 'montaggio':
       return coloreSessioniLavoro(s.sessioni_lavoro, s.concluso)
     case 'noleggio':
-      return s.prenotazione_effettuata ? 'green' : 'red'
+      return coloreNoleggio(s.data_da, s.data_a, s.prenotazione_effettuata)
     case 'spesa_non_preventivata':
       return coloreSpesaNonPreventivata(s.spesa_data, s.valore_complessivo, s.spesa_accettata)
     case 'chiusura':

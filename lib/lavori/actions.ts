@@ -190,6 +190,31 @@ export async function riapriLavoro(
     return { ok: false, error: 'Errore, riprova' }
   }
 
+  // Bug trovato in sessione successiva (vedi CLAUDE.md/docs/audit): uscendo
+  // da 'completato' il flag "Contrassegna il lavoro come chiuso." di
+  // Chiusura Lavoro (chiusura_conclusa) restava spuntato — dati
+  // contraddittori (un Lavoro di nuovo attivo in Dashboard ma con la
+  // propria Chiusura ancora "chiusa"). La Chiusura esiste già a questo
+  // punto (non viene mai rimossa entrando in 'completato', vedi commento
+  // sopra) — resettato qui solo `chiusura_conclusa`, non
+  // `chiusura_incassata`: quel secondo flag descrive un fatto già
+  // avvenuto (gli importi sono stati davvero incassati), che riaprire il
+  // Lavoro non rende falso — resta quindi indipendente, invariato. Solo
+  // per la transizione 'completato' -> 'accettato': l'altra transizione
+  // possibile qui ('rifiutato' -> 'opportunita') non ha mai una Chiusura
+  // da resettare, già rimossa quando il Lavoro era uscito da 'accettato'
+  // (vedi impostaPreventivoDecisione). Best-effort, come lo stesso genere
+  // di correzione automatica già in uso in dettaglio-lavoro-data.ts: un
+  // errore qui non deve mai bloccare la riapertura vera e propria.
+  if (statoAttuale === 'completato') {
+    const { error: chiusuraErr } = await supabase
+      .from('lavoro_satellite')
+      .update({ chiusura_conclusa: false })
+      .eq('lavoro_id', lavoroId)
+      .eq('tipo', 'chiusura')
+    if (chiusuraErr) console.error('riapriLavoro: reset chiusura_conclusa fallito', chiusuraErr)
+  }
+
   revalidatePath(`/lavori/${lavoroId}`)
   revalidatePath('/lavori')
   return { ok: true }

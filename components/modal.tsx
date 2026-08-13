@@ -215,107 +215,115 @@ export function Modal({
   // esterno — quindi una pushState "esterna" come questa è già sicura e
   // riconosciuta da Next.
   //
-  // Quando la guardia passa da assente a presente (dirty diventa vero),
-  // pushiamo una voce di history duplicata con la STESSA URL corrente
-  // (`fantasmaAttivoRef`). Un primo tasto Back fisico pop-a quella voce senza
-  // alcun cambio di URL/route (Next non ha nulla da fare, la vede identica) —
-  // il nostro listener popstate lo intercetta e mostra il dialog di conferma
-  // esistente, la Modal resta montata con tutto lo stato in corso intatto
-  // (mai smontata, a differenza di un tentativo "preveni poi ripristina" che
-  // arriverebbe sempre troppo tardi). Se l'utente conferma di uscire, un
-  // `history.go(-2)` (fantasma + voce reale) porta via davvero in un colpo
-  // solo — go(-2) invece di due back() sequenziali per evitare qualunque
-  // rischio di ordinamento asincrono tra le due chiamate.
+  // Quando serve una guardia (dirty vero, o un campo data/ora ha il focus —
+  // vedi sotto), pushiamo una voce di history duplicata con la STESSA URL
+  // corrente (`fantasmaAttivoRef`). Un primo tasto Back fisico pop-a quella
+  // voce senza alcun cambio di URL/route (Next non ha nulla da fare, la vede
+  // identica) — il nostro listener popstate lo intercetta e mostra il
+  // dialog di conferma esistente (solo se dirty è vero), la Modal resta
+  // montata con tutto lo stato in corso intatto (mai smontata, a differenza
+  // di un tentativo "preveni poi ripristina" che arriverebbe sempre troppo
+  // tardi). Se l'utente conferma di uscire, un `history.go(-2)` (fantasma +
+  // voce reale) porta via davvero in un colpo solo.
   const fantasmaAttivoRef = useRef(false)
-  // true solo mentre siamo NOI a consumare il fantasma (dirty tornato pulito
-  // restando aperti, es. "Salva" senza uscire) — il conseguente popstate va
-  // ignorato, non è un tentativo di uscita dell'utente.
+  // true solo mentre un NOSTRO history.back() di rilascio è "in volo" (dal
+  // momento in cui lo chiamiamo al popstate che lo conferma) — il
+  // conseguente popstate va riconosciuto come nostro, non come un tentativo
+  // di uscita dell'utente.
   const consumandoFantasmaRef = useRef(false)
 
   // --- Bug Android: picker data nativo che chiude la modale (audit 2026-08,
-  // vedi docs/audit-2026-08.md — causa isolata lì, corretta qui) ---
-  // Il fantasma sopra si arma solo quando `dirty` diventa vero: se l'utente
-  // apre il picker nativo della Data (primo campo di un form ancora
-  // "pulito", es. Acconto) e lo dismette con il tasto Back fisico PRIMA di
-  // selezionare una data — su alcuni dispositivi/versioni Android (Samsung
-  // One UI, riportato) quel Back non resta confinato al picker ma si
-  // propaga al browser come un vero back di pagina — non esiste ancora
-  // alcun fantasma ad assorbirlo (dirty è ancora falso), quindi arriva come
-  // navigazione reale e chiude l'intera modale. `fantasmaDaFocusRef`
-  // distingue un fantasma armato per QUESTO motivo (focus su un campo
-  // data/ora, non modifiche reali) da uno armato per dirty — necessario per
-  // sapere come reagire quando viene consumato: nessun dialog (nessuna
-  // modifica da confermare) e nessun ri-arm (un secondo Back deve poter
-  // uscire davvero, a differenza del caso dirty che si ri-arma sempre).
-  const fantasmaDaFocusRef = useRef(false)
+  // vedi docs/audit-2026-08.md) — il fantasma sopra si armava solo quando
+  // `dirty` diventava vero: se l'utente apriva il picker nativo della Data
+  // (primo campo di un form ancora "pulito", es. Acconto) e lo dismetteva
+  // con il tasto Back fisico PRIMA di selezionare una data — su alcuni
+  // dispositivi/versioni Android (Samsung One UI, riportato) quel Back non
+  // restava confinato al picker ma si propagava al browser come un vero
+  // back di pagina — non esisteva ancora alcun fantasma ad assorbirlo,
+  // quindi arrivava come navigazione reale e chiudeva l'intera modale.
+  // `pickerApertoRef` traccia se un campo con un picker nativo ha il focus
+  // in questo momento: un fantasma va tenuto attivo anche solo per questo,
+  // non solo per `dirty` vero (vedi `vogliamoFantasma()`/`sincronizzaFantasma()`).
+  const pickerApertoRef = useRef(false)
 
-  function registraGuardia(guardia: Guardia | null) {
-    const eraSporco = guardiaRef.current !== null
-    const oraSporco = guardia !== null
-    guardiaRef.current = guardia
-    if (!bloccaBackConModifiche) return
+  // Vogliamo un fantasma attivo se c'è una modifica non salvata (guardia
+  // presente) OPPURE se un campo con un picker nativo ha il focus in questo
+  // momento (potenziale picker aperto, vedi sopra).
+  function vogliamoFantasma() {
+    return guardiaRef.current !== null || pickerApertoRef.current
+  }
 
-    if (!eraSporco && oraSporco) {
-      // Se un fantasma "da focus" è già presente (l'utente stava
-      // interagendo con un campo data/ora quando è scattato il dirty, es.
-      // ha davvero scelto una data), non se ne pusha un secondo — si
-      // "promuove" quello esistente a proteggere le modifiche reali, così
-      // da qui in poi segue le regole del ramo dirty (ri-arm su ogni pop).
-      if (fantasmaAttivoRef.current) {
-        fantasmaDaFocusRef.current = false
-      } else {
-        fantasmaAttivoRef.current = true
-        window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
-      }
-    } else if (eraSporco && !oraSporco && fantasmaAttivoRef.current) {
+  // Riconcilia lo stato desiderato (vogliamoFantasma()) con quello che
+  // crediamo reale (fantasmaAttivoRef) — chiamata ogni volta che uno dei due
+  // input di vogliamoFantasma() può essere cambiato (guardiaRef via
+  // registraGuardia, pickerApertoRef via onFocusBox/onBlurBox) E dopo la
+  // conferma di un rilascio (vedi onPopState).
+  //
+  // Bug trovato in audit successivo (vedi CLAUDE.md/docs/audit-2026-08.md,
+  // "Briefing — chiusura modale al salvataggio della Descrizione"): un
+  // `history.back()` di rilascio è ASINCRONO sotto il cofano — se un nuovo
+  // "vogliamo" scattava PRIMA che quel back() completasse davvero (es.
+  // un'altra modifica subito dopo un Salva riuscito, non necessariamente sullo
+  // stesso campo), la pushState veniva comunque eseguita SUBITO dalla
+  // posizione ancora corrente; il back() tardivo, eseguendo poi per davvero,
+  // consumava allora IL FANTASMA SBAGLIATO — quello appena pushato per la
+  // modifica reale, non quello obsoleto che dovevamo rilasciare noi — con la
+  // modale che si chiudeva in modo silenzioso e imprevedibile (esattamente
+  // come il bug Android, stessa famiglia di sintomi, causa diversa: lì la
+  // corsa era tra un back() esterno/nativo e una pushState nostra, qui è tra
+  // un back() NOSTRO di rilascio e una pushState nostra successiva).
+  //
+  // Fix strutturale: mentre un rilascio è "in volo" (consumandoFantasmaRef),
+  // non si pusha mai un nuovo fantasma — ci si limita ad aspettare il
+  // popstate di conferma, e si ri-sincronizza da lì (onPopState sotto),
+  // quando la posizione in history è quella vera. Nessuna finestra di corsa
+  // residua, indipendentemente da QUANTO tempo passa tra il rilascio e la
+  // richiesta successiva (a differenza di un semplice queueMicrotask, che
+  // avrebbe coperto solo eventi sincroni nello stesso turno).
+  function sincronizzaFantasma() {
+    if (!bloccaBackConModifiche || consumandoFantasmaRef.current) return
+
+    const vogliamo = vogliamoFantasma()
+    if (vogliamo && !fantasmaAttivoRef.current) {
+      fantasmaAttivoRef.current = true
+      window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+    } else if (!vogliamo && fantasmaAttivoRef.current) {
       fantasmaAttivoRef.current = false
       consumandoFantasmaRef.current = true
       window.history.back()
     }
   }
 
-  // Arma il fantasma al focus di un campo data/ora (potenziale apertura di
-  // un picker nativo), lo rilascia al blur se non è mai stato consumato da
-  // un Back fisico né promosso a "dirty" nel frattempo (altrimenti
-  // resterebbe un fantasma orfano in history, che confonderebbe il conteggio
-  // di chiudiConPulizia — go(-2) presume un solo fantasma). Scoped ai soli
-  // input nativi con un picker a overlay (date/time/datetime-local): non i
+  function registraGuardia(guardia: Guardia | null) {
+    guardiaRef.current = guardia
+    sincronizzaFantasma()
+  }
+
+  // Campi con un picker nativo a overlay (date/time/datetime-local): non i
   // <select> usati per gli slot orari, mai segnalati con lo stesso problema.
   function isCampoConPicker(el: EventTarget | null): el is HTMLInputElement {
     return el instanceof HTMLInputElement && ['date', 'time', 'datetime-local'].includes(el.type)
   }
 
   function onFocusBox(e: React.FocusEvent<HTMLDivElement>) {
-    if (!bloccaBackConModifiche || !isCampoConPicker(e.target)) return
-    if (!fantasmaAttivoRef.current) {
-      fantasmaAttivoRef.current = true
-      fantasmaDaFocusRef.current = true
-      window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
-    }
-    // Se un fantasma "da focus" è già attivo (spostamento diretto da un
-    // campo data/ora a un altro, es. tap sul campo Fine subito dopo Inizio),
-    // non ne serve un secondo: lo stesso resta valido, il rilascio rimandato
-    // di onBlurBox sotto lo riconoscerà ancora "voluto" e non lo consumerà.
+    if (!isCampoConPicker(e.target)) return
+    pickerApertoRef.current = true
+    sincronizzaFantasma()
   }
 
   function onBlurBox(e: React.FocusEvent<HTMLDivElement>) {
-    if (!bloccaBackConModifiche || !isCampoConPicker(e.target)) return
-    // Non rilasciare subito: se questo blur è seguito a ruota da un focus su
-    // un ALTRO campo data/ora (tap diretto da un campo all'altro, focus/blur
-    // sono sincroni in sequenza mentre history.back() è asincrono sotto il
-    // cofano) vogliamo mantenere lo stesso fantasma invece di rilasciarlo e
-    // riarmarne subito un secondo — rischio concreto di corsa tra la back()
-    // in sospeso e una pushState eseguita nel frattempo. Rimandata a un
-    // microtask, quando l'eventuale nuovo focus si è già stabilizzato.
-    queueMicrotask(() => {
-      if (isCampoConPicker(document.activeElement)) return
-      if (fantasmaAttivoRef.current && fantasmaDaFocusRef.current) {
-        fantasmaAttivoRef.current = false
-        fantasmaDaFocusRef.current = false
-        consumandoFantasmaRef.current = true
-        window.history.back()
-      }
-    })
+    if (!isCampoConPicker(e.target)) return
+    pickerApertoRef.current = false
+    // Nessun queueMicrotask qui (a differenza di una versione precedente):
+    // il tap diretto da un campo data/ora a un altro (blur+focus sincroni
+    // in sequenza) è già gestito correttamente da sincronizzaFantasma()
+    // stessa — onFocusBox del campo successivo, eseguito subito dopo
+    // sincronicamente, trova il rilascio appena avviato "in volo"
+    // (consumandoFantasmaRef) e non fa nulla; la ri-sincronizzazione vera
+    // avviene quando il popstate di conferma arriva (onPopState sotto),
+    // trovando pickerApertoRef già tornato vero — nessun fantasma orfano,
+    // nessun doppio rilascio, indipendentemente dal timing esatto.
+    sincronizzaFantasma()
   }
 
   // Chiusura "vera" unificata: se un fantasma è ancora sulla history (mai
@@ -351,6 +359,19 @@ export function Modal({
     richiediChiusuraRef.current = richiediChiusura
   })
 
+  // Stesso pattern "latest ref" di richiediChiusuraRef sopra, per lo stesso
+  // motivo: il listener popstate sotto dipende solo da `[aperto,
+  // bloccaBackConModifiche]`, non deve ri-registrarsi ad ogni render, ma
+  // deve comunque poter richiamare una sincronizzaFantasma "fresca" (non
+  // che il suo comportamento cambi mai in pratica — legge solo da ref e da
+  // `bloccaBackConModifiche`, già nelle dipendenze dell'effect — ma
+  // soddisfa comunque react-hooks/exhaustive-deps in modo corretto invece
+  // di silenziarlo).
+  const sincronizzaFantasmaRef = useRef(sincronizzaFantasma)
+  useEffect(() => {
+    sincronizzaFantasmaRef.current = sincronizzaFantasma
+  })
+
   useEffect(() => {
     if (!aperto) return
 
@@ -378,42 +399,46 @@ export function Modal({
 
     function onPopState() {
       if (consumandoFantasmaRef.current) {
-        // Pop auto-generato dalla pulizia in registraGuardia (dirty tornato
-        // pulito restando aperti) — nessun dialog, non è l'utente.
+        // Il nostro back() di rilascio (da sincronizzaFantasma) è stato
+        // confermato: la posizione in history ora è quella vera. Ri-
+        // sincronizza da qui — se nel frattempo (durante l'attesa
+        // asincrona) tornava a servire un fantasma (nuovo dirty, o un
+        // campo data/ora ha ripreso il focus), pushane uno ora, senza
+        // corse: è esattamente il fix del bug "chiusura al secondo
+        // salvataggio" (vedi commento su sincronizzaFantasma più sopra).
         consumandoFantasmaRef.current = false
+        sincronizzaFantasmaRef.current()
         return
       }
+      if (!fantasmaAttivoRef.current) {
+        // Nessun fantasma nostro da consumare: back reale, Next lo gestisce
+        // da sé smontando questa route/Modal normalmente.
+        return
+      }
+      // Da qui in poi: un pop ESTERNO (Back fisico dell'utente, o un
+      // picker nativo Android che si propaga al browser) ha appena
+      // consumato un fantasma che credevamo attivo.
       if (guardiaRef.current) {
-        // Il fantasma è stato appena consumato da QUESTO pop fisico: la
-        // Modal resta montata (stessa URL del fantasma), lo stato del form
-        // è intatto. Ri-armato SUBITO, prima ancora di sapere cosa deciderà
-        // l'utente nel dialog: se sceglie di restare (Annulla, stato locale
-        // interno al satellite — Modal non ne viene mai a conoscenza), un
-        // secondo Back deve trovare di nuovo un fantasma pronto ad
-        // assorbirlo, non passare "a vuoto" dritto alla navigazione reale.
-        // Se invece l'utente conferma l'uscita, chiudiConPulizia() lo
-        // consuma lui con go(-2) — coerente in entrambi i casi.
+        // Dirty reale: la Modal resta montata (stessa URL del fantasma),
+        // lo stato del form è intatto. Ri-armato SUBITO, prima ancora di
+        // sapere cosa deciderà l'utente nel dialog: se sceglie di restare
+        // (Annulla, stato locale interno al satellite — Modal non ne viene
+        // mai a conoscenza), un secondo Back deve trovare di nuovo un
+        // fantasma pronto ad assorbirlo. Se invece conferma l'uscita,
+        // chiudiConPulizia() lo consuma lui con go(-2) — coerente in
+        // entrambi i casi.
         window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
         fantasmaAttivoRef.current = true
         guardiaRef.current()
         return
       }
-      if (fantasmaDaFocusRef.current) {
-        // Bug Android picker data (vedi commento su fantasmaDaFocusRef più
-        // sopra): il fantasma "da focus" appena consumato aveva esattamente
-        // la stessa URL della modale — il pop non ha quindi causato alcuna
-        // navigazione visibile, l'ha solo assorbito. Nessun dialog (nessuna
-        // modifica reale da confermare, dirty è falso) e nessun ri-arm (a
-        // differenza del ramo dirty sopra): un secondo Back dell'utente deve
-        // poter uscire davvero, non restare intrappolato mentre il campo
-        // data ha ancora il focus.
-        fantasmaAttivoRef.current = false
-        fantasmaDaFocusRef.current = false
-        return
-      }
-      // else: nessuna guardia attiva — non c'era alcun fantasma da
-      // consumare (mai pushato), quindi questo è un back reale e Next lo
-      // gestisce da sé smontando questa route/Modal normalmente.
+      // Non dirty: il fantasma era lì solo per un possibile picker aperto
+      // (bug Android) — nessuna modifica reale da confermare, nessun
+      // dialog, nessun ri-arm: un secondo Back dell'utente deve poter
+      // uscire davvero, non restare intrappolato mentre il campo data ha
+      // ancora il focus. Risincronizza solo lo stato (il pop l'ha già
+      // consumato per davvero).
+      fantasmaAttivoRef.current = false
     }
 
     window.addEventListener('popstate', onPopState)

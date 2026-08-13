@@ -9,9 +9,18 @@ import { useState } from 'react'
 // generico: il chiamante continua a possedere i propri campi (via singoli
 // `useState` o un oggetto `fields`, indifferentemente), passa qui solo uno
 // "snapshot" dei soli campi che il bottone Salva invia davvero — i campi ad
-// auto-salvataggio immediato (es. checkbox "Concluso" di Progetto/Chiusura,
-// "Ordinato" di Acquisto) restano fuori dallo snapshot: non hanno mai un
+// auto-salvataggio immediato restano fuori dallo snapshot: non hanno mai un
 // "non salvato" da segnalare, il click stesso è già il salvataggio.
+//
+// Commento aggiornato in sessione successiva (vedi CLAUDE.md/docs/audit):
+// gli esempi originari qui ("Concluso" di Progetto/Chiusura, "Ordinato" di
+// Acquisto) sono stati corretti, non sono più auto-salvanti — fanno ora
+// parte dello snapshot come ogni altro campo. Il principio resta valido in
+// generale ma oggi l'unica vera eccezione rimasta nell'app è Preventivo
+// (Accettato/Rifiutato), per un motivo diverso e specifico: quei due flag
+// hanno un side-effect reale su lavoro.stato (e sul ciclo di vita di
+// Chiusura Lavoro), non solo sullo stato del satellite stesso — restano
+// quindi auto-salvanti con conferma nativa, unica eccezione deliberata.
 //
 // `dirty` è calcolato per valore (JSON.stringify) direttamente in fase di
 // render, non con un useEffect/setState separato: eviterebbe un frame di

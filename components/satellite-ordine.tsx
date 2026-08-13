@@ -28,6 +28,14 @@ type RigaBozza = { descrizione: string }
 // d'azione, corretto lo stesso giorno: uno stato reversibile non dovrebbe
 // somigliare a un'azione che "accade") — nessuna conferma nativa finché
 // l'ordine non è stato inviato via mail, l'unico commit definitivo.
+//
+// Corretto in sessione successiva (vedi CLAUDE.md/docs/audit): "Ordinato"
+// era rimasto auto-salvante (chiamava il server direttamente sull'onChange,
+// fuori da qualunque dirty-tracking) — allineato allo stesso principio
+// "nessun salvataggio implicito" già applicato a data/descrizione/testo,
+// richiede ora Salva esplicito come ogni altro campo (vedi useState(ordinato)
+// e handleSalva più sotto per la sequenza in due passi verso il server,
+// invariata nei vincoli, solo spostata da un click diretto a "Salva").
 export function SatelliteOrdine({
   satellite,
   righe,
@@ -58,6 +66,17 @@ export function SatelliteOrdine({
     righe.length > 0 ? righe.map((r) => ({ descrizione: r.descrizione })) : [{ descrizione: '' }],
   )
 
+  // Corretto in sessione successiva (vedi CLAUDE.md/docs/audit): "Ordinato"
+  // era auto-salvante (handleToggleOrdinato chiamava il server
+  // direttamente sull'onChange) — ora fa parte dello stesso dirty-state di
+  // Fornitore/Categoria/Referenze/Valore, richiede Salva esplicito come
+  // ogni altro campo. Stato locale (non più letto da satellite.ordinato
+  // direttamente in JSX): pilota anche `editabile` sotto, in modo che
+  // spuntare/despuntare la checkbox mostri subito la vista corretta prima
+  // ancora di salvare, stesso principio già in uso per "Accettato" di
+  // Progetto e "Prenotazione effettuata" di Noleggio.
+  const [ordinato, setOrdinato] = useState(satellite.ordinato)
+
   const [invioAperto, setInvioAperto] = useState(false)
   const [contatti, setContatti] = useState<{ id: string; label: string }[] | null>(null)
   const [contattoScelto, setContattoScelto] = useState('')
@@ -76,25 +95,54 @@ export function SatelliteOrdine({
     }
   }
 
-  // Sprint UI-2 (bottone Salva flottante + dirty-state, vedi CLAUDE.md):
-  // stesso snapshot già inviato al server da campiCorrenti() — "Ordinato"
-  // resta auto-salvante (fuori da questo tracking) ma persiste anche lui
-  // questi campi come effetto collaterale quando si attiva (vedi
-  // handleToggleOrdinato sotto): richiama segnaSalvato() anche lì.
-  const { dirty, segnaSalvato } = useDirtyForm(campiCorrenti())
+  const { dirty, segnaSalvato } = useDirtyForm({ ...campiCorrenti(), ordinato })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
+  // "Ordinato" fa ora parte dello stesso Salva (vedi commento sopra
+  // useState(ordinato)), ma richiede comunque una sequenza in due passi
+  // quando il flag cambia — vincoli server-side invariati, solo spostati
+  // qui da handleToggleOrdinato: aggiornaOrdine rifiuta scritture sui campi
+  // base mentre ordinato=true a DB, impostaOrdinatoAcquisto(true) richiede
+  // fornitore+referenze già persistiti. `ordinatoDb` segue lo stato noto
+  // del DB passo-passo dentro la stessa chiamata (parte da satellite.ordinato,
+  // il valore noto all'apertura).
   async function handleSalva() {
     setLoading(true)
     setErrore(null)
-    const result = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
-    setLoading(false)
-    if (!result.ok) {
-      setErrore(result.error)
-      return false
+
+    let ordinatoDb = satellite.ordinato
+
+    if (ordinatoDb && !ordinato) {
+      const risultato = await impostaOrdinatoAcquisto(satellite.id, lavoroId, false)
+      if (!risultato.ok) {
+        setLoading(false)
+        setErrore(risultato.error)
+        return false
+      }
+      ordinatoDb = false
     }
-    segnaSalvato(campiCorrenti())
+
+    if (!ordinatoDb) {
+      const salvatoCampi = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
+      if (!salvatoCampi.ok) {
+        setLoading(false)
+        setErrore(salvatoCampi.error)
+        return false
+      }
+    }
+
+    if (ordinato && !ordinatoDb) {
+      const risultatoOrdinato = await impostaOrdinatoAcquisto(satellite.id, lavoroId, true)
+      if (!risultatoOrdinato.ok) {
+        setLoading(false)
+        setErrore(risultatoOrdinato.error)
+        return false
+      }
+    }
+
+    setLoading(false)
+    segnaSalvato({ ...campiCorrenti(), ordinato })
     router.refresh()
     return true
   }
@@ -109,29 +157,6 @@ export function SatelliteOrdine({
   function handleEsciSenzaSalvare() {
     setConfermaUscitaAperta(false)
     chiudiReale()
-  }
-
-  // Toggle reversibile finché l'ordine non è stato inviato via mail (vedi
-  // CLAUDE.md) — nessuna conferma nativa, non è un'azione distruttiva.
-  // Attivare salva prima i campi correnti (il form è ancora "sporco" a
-  // questo punto), disattivare no: a ordinato=true il form non è renderizzato,
-  // non c'è nulla da salvare.
-  async function handleToggleOrdinato(checked: boolean) {
-    setLoading(true)
-    setErrore(null)
-    if (checked) {
-      const salvato = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
-      if (!salvato.ok) {
-        setLoading(false)
-        setErrore(salvato.error)
-        return
-      }
-      segnaSalvato(campiCorrenti())
-    }
-    const result = await impostaOrdinatoAcquisto(satellite.id, lavoroId, checked)
-    setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
   }
 
   async function apriInvio() {
@@ -160,7 +185,7 @@ export function SatelliteOrdine({
     router.refresh()
   }
 
-  const editabile = isOwner && !satellite.ordinato
+  const editabile = isOwner && !ordinato
 
   return (
     // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
@@ -252,19 +277,26 @@ export function SatelliteOrdine({
                 non è più renderizzato — questa riga evita che il nome del
                 fornitore diventi altrimenti irrecuperabile dalla Modal
                 (prima era l'unico posto in cui appariva ancora, come
-                sostituto del nome nel pallino+nome ora spostato in header). */}
-            <p className="mb-1 text-sm text-gray-700">{fornitoreSedeLabel ?? 'Nessun fornitore'}</p>
-            {satellite.acquisto_categoria && <p className="mb-1 text-xs text-gray-500">{satellite.acquisto_categoria}</p>}
-            {righe.length > 0 && (
+                sostituto del nome nel pallino+nome ora spostato in header).
+                Valori letti dallo stato locale (sede/categoria/righeBozza/
+                valore), non dalle prop persistite: "Ordinato" ora richiede
+                Salva esplicito (vedi commento sopra useState(ordinato)) —
+                se l'owner ha modificato dei campi e spuntato "Ordinato"
+                nella stessa sessione senza ancora salvare, questa vista
+                deve riflettere la bozza corrente, non i vecchi valori a DB
+                (che coincidono comunque finché non c'è nulla di sporco). */}
+            <p className="mb-1 text-sm text-gray-700">{sede?.label ?? 'Nessun fornitore'}</p>
+            {categoria && <p className="mb-1 text-xs text-gray-500">{categoria}</p>}
+            {righeBozza.filter((r) => r.descrizione.trim()).length > 0 && (
               <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
-                {righe.map((r) => (
-                  <li key={r.id}>{r.descrizione}</li>
-                ))}
+                {righeBozza
+                  .filter((r) => r.descrizione.trim())
+                  .map((r, i) => (
+                    <li key={i}>{r.descrizione}</li>
+                  ))}
               </ul>
             )}
-            {satellite.valore_complessivo != null && (
-              <p className="mb-2 text-sm text-gray-700">{formattaValuta(satellite.valore_complessivo)}</p>
-            )}
+            {valore && <p className="mb-2 text-sm text-gray-700">{formattaValuta(Number(valore))}</p>}
           </>
         )}
 
@@ -302,13 +334,17 @@ export function SatelliteOrdine({
             <label className="flex items-center gap-1.5 text-sm text-gray-700">
               <input
                 type="checkbox"
-                checked={satellite.ordinato}
-                disabled={loading || (!satellite.ordinato && (!sede || campiCorrenti().righe.length === 0))}
-                onChange={(e) => handleToggleOrdinato(e.target.checked)}
+                checked={ordinato}
+                disabled={loading || (!ordinato && (!sede || campiCorrenti().righe.length === 0))}
+                onChange={(e) => setOrdinato(e.target.checked)}
                 className="accent-primary"
               />
               Ordinato
             </label>
+            {/* "Invia ordine" resta legato al valore PERSISTITO
+                (satellite.ordinato), non alla bozza locale: invia
+                un'email reale e irreversibile, non deve mai comparire
+                prima che il flag sia stato davvero salvato. */}
             {satellite.ordinato && !invioAperto && (
               <button
                 type="button"
@@ -368,7 +404,12 @@ export function SatelliteOrdine({
 
       {/* Nessun errore={errore} qui: è già mostrato sopra, condiviso anche
           con handleToggleOrdinato/confermaInvio — duplicherebbe altrimenti. */}
-      {editabile && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={handleSalva} />}
+      {/* isOwner, non `editabile`: quest'ultimo dipende ora dallo stato
+          locale di "Ordinato" (vedi commento sopra useState(ordinato)) — se
+          l'owner ha appena spuntato la checkbox, editabile è già falso (la
+          vista è già passata a sola lettura) ma la modifica resta comunque
+          da salvare, la barra deve restare visibile. */}
+      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={handleSalva} />}
 
       <DialogConferma
         aperto={confermaUscitaAperta}

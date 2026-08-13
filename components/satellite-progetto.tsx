@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { aggiornaProgetto, impostaProgettoAccettato } from '@/lib/lavori/satelliti'
+import { aggiornaProgetto } from '@/lib/lavori/satelliti'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
@@ -39,6 +39,7 @@ export function SatelliteProgetto({
   lavoroId: string
 }) {
   const router = useRouter()
+  const haAllegati = allegati.length > 0
 
   // Controlled con baseline corretta al primo render (non defaultValue+
   // onChange separati) — stesso motivo già documentato per Preventivo:
@@ -46,15 +47,17 @@ export function SatelliteProgetto({
   // anche a fronte di dati già presenti.
   const [dataCreazione, setDataCreazione] = useState(aDateLocal(satellite.data_creazione))
   const [descrizione, setDescrizione] = useState(satellite.descrizione_libera ?? '')
+  // Corretto in sessione successiva (vedi CLAUDE.md/docs/audit): "Accettato"
+  // era auto-salvante (chiamava impostaProgettoAccettato direttamente
+  // sull'onChange, fuori da qualunque dirty-tracking) — contraddiceva il
+  // principio "nessun salvataggio implicito" già stabilito per ogni altro
+  // campo dell'app. Ora fa parte dello stesso snapshot inviato da "Salva",
+  // esattamente come Data/Descrizione.
+  const [accettato, setAccettato] = useState(satellite.progetto_accettato)
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
-  // Dirty-state: i due campi che "Salva" invia davvero. Accettato resta
-  // fuori (auto-salvante, invariato — nessuna conferma nativa, a differenza
-  // di Accettato/Rifiutato del Preventivo: il flag non ha alcun effetto
-  // collaterale su lavoro.stato, stesso trattamento "senza attrito" già in
-  // uso qui da prima di questo restyling).
-  const { dirty, segnaSalvato } = useDirtyForm({ dataCreazione, descrizione })
+  const { dirty, segnaSalvato } = useDirtyForm({ dataCreazione, descrizione, accettato })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
@@ -73,6 +76,7 @@ export function SatelliteProgetto({
     const result = await aggiornaProgetto(satellite.id, lavoroId, {
       dataCreazione,
       descrizione: descrizione.trim() || null,
+      accettato,
     })
 
     setLoading(false)
@@ -104,19 +108,6 @@ export function SatelliteProgetto({
   function handleEsciSenzaSalvare() {
     setConfermaUscitaAperta(false)
     chiudiReale()
-  }
-
-  // Nessuna conferma nativa qui (a differenza delle checkbox Accettato/
-  // Rifiutato del Preventivo): il flag non ha alcun effetto collaterale su
-  // lavoro.stato, stesso trattamento "senza attrito" già riservato alla
-  // checkbox "Concluso" di Appuntamento.
-  async function toggleAccettato(checked: boolean) {
-    setLoading(true)
-    setErrore(null)
-    const result = await impostaProgettoAccettato(satellite.id, lavoroId, checked)
-    setLoading(false)
-    if (!result.ok) setErrore(result.error)
-    else router.refresh()
   }
 
   return (
@@ -159,25 +150,30 @@ export function SatelliteProgetto({
                 />
               </div>
 
-              {/* Riga 3 — Accettato: unico flag, auto-salvante, nessuna
-                  esclusività da gestire (nessun "Rifiutato" per il Progetto). */}
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={satellite.progetto_accettato}
-                  disabled={loading}
-                  onChange={(e) => toggleAccettato(e.target.checked)}
-                  className="accent-primary"
-                />
-                Contrassegna il progetto come accettato.
-              </label>
-
-              {/* Accettato è auto-salvante, indipendente dal dirty-state che
-                  pilota la visibilità di PilloleSalvaAnnulla — un suo errore
-                  andrebbe altrimenti perso in silenzio se nessun altro campo
-                  è "sporco" in quel momento (nessun'altra pillola visibile a
-                  mostrarlo), stesso principio già applicato a Preventivo. */}
-              {errore && !dirty && <p className="text-xs text-red-600">{errore}</p>}
+              {/* Riga 3 — Accettato: unico flag, nessuna esclusività da
+                  gestire (nessun "Rifiutato" per il Progetto). Parte del
+                  dirty-state (Salva esplicito, come Data/Descrizione — non
+                  più auto-salvante, vedi CLAUDE.md/docs/audit). Subordinato
+                  alla presenza di almeno un allegato (semaforo corretto in
+                  sessione successiva: rosso->giallo->verde, non più
+                  rosso->verde diretto) — stesso pattern già in uso per il
+                  gate "Contrassegna il lavoro come chiuso." di Chiusura
+                  Lavoro. */}
+              <div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={accettato}
+                    disabled={!haAllegati}
+                    onChange={(e) => setAccettato(e.target.checked)}
+                    className="accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  Contrassegna il progetto come accettato.
+                </label>
+                {!haAllegati && (
+                  <p className="mt-1 text-xs text-gray-500">Disponibile dopo aver caricato almeno un allegato.</p>
+                )}
+              </div>
 
               {/* Riga 4 — Allegati: stesso pattern Briefing/Preventivo, un
                   solo fermaglio cliccabile (nessun secondo trigger

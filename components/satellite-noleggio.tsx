@@ -163,15 +163,26 @@ export function SatelliteNoleggio({
               <textarea id="noleggio-note" rows={3} value={note} onChange={(e) => setNote(e.target.value)} className={inputClass()} />
             </div>
 
-            <label className="flex items-center gap-2 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={prenotazioneEffettuata}
-                onChange={(e) => setPrenotazioneEffettuata(e.target.checked)}
-                className="accent-primary"
-              />
-              Contrassegna la prenotazione come effettuata.
-            </label>
+            {/* Subordinato alla presenza di entrambe le date (semaforo
+                corretto in sessione successiva, vedi CLAUDE.md/docs/audit:
+                rosso->giallo->verde, non più rosso->verde diretto) — stesso
+                pattern già in uso per "Accettato" di Progetto e per il gate
+                di Chiusura Lavoro. */}
+            <div>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={prenotazioneEffettuata}
+                  disabled={!dataDa || !dataA}
+                  onChange={(e) => setPrenotazioneEffettuata(e.target.checked)}
+                  className="accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                Contrassegna la prenotazione come effettuata.
+              </label>
+              {(!dataDa || !dataA) && (
+                <p className="mt-1 text-xs text-gray-500">Disponibile dopo aver inserito entrambe le date (Da/A).</p>
+              )}
+            </div>
 
             {/* Allegati: stesso pattern già in uso su Progetto/Preventivo/
                 Campionatura/Acconto — un solo fermaglio cliccabile, testo a
