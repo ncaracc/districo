@@ -8,6 +8,7 @@ import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
 import { ModalTest } from '@/components/test/modal-test'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
+import { ORIGINE_INFO, type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
@@ -30,6 +31,26 @@ const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata',
 // /lavori/[id], /clienti/nuovo) — non solo su un match esatto dell'href.
 function voceAttiva(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
+}
+
+// Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md): "ricorda da
+// dove sei partito (Dashboard o Conclusi) e torna sempre lì, ovunque tu sia
+// arrivato nella catena" — non un breadcrumb verso la pagina immediatamente
+// precedente. Si applica a OGNI pagina di dettaglio raggiungibile lungo la
+// catena Dashboard/Conclusi → Cliente/Fornitore → Lavori associati →
+// Dettaglio Lavoro, non solo all'ultimo hop: /lavori/[id] e le sue
+// sotto-pagine, ma anche /clienti/[id] e /fornitori/[id] — su queste ultime
+// l'evidenziazione "Clienti"/"Fornitori" lascia quindi il posto a
+// "Dashboard"/"Conclusi" secondo l'origine, esattamente come già avveniva
+// solo per il Dettaglio Lavoro prima di questa sessione. Le pagine di
+// ELENCO (/lavori, /clienti, /fornitori, /statistiche) e le pagine di
+// creazione (*/nuovo) restano fuori: sono destinazioni dirette, non hop di
+// una catena con un'origine da ricordare.
+function inCatenaConOrigine(pathname: string) {
+  const prefissi = ['/lavori/', '/clienti/', '/fornitori/']
+  const esclusiPrefissi = ['/lavori/nuovo', '/clienti/nuovo', '/fornitori/nuovo']
+  if (esclusiPrefissi.some((e) => pathname === e || pathname.startsWith(`${e}/`))) return false
+  return prefissi.some((p) => pathname.startsWith(p))
 }
 
 // Icona "power" (spegnimento/uscita): linee sottili, nessun riempimento,
@@ -79,6 +100,7 @@ function BadgeConteggio({ conteggio }: { conteggio: number }) {
 export function AppNav({
   isLoggedIn,
   appuntamentiScaduti = 0,
+  origineSezione,
 }: {
   isLoggedIn: boolean
   // Conteggio appuntamenti scaduti (data passata, mai conclusi) su tutti i
@@ -87,9 +109,17 @@ export function AppNav({
   // il rendering. Il badge è agganciato alla voce "Dashboard": cliccarlo
   // porta già lì, nessun elenco/dropdown dedicato in questo sprint.
   appuntamentiScaduti?: number
+  // Provenienza (vedi CLAUDE.md e lib/nav/origine-sezione.ts): letta
+  // server-side (cookie) nel root layout, passata qui per decidere quale
+  // voce evidenziare quando si è dentro /lavori/[id]/..., /clienti/[id] o
+  // /fornitori/[id] (inCatenaConOrigine) — irrilevante altrove, dove resta
+  // la normale evidenziazione per sezione.
+  origineSezione: SezioneOrigine
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  const inCatena = inCatenaConOrigine(pathname)
+  const hrefAttivoOrigine = ORIGINE_INFO[origineSezione].href
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
   // Ambiente di iterazione rapida sul design (vedi components/test/modal-test.tsx
@@ -163,7 +193,7 @@ export function AppNav({
             del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
           {VOCI_ATTIVE.map((voce) => {
-            const attiva = voceAttiva(pathname, voce.href)
+            const attiva = inCatena ? voce.href === hrefAttivoOrigine : voceAttiva(pathname, voce.href)
             return (
               <Link
                 key={voce.href}
@@ -274,7 +304,7 @@ export function AppNav({
 
         <ul className="flex-1 overflow-y-auto px-4 py-4">
           {VOCI_ATTIVE.map((voce) => {
-            const attiva = voceAttiva(pathname, voce.href)
+            const attiva = inCatena ? voce.href === hrefAttivoOrigine : voceAttiva(pathname, voce.href)
             return (
               <li key={voce.href}>
                 <Link

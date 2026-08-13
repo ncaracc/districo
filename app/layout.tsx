@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { AppNav } from "@/components/app-nav";
 import { SiteFooter } from "@/components/site-footer";
 import { createClient } from "@/lib/supabase/server";
+import { leggiOrigineSezione } from "@/lib/nav/origine-sezione.server";
 import "./globals.css";
 
 // Font sans-serif di default per tutta l'app (il serif resta esclusivamente
@@ -33,13 +34,19 @@ export default async function RootLayout({
     ? await supabase.rpc('appuntamenti_scaduti_count')
     : { data: 0 }
 
+  // Provenienza Dettaglio Lavoro (vedi CLAUDE.md e lib/nav/origine-sezione.ts):
+  // letta qui (root layout, Server Component) e passata ad AppNav — un
+  // Client Component non può leggere cookies() direttamente, e questo è
+  // l'unico punto in cui AppNav viene istanziato.
+  const origineSezione = await leggiOrigineSezione();
+
   return (
     <html
       lang="en"
       className={`${inter.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <AppNav isLoggedIn={!!user} appuntamentiScaduti={appuntamentiScaduti ?? 0} />
+        <AppNav isLoggedIn={!!user} appuntamentiScaduti={appuntamentiScaduti ?? 0} origineSezione={origineSezione} />
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
         <SiteFooter />
       </body>

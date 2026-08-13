@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { LavoroInfo, type LavoroInfoFields } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
+import { ORIGINE_INFO, type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
 // Wrapper client (sessione rifinitura 2026-08-08, vedi CLAUDE.md): Sezione 2
 // (LavoroInfo) e Sezioni 3/4 (LavoroSatelliteTabella) erano sibling dentro
@@ -25,8 +26,16 @@ import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-
 // `nascondiPillolaAggiungi` è stato rimosso da LavoroSatelliteTabella
 // (sarebbe rimasto dead code, dato che l'intero componente ora non monta
 // proprio in quel caso).
+//
+// Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
+// lib/nav/origine-sezione.ts): il link "← Dashboard" era hardcoded — ora
+// "← {label della sezione di origine}" (Dashboard o Conclusi), calcolato
+// server-side in page.tsx dal cookie che ricorda l'ultima visita reale a
+// una delle due, indipendentemente da quante pagine intermedie (Cliente,
+// Fornitore...) sono state attraversate per arrivare qui.
 export function LavoroDettaglioSezioni({
   lavoroId,
+  origineSezione,
   isOwner,
   stato,
   accettatoAt,
@@ -44,6 +53,7 @@ export function LavoroDettaglioSezioni({
   children,
 }: {
   lavoroId: string
+  origineSezione: SezioneOrigine
   isOwner: boolean
   stato: string
   accettatoAt: string | null
@@ -61,13 +71,14 @@ export function LavoroDettaglioSezioni({
   children?: React.ReactNode
 }) {
   const [modificaLavoro, setModificaLavoro] = useState(false)
+  const origine = ORIGINE_INFO[origineSezione]
 
   return (
     <>
       {!modificaLavoro && (
         <div className="mb-2">
-          <Link href="/lavori" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-            ← Dashboard
+          <Link href={origine.href} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            ← {origine.label}
           </Link>
         </div>
       )}

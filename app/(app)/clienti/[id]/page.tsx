@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ClienteForm } from '@/components/cliente-form'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
+import { ORIGINE_INFO } from '@/lib/nav/origine-sezione'
+import { leggiOrigineSezione } from '@/lib/nav/origine-sezione.server'
 
 const STATO_LABEL: Record<string, string> = {
   opportunita: 'Opportunità',
@@ -27,6 +29,14 @@ export default async function ClienteDettaglioPage({
 
   if (!cliente) notFound()
 
+  // Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
+  // lib/nav/origine-sezione.ts): Cliente è una tappa intermedia della catena
+  // Dashboard/Conclusi → Cliente → Lavori associati → Dettaglio Lavoro — il
+  // link "← ..." qui deve riflettere la sezione di origine, non un generico
+  // "← Clienti" (l'evidenziazione della voce "Clienti" nel menu resta
+  // invece invariata: qui la sezione non è mai ambigua).
+  const origine = ORIGINE_INFO[await leggiOrigineSezione()]
+
   const { data: lavori } = await supabase
     .from('lavoro')
     .select('id, titolo, stato')
@@ -38,6 +48,12 @@ export default async function ClienteDettaglioPage({
     // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
     // le pagine principali (Dashboard, Fornitori, dettaglio Lavoro, Conclusi).
     <div className={CONTENITORE_LARGO}>
+      <div className="mb-2">
+        <Link href={origine.href} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          ← {origine.label}
+        </Link>
+      </div>
+
       <div className="mb-6 flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-900">{cliente.nome || 'Modifica cliente'}</h1>
         <Link

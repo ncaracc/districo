@@ -15,6 +15,15 @@ const PUBLIC_PATHS = [
 const REMEMBER_CHOICE_COOKIE = 'districo-remember-choice'
 const SESSION_ALIVE_COOKIE = 'districo-session-alive'
 
+// Provenienza Dettaglio Lavoro (sessione correzione 2026-08-13, vedi
+// CLAUDE.md e lib/nav/origine-sezione.ts): scritto SOLO su una visita
+// esatta a /lavori o /statistiche (mai su una sotto-pagina, es. /lavori/[id]
+// o /lavori/nuovo) — la "sezione di origine" resta quindi quella
+// dell'ultima visita reale a Dashboard/Conclusi, indipendentemente da
+// quante pagine intermedie (Cliente, Fornitore, Dettaglio Lavoro...) si
+// attraversano dopo. Cookie di sessione (nessun maxAge).
+const ORIGINE_SEZIONE_COOKIE = 'districo_origine_sezione'
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -73,6 +82,12 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/lavori'
     return NextResponse.redirect(url)
+  }
+
+  if (pathname === '/lavori') {
+    supabaseResponse.cookies.set(ORIGINE_SEZIONE_COOKIE, 'dashboard', { path: '/', sameSite: 'lax', httpOnly: true })
+  } else if (pathname === '/statistiche') {
+    supabaseResponse.cookies.set(ORIGINE_SEZIONE_COOKIE, 'conclusi', { path: '/', sameSite: 'lax', httpOnly: true })
   }
 
   return supabaseResponse
