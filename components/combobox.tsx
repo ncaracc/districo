@@ -28,13 +28,28 @@ export function Combobox<T extends ComboboxOption>({
   const [caricando, setCaricando] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
+  // Bug trovato in audit (2026-08): il vecchio codice non proteggeva dalla
+  // classica race condition delle ricerche debounced — `clearTimeout`
+  // annulla solo un debounce non ancora scattato, non una `fetchOptions`
+  // già in volo. Digitando "Ver" e subito dopo "Verdi", se la risposta di
+  // "Ver" arriva DOPO quella di "Verdi" (rete non garantisce l'ordine),
+  // sovrascriveva silenziosamente il risultato più recente e specifico con
+  // uno più vecchio e generico. `richiestaIdRef` numera ogni fetch avviata;
+  // il risultato si applica solo se è ancora quella più recente al momento
+  // della risoluzione — stesso pattern minimo già sufficiente qui, senza
+  // introdurre AbortController (fetchOptions è una Server Action, non un
+  // fetch annullabile).
+  const richiestaIdRef = useRef(0)
+
   useEffect(() => {
     if (!aperto) return
 
     const timeout = setTimeout(
       async () => {
+        const idRichiesta = ++richiestaIdRef.current
         setCaricando(true)
         const r = await fetchOptions(query)
+        if (idRichiesta !== richiestaIdRef.current) return // superata da una ricerca più recente
         setOpzioni(r)
         setCaricando(false)
       },

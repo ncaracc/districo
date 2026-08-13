@@ -97,12 +97,6 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['fornitore_sede_contatto']['Insert']>
         Relationships: []
       }
-      artigiano_fornitore_nota: {
-        Row: { artigiano_id: string; fornitore_sede_id: string; nota: string; updated_at: string }
-        Insert: { artigiano_id: string; fornitore_sede_id: string; nota: string; updated_at?: string }
-        Update: { nota?: string; updated_at?: string }
-        Relationships: []
-      }
       // Categorie acquisto libere per artigiano (dalla 0001, mai usata fino
       // alla revisione satelliti del 1/8: ora popola il select "Categoria"
       // in Acquisti, sostituendo il vecchio enum chiuso materiale/ferramenta.
@@ -110,12 +104,6 @@ export type Database = {
         Row: { id: string; artigiano_id: string; nome: string; created_at: string }
         Insert: { id?: string; artigiano_id: string; nome: string; created_at?: string }
         Update: Partial<Database['public']['Tables']['categoria_acquisto']['Insert']>
-        Relationships: []
-      }
-      artigiano_fornitore_categoria: {
-        Row: { artigiano_id: string; fornitore_sede_id: string; categoria_id: string }
-        Insert: { artigiano_id: string; fornitore_sede_id: string; categoria_id: string }
-        Update: never
         Relationships: []
       }
       lavoro: {
@@ -158,92 +146,6 @@ export type Database = {
           token_invito?: string | null; scadenza_invito?: string | null; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['lavoro_artigiani']['Insert']>
-        Relationships: []
-      }
-      attivita: {
-        Row: {
-          id: string; lavoro_id: string
-          tipo: 'briefing' | 'progetto' | 'preventivo' | 'sopralluogo' | 'campioni'
-          stato: 'da_fare' | 'in_corso' | 'bloccata' | 'fatta'
-          data_appuntamento: string | null; data_apertura: string
-          data_chiusura: string | null; commenti: string | null
-          revisione_di: string | null; importo: number | null; created_at: string
-        }
-        Insert: {
-          id?: string; lavoro_id: string
-          tipo: 'briefing' | 'progetto' | 'preventivo' | 'sopralluogo' | 'campioni'
-          stato?: 'da_fare' | 'in_corso' | 'bloccata' | 'fatta'
-          data_appuntamento?: string | null; data_apertura?: string
-          data_chiusura?: string | null; commenti?: string | null
-          revisione_di?: string | null; importo?: number | null; created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['attivita']['Insert']>
-        Relationships: []
-      }
-      sla_attivita: {
-        Row: { id: string; artigiano_id: string | null; tipo_attivita: string; giorni_max: number }
-        Insert: { id?: string; artigiano_id?: string | null; tipo_attivita: string; giorni_max: number }
-        Update: { giorni_max?: number }
-        Relationships: []
-      }
-      fase_template: {
-        Row: { id: string; artigiano_id: string; nome_fase: string; ordine: number; created_at: string }
-        Insert: { id?: string; artigiano_id: string; nome_fase: string; ordine: number; created_at?: string }
-        Update: Partial<Database['public']['Tables']['fase_template']['Insert']>
-        Relationships: []
-      }
-      lavoro_fasi: {
-        Row: {
-          id: string; lavoro_id: string; nome_fase: string; ordine: number
-          stato: 'da_fare' | 'in_corso' | 'bloccata' | 'fatta'
-          data_inizio: string | null; data_fine: string | null; created_at: string
-        }
-        Insert: {
-          id?: string; lavoro_id: string; nome_fase: string; ordine: number
-          stato?: 'da_fare' | 'in_corso' | 'bloccata' | 'fatta'
-          data_inizio?: string | null; data_fine?: string | null; created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['lavoro_fasi']['Insert']>
-        Relationships: []
-      }
-      pagamento: {
-        Row: { id: string; lavoro_id: string; tipo: 'acconto' | 'saldo'; importo: number; data: string; note: string | null; created_at: string }
-        Insert: { id?: string; lavoro_id: string; tipo: 'acconto' | 'saldo'; importo: number; data: string; note?: string | null; created_at?: string }
-        Update: Partial<Database['public']['Tables']['pagamento']['Insert']>
-        Relationships: []
-      }
-      allegato: {
-        Row: { id: string; lavoro_id: string; tipo: 'pdf' | 'foto'; nome_file: string; storage_path: string; data_caricamento: string; note: string | null }
-        Insert: { id?: string; lavoro_id: string; tipo: 'pdf' | 'foto'; nome_file: string; storage_path: string; data_caricamento?: string; note?: string | null }
-        Update: Partial<Database['public']['Tables']['allegato']['Insert']>
-        Relationships: []
-      }
-      articolo: {
-        Row: { id: string; fornitore_sede_id: string; codice: string | null; descrizione: string; colore_finitura: string | null; created_at: string }
-        Insert: { id?: string; fornitore_sede_id: string; codice?: string | null; descrizione: string; colore_finitura?: string | null; created_at?: string }
-        Update: Partial<Database['public']['Tables']['articolo']['Insert']>
-        Relationships: []
-      }
-      ordine_acquisto: {
-        Row: {
-          id: string; lavoro_id: string; fornitore_sede_id: string
-          categoria_id: string | null; stato: 'bozza' | 'concluso'
-          data_invio: string | null; data_chiusura_manuale: string | null
-          totale: number | null; created_at: string
-        }
-        Insert: {
-          id?: string; lavoro_id: string; fornitore_sede_id: string
-          categoria_id?: string | null; stato?: 'bozza' | 'concluso'
-          data_invio?: string | null; data_chiusura_manuale?: string | null
-          totale?: number | null; created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['ordine_acquisto']['Insert']>
-        Relationships: []
-      }
-      ordine_acquisto_riga: {
-        Row: { id: string; ordine_id: string; articolo_id: string | null; descrizione: string; colore_finitura: string | null; quantita: number; prezzo_unitario: number; created_at: string }
-        Insert: { id?: string; ordine_id: string; articolo_id?: string | null; descrizione: string; colore_finitura?: string | null; quantita: number; prezzo_unitario: number; created_at?: string }
-        Update: Partial<Database['public']['Tables']['ordine_acquisto_riga']['Insert']>
         Relationships: []
       }
       lavoro_satellite: {
@@ -342,8 +244,8 @@ export type Database = {
         Relationships: []
       }
       lavoro_satellite_articolo: {
-        Row: { id: string; satellite_id: string; articolo_id: string | null; descrizione: string; colore_finitura: string | null; quantita: number; created_at: string }
-        Insert: { id?: string; satellite_id: string; articolo_id?: string | null; descrizione: string; colore_finitura?: string | null; quantita: number; created_at?: string }
+        Row: { id: string; satellite_id: string; descrizione: string; colore_finitura: string | null; quantita: number; created_at: string }
+        Insert: { id?: string; satellite_id: string; descrizione: string; colore_finitura?: string | null; quantita: number; created_at?: string }
         Update: Partial<Database['public']['Tables']['lavoro_satellite_articolo']['Insert']>
         Relationships: []
       }
@@ -359,13 +261,8 @@ export type Database = {
       is_artigiano_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       is_owner_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
-      ultimo_prezzo_articolo: { Args: { p_articolo_id: string }; Returns: number | null }
       lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
       appuntamenti_scaduti_count: { Args: Record<string, never>; Returns: number }
-      lavoro_satellite_stato_effettivo: {
-        Args: { p_lavoro_id: string }
-        Returns: { satellite_id: string; stato_effettivo: string | null }[]
-      }
       lavori_dashboard: {
         Args: Record<string, never>
         Returns: {

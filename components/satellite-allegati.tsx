@@ -107,7 +107,12 @@ export function AllegatoLista({
 // una ricerca mirata su tutti gli usi di AllegatoTrigger/SatelliteAllegati
 // prima di eliminarlo: nessun consumer nel progetto lo raggiunge più, il
 // prop `richiedeEtichetta` stesso è stato rimosso (sempre vero, non serve
-// più distinguere).
+// più distinguere). `SatelliteAllegati` stesso (il wrapper Lista+Trigger
+// citato sopra, "usato da Preventivo/Campionatura") è stato rimosso in
+// un audit successivo (2026-08): entrambi erano nel frattempo migrati a
+// comporre AllegatoLista/AllegatoTrigger separatamente (restyling 11/8 e
+// 12/8), lasciando il wrapper senza più alcun consumer — codice morto
+// confermato con la stessa ricerca mirata.
 export function AllegatoTrigger({
   satelliteId,
   lavoroId,
@@ -195,30 +200,5 @@ export function AllegatoTrigger({
         errore={errore}
       />
     </>
-  )
-}
-
-// Wrapper di compatibilità: lista + trigger nello stesso ordine/aspetto di
-// sempre, usato da Preventivo/Campionatura (gli unici due satelliti rimasti
-// che non compongono Lista/Trigger separatamente per posizionarli in punti
-// diversi del proprio layout, come fa invece Appuntamento).
-export function SatelliteAllegati({
-  satelliteId,
-  lavoroId,
-  allegati,
-  isOwner,
-}: {
-  satelliteId: string
-  lavoroId: string
-  allegati: SatelliteAllegato[]
-  isOwner: boolean
-}) {
-  return (
-    <div className="mt-2">
-      <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
-      <div className="mt-1.5">
-        <AllegatoTrigger satelliteId={satelliteId} lavoroId={lavoroId} isOwner={isOwner} />
-      </div>
-    </div>
   )
 }

@@ -12,7 +12,7 @@ import { inputClass } from '@/lib/input-class'
 import { aDateLocal } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
-import { SalvaFlottante } from '@/components/salva-flottante'
+import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
@@ -88,6 +88,10 @@ export function SatelliteNoleggio({
     return true
   }
 
+  function handleAnnulla() {
+    chiudiReale()
+  }
+
   async function handleSalvaEEsci() {
     if (await handleSalva()) {
       setConfermaUscitaAperta(false)
@@ -101,9 +105,10 @@ export function SatelliteNoleggio({
   }
 
   return (
-    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
-    // non annidato dentro — stesso motivo già documentato in
-    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    // Frammento, non un unico div: PilloleSalvaAnnulla deve restare fuori
+    // dal div a bordo (position: absolute ancorato al box della Modal, non
+    // al div interno) — stesso pattern degli altri satelliti già migrati
+    // al template Briefing (vedi CLAUDE.md, restyling 10/8 in poi).
     <>
       <div className="rounded-lg border border-gray-200 p-4">
         {isOwner ? (
@@ -195,7 +200,9 @@ export function SatelliteNoleggio({
         )}
       </div>
 
-      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} />}
+      {isOwner && (
+        <PilloleSalvaAnnulla visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} onAnnulla={handleAnnulla} />
+      )}
 
       <DialogConferma
         aperto={confermaUscitaAperta}

@@ -64,17 +64,6 @@ export async function aggiornaFornitore(id: string, fields: FornitoreFields): Pr
   return { ok: true, id }
 }
 
-export async function cercaFornitori(query: string): Promise<{ id: string; ragione_sociale: string; partita_iva: string | null }[]> {
-  const q = query.trim()
-  const supabase = await createClient()
-
-  let sel = supabase.from('fornitore').select('id, ragione_sociale, partita_iva').order('ragione_sociale')
-  if (q) sel = sel.ilike('ragione_sociale', `%${q}%`)
-
-  const { data } = await sel
-  return data ?? []
-}
-
 export async function creaSede(fornitoreId: string, fields: SedeFields): Promise<CreazioneResult> {
   const supabase = await createClient()
 

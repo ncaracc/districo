@@ -148,10 +148,24 @@ export async function caricaDatiLavoroSatelliti(
   const fornitoreSedeIds = [
     ...new Set([...acquistiSatelliti, ...noleggioSatelliti].map((s) => s.fornitore_sede_id).filter((v): v is string => !!v)),
   ]
-  const { data: fornitoreSedi } =
+
+  // fornitoreSedi e categorieAcquisto sono indipendenti tra loro (nessuno dei
+  // due dipende dall'altro, entrambi dipendono solo da dati già disponibili
+  // a questo punto) — eseguiti in parallelo con Promise.all, stesso pattern
+  // già in uso più sopra in questa funzione. `fornitori` resta invece un
+  // secondo giro obbligato: dipende da `fornitoreIds`, che si può calcolare
+  // solo dopo aver letto `fornitoreSedi`.
+  const [{ data: fornitoreSedi }, { data: categorieAcquisto }] = await Promise.all([
     fornitoreSedeIds.length > 0
-      ? await supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta').in('id', fornitoreSedeIds)
-      : { data: [] }
+      ? supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta').in('id', fornitoreSedeIds)
+      : Promise.resolve({ data: [] as { id: string; fornitore_id: string; nome: string; citta: string | null }[] }),
+    // Categorie acquisto libere dell'artigiano (Profilo/Impostazioni), per
+    // il form "Acquisto" nel modale "Aggiungi attività" e per la vista
+    // Acquisto.
+    isOwner
+      ? supabase.from('categoria_acquisto').select('id, nome').order('nome')
+      : Promise.resolve({ data: [] as { id: string; nome: string }[] }),
+  ])
 
   const fornitoreIds = [...new Set((fornitoreSedi ?? []).map((s) => s.fornitore_id))]
   const { data: fornitori } =
@@ -164,10 +178,6 @@ export async function caricaDatiLavoroSatelliti(
       `${ragioneSocialePerFornitoreId.get(s.fornitore_id) ?? '—'} — ${s.nome}${s.citta ? ` (${s.citta})` : ''}`,
     ]),
   )
-
-  // Categorie acquisto libere dell'artigiano (Profilo/Impostazioni), per il
-  // form "Acquisto" nel modale "Aggiungi attività" e per la vista Acquisto.
-  const { data: categorieAcquisto } = isOwner ? await supabase.from('categoria_acquisto').select('id, nome').order('nome') : { data: [] }
 
   const completato = lavoro.stato === 'completato'
   const isOwnerEffettivo = !!isOwner && !completato

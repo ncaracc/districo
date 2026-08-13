@@ -275,10 +275,19 @@ export async function creaPreventivo(lavoroId: string): Promise<CreazioneResult>
 // punto in cui lavoro.stato entra/esce da 'accettato' tramite un'azione
 // utente diretta — riapriLavoro() in lib/lavori/actions.ts non necessita di
 // queste chiamate, vedi commento lì).
+// Ritorna un messaggio non bloccante solo se l'inserimento fallisce (audit
+// 2026-08, bug trovato: prima l'errore dell'insert non veniva né loggato né
+// segnalato in alcun modo — un Lavoro poteva finire `accettato` senza la
+// propria Chiusura Lavoro, senza che né i log né l'utente ne sapessero
+// nulla). Simmetrico a rimuoviChiusuraSeNonAccettato() sotto, che già
+// restituisce `true`/`false` per pilotare lo stesso genere di notifica in
+// impostaPreventivoDecisione(). Il recupero manuale resta comunque possibile
+// da "Aggiungi attività" (chiusuraEsiste tornerebbe false), l'informativa
+// serve solo a non lasciarlo scoperto in silenzio.
 async function assicuraChiusuraAllAccettazione(
   supabase: Awaited<ReturnType<typeof createClient>>,
   lavoroId: string,
-): Promise<void> {
+): Promise<string | undefined> {
   const { data: esistente } = await supabase
     .from('lavoro_satellite')
     .select('id')
@@ -286,8 +295,13 @@ async function assicuraChiusuraAllAccettazione(
     .eq('tipo', 'chiusura')
     .maybeSingle()
   if (!esistente) {
-    await supabase.from('lavoro_satellite').insert({ lavoro_id: lavoroId, tipo: 'chiusura' })
+    const { error } = await supabase.from('lavoro_satellite').insert({ lavoro_id: lavoroId, tipo: 'chiusura' })
+    if (error) {
+      console.error('assicuraChiusuraAllAccettazione: insert fallito', error)
+      return 'Lavoro accettato, ma la creazione automatica di Chiusura Lavoro non è riuscita — aggiungila da "Aggiungi attività".'
+    }
   }
+  return undefined
 }
 
 async function rimuoviChiusuraSeNonAccettato(
@@ -301,7 +315,18 @@ async function rimuoviChiusuraSeNonAccettato(
     .eq('tipo', 'chiusura')
     .maybeSingle()
   if (esistente) {
-    await supabase.from('lavoro_satellite').delete().eq('id', esistente.id)
+    // Bug trovato nello stesso audit del commento sopra
+    // assicuraChiusuraAllAccettazione(): l'errore della delete non era mai
+    // controllato — su un fallimento, la funzione tornava comunque `true`
+    // (perché `esistente` era truthy), e il chiamante mostrava "Chiusura
+    // Lavoro rimossa..." anche se la riga era ancora lì. `false` in caso di
+    // errore evita il messaggio fuorviante (nessun messaggio invece di uno
+    // sbagliato); il log resta per la diagnosi.
+    const { error } = await supabase.from('lavoro_satellite').delete().eq('id', esistente.id)
+    if (error) {
+      console.error('rimuoviChiusuraSeNonAccettato: delete fallito', error)
+      return false
+    }
     return true
   }
   return false
@@ -380,7 +405,7 @@ export async function impostaPreventivoDecisione(
 
   let info: string | undefined
   if (statoPrecedente !== 'accettato' && nuovoStato === 'accettato') {
-    await assicuraChiusuraAllAccettazione(supabase, lavoroId)
+    info = await assicuraChiusuraAllAccettazione(supabase, lavoroId)
   } else if (statoPrecedente === 'accettato' && nuovoStato !== 'accettato') {
     const rimossa = await rimuoviChiusuraSeNonAccettato(supabase, lavoroId)
     if (rimossa) info = 'Chiusura Lavoro rimossa perché il lavoro non è più accettato.'
