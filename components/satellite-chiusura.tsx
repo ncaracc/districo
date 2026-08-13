@@ -130,17 +130,22 @@ export function SatelliteChiusura({
               <span>Spese complessive</span>
               <span className="font-medium text-gray-900">{formattaValuta(speseComplessive)}</span>
             </p>
-            <p className="flex items-center justify-between">
+            {/* Margine e Importo da incassare in grassetto (sessione
+                rifinitura 2026-08-13, vedi CLAUDE.md): enfasi visiva sulle
+                due righe di sintesi, stesso peso già usato per i titoli
+                della modale (font-semibold) — le altre tre righe restano a
+                peso normale/font-medium, invariate. */}
+            <p className="flex items-center justify-between font-semibold text-gray-900">
               <span>Margine</span>
-              <span className="font-medium text-gray-900">{formattaValuta(margine)}</span>
+              <span>{formattaValuta(margine)}</span>
             </p>
             <p className="flex items-center justify-between">
               <span>Acconti complessivi</span>
               <span className="font-medium text-gray-900">{formattaValuta(accontiComplessivi)}</span>
             </p>
-            <p className="flex items-center justify-between">
+            <p className="flex items-center justify-between font-semibold text-gray-900">
               <span>Importo da incassare</span>
-              <span className="font-medium text-gray-900">{formattaValuta(importoDaIncassare)}</span>
+              <span>{formattaValuta(importoDaIncassare)}</span>
             </p>
           </div>
 
