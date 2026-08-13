@@ -261,7 +261,6 @@ export type Database = {
       is_artigiano_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       is_owner_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
-      lavoro_pronto_per_montaggio: { Args: { p_lavoro_id: string }; Returns: boolean }
       appuntamenti_scaduti_count: { Args: Record<string, never>; Returns: number }
       lavori_dashboard: {
         Args: Record<string, never>

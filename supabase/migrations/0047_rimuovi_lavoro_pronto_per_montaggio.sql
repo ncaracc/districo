@@ -1,0 +1,21 @@
+-- Correzione di rotta (2026-08-13, sessione successiva alla `0046`) — vedi
+-- CLAUDE.md e docs/audit-2026-08.md. Ripensandoci sul principio di fondo
+-- dell'app: Districo non ha mai avuto, e non deve avere, vincoli di
+-- prerequisito reali tra Attività — l'artigiano decide (può fare un
+-- preventivo senza misure confermate, acquistare materiale senza acconti
+-- incassati, procedere senza consenso esplicito su una modifica), Districo
+-- si limita a tracciare cosa è stato fatto e cosa resta da fare, mai a
+-- imporre un ordine o bloccare qualcosa. L'unico vero gate dell'app resta
+-- quello di Chiusura Lavoro (tutte le Attività verdi per poter chiudere).
+--
+-- lavoro_pronto_per_montaggio() era quindi concettualmente incompatibile
+-- con l'architettura dell'app fin dall'origine (Sprint A, revisione
+-- strutturale del 25/7) — non solo priva di ogni chiamante applicativo dal
+-- 2026-08-03 (rimozione del vecchio bottone "Segna lavoro completato",
+-- l'unico consumer che sia mai esistito), ma un vincolo che l'app non
+-- dovrebbe avere affatto. La `0046` di ieri (che aveva esteso questa
+-- funzione per includere 'spesa_non_preventivata' tra i tipi bloccanti) è
+-- annullata concettualmente da questa migration: non viene "corretta e
+-- ricreata", viene rimossa insieme al resto della funzione — nessun
+-- ripristino né ricollegamento a una UI è previsto.
+drop function if exists public.lavoro_pronto_per_montaggio(uuid);

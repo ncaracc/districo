@@ -278,13 +278,15 @@ const TIPO_SATELLITE_LABEL_BREVE: Record<TipoSatellite, string> = {
   spesa_non_preventivata: 'Attività non preventivate',
 }
 
-// Etichetta breve per il messaggio "cosa manca" del gate montaggio — include la
-// serie per il Campione (più catene indipendenti possono essere bloccanti
-// contemporaneamente), la categoria per gli Acquisti quando presente (ora
-// testo libero, mostrato così com'è), e il sottotipo specifico per gli
-// Appuntamenti (Briefing/Verifica misure — più istanze dello
-// stesso sottotipo possono essere bloccanti contemporaneamente, l'etichetta
-// generica "Appuntamento" non basterebbe a distinguerle).
+// Etichetta breve per il nome di una riga satellite in tabella — include la
+// serie per il Campione (utile a distinguere istanze diverse), la categoria
+// per gli Acquisti quando presente (testo libero, mostrato così com'è), e
+// il sottotipo specifico per gli Appuntamenti (Briefing/Verifica misure —
+// più istanze dello stesso sottotipo, l'etichetta generica "Appuntamento"
+// non basterebbe a distinguerle). Districo non ha un "gate" che raccoglie
+// più righe bloccanti in un unico messaggio (nessun vincolo di prerequisito
+// tra Attività, vedi CLAUDE.md) — questa etichetta serve solo a nominare
+// ogni riga individualmente.
 export function satelliteTipoLabelBreve(s: Satellite): string {
   if (s.tipo === 'appuntamento' && s.tipo_appuntamento) return SOTTOTIPO_APPUNTAMENTO_LABEL[s.tipo_appuntamento]
   const base = TIPO_SATELLITE_LABEL_BREVE[s.tipo] ?? s.tipo
