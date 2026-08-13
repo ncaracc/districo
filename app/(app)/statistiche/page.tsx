@@ -23,15 +23,42 @@ export default async function StatistichePage({
 
   const supabase = await createClient()
 
-  let query = supabase
-    .from('lavoro')
-    .select('id, titolo, stato, cliente_id, data_lavoro')
-    .order('data_lavoro', { ascending: false, nullsFirst: false })
+  // Ordinamento (sessione 2026-08-13, vedi CLAUDE.md): verificato prima di
+  // modificare che l'ordinamento in uso oggi era `data_lavoro` decrescente
+  // (data di apertura, non di chiusura — mai documentato esplicitamente
+  // come scelta deliberata) — sostituito su richiesta esplicita con
+  // `chiusura_data` (stesso campo già usato dalla modale Chiusura Lavoro,
+  // `lavoro_satellite.chiusura_data`, valorizzato alla prima transizione a
+  // "entrambi i flag true"), più recenti in cima. Vive su una tabella
+  // diversa da `lavoro` (satellite, non colonna diretta) — recuperato con
+  // una seconda query mirata (stesso pattern già in uso poco sotto per i
+  // nomi cliente) invece di un embed PostgREST, per gestire in modo
+  // esplicito il caso di un Lavoro `rifiutato` privo di Chiusura (rimossa
+  // automaticamente quando il Lavoro esce da 'accettato' senza diventare
+  // 'completato', vedi CLAUDE.md 2026-08-13 "Attività non preventivate +
+  // restyling Chiusura Lavoro") — questi restano in fondo alla lista.
+  let query = supabase.from('lavoro').select('id, titolo, stato, cliente_id, data_lavoro')
   query = filtroAttivo ? query.eq('stato', filtroAttivo) : query.in('stato', ['completato', 'rifiutato'])
 
   const { data: lavori } = await query
 
-  const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
+  const lavoroIds = (lavori ?? []).map((l) => l.id)
+  const { data: chiusure } =
+    lavoroIds.length > 0
+      ? await supabase.from('lavoro_satellite').select('lavoro_id, chiusura_data').eq('tipo', 'chiusura').in('lavoro_id', lavoroIds)
+      : { data: [] }
+  const chiusuraDataPerLavoroId = new Map((chiusure ?? []).map((c) => [c.lavoro_id, c.chiusura_data]))
+
+  const lavoriOrdinati = [...(lavori ?? [])].sort((a, b) => {
+    const da = chiusuraDataPerLavoroId.get(a.id)
+    const db = chiusuraDataPerLavoroId.get(b.id)
+    if (!da && !db) return 0
+    if (!da) return 1
+    if (!db) return -1
+    return new Date(db).getTime() - new Date(da).getTime()
+  })
+
+  const clienteIds = [...new Set(lavoriOrdinati.map((l) => l.cliente_id))]
   const { data: clienti } =
     clienteIds.length > 0 ? await supabase.from('cliente').select('id, nome').in('id', clienteIds) : { data: [] }
   const nomeClientePerId = new Map((clienti ?? []).map((c) => [c.id, c.nome]))
@@ -65,11 +92,11 @@ export default async function StatistichePage({
 
       <h2 className="mb-3 text-sm font-semibold text-gray-700">Lavori chiusi</h2>
 
-      {!lavori || lavori.length === 0 ? (
+      {lavoriOrdinati.length === 0 ? (
         <p className="text-sm text-gray-500">Nessun lavoro trovato per questo filtro.</p>
       ) : (
         <ul className="divide-y divide-gray-200 rounded-lg border border-gray-200">
-          {lavori.map((l) => (
+          {lavoriOrdinati.map((l) => (
             <li key={l.id}>
               <Link href={`/lavori/${l.id}`} className="block px-4 py-3 hover:bg-gray-50 transition-colors">
                 <div className="flex items-center justify-between gap-3">
