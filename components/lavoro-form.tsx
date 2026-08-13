@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaLavoro } from '@/lib/lavori/actions'
-import { PAESI, trovaPaese } from '@/lib/paesi'
 import { inputClass } from '@/lib/input-class'
 import { PILLOLA_CLASSI_PRIMARIA, PILLOLA_CLASSI_SECONDARIA } from '@/components/pillola-flottante'
+import { CampiIndirizzo } from '@/components/campi-indirizzo'
 
 type Fields = {
   titolo: string
@@ -32,8 +32,6 @@ export function LavoroForm({
   const [fields, setFields] = useState<Fields>(initialValues)
   const [errore, setErrore] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const labelProvincia = trovaPaese(fields.nazione)?.labelProvincia
 
   function set<K extends keyof Fields>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -119,62 +117,22 @@ export function LavoroForm({
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="col-span-2">
-          <label htmlFor="lavoro-indirizzo" className="mb-1 block text-sm font-medium text-gray-700">
-            Indirizzo
-          </label>
-          <input id="lavoro-indirizzo" value={fields.indirizzo} onChange={set('indirizzo')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="lavoro-civico" className="mb-1 block text-sm font-medium text-gray-700">
-            Civico
-          </label>
-          <input id="lavoro-civico" value={fields.civico} onChange={set('civico')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="lavoro-cap" className="mb-1 block text-sm font-medium text-gray-700">
-            CAP
-          </label>
-          <input id="lavoro-cap" value={fields.cap} onChange={set('cap')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="lavoro-citta" className="mb-1 block text-sm font-medium text-gray-700">
-            Città
-          </label>
-          <input id="lavoro-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
-        </div>
-        {/* Ordine Città → Provincia → Nazione (sessione rifinitura
-            2026-08-12, vedi CLAUDE.md — prima Città → Nazione → Provincia):
-            l'ordine nel markup è quello che conta per la griglia a 2
-            colonne con auto-placement riga per riga, quindi va rispettato
-            anche quando i campi vanno a capo su una riga propria, non solo
-            quando sono affiancati. */}
-        <div>
-          <label htmlFor="lavoro-sigla-provincia" className="mb-1 block text-sm font-medium text-gray-700">
-            {labelProvincia ?? 'Sigla provincia'}
-          </label>
-          <input
-            id="lavoro-sigla-provincia"
-            value={fields.siglaProvincia}
-            onChange={set('siglaProvincia')}
-            placeholder="Es. BO"
-            className={inputClass()}
-          />
-        </div>
-        <div>
-          <label htmlFor="lavoro-nazione" className="mb-1 block text-sm font-medium text-gray-700">
-            Nazione
-          </label>
-          <select id="lavoro-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
-            {PAESI.map((p) => (
-              <option key={p.nome} value={p.nome}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Campi indirizzo (Città → Provincia → Nazione): componente
+          condiviso components/campi-indirizzo.tsx, vedi CLAUDE.md
+          2026-08-13 — centralizza l'ordine dopo che lo stesso bug si era
+          ripresentato una seconda volta in un form diverso. */}
+      <CampiIndirizzo
+        idPrefix="lavoro"
+        values={{
+          indirizzo: fields.indirizzo,
+          civico: fields.civico,
+          cap: fields.cap,
+          citta: fields.citta,
+          siglaProvincia: fields.siglaProvincia,
+          nazione: fields.nazione,
+        }}
+        onChange={(campo, valore) => setFields((f) => ({ ...f, [campo]: valore }))}
+      />
 
       {/* Salva/Annulla flottanti, affiancate (sessione rifinitura
           2026-08-08, vedi CLAUDE.md): sostituiscono i due bottoni inline in

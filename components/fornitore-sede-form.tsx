@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { creaSede, aggiornaSede } from '@/lib/fornitori/actions'
-import { PAESI, PAESE_DEFAULT, trovaPaese } from '@/lib/paesi'
+import { PAESE_DEFAULT } from '@/lib/paesi'
 import { inputClass } from '@/lib/input-class'
+import { CampiIndirizzo } from '@/components/campi-indirizzo'
 
 type Fields = {
   nome: string
@@ -43,8 +44,6 @@ export function FornitoreSedeForm({
   const [fields, setFields] = useState<Fields>({ ...CAMPI_VUOTI, ...initialValues })
   const [errore, setErrore] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const labelProvincia = trovaPaese(fields.nazione)?.labelProvincia
 
   function set<K extends keyof Fields>(key: K) {
     return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -97,56 +96,23 @@ export function FornitoreSedeForm({
         <input id="sede-nome" value={fields.nome} onChange={set('nome')} className={inputClass()} placeholder="Es. Sede Bologna" />
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <div className="col-span-2">
-          <label htmlFor="sede-indirizzo" className="mb-1 block text-sm font-medium text-gray-700">
-            Indirizzo
-          </label>
-          <input id="sede-indirizzo" value={fields.indirizzo} onChange={set('indirizzo')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="sede-civico" className="mb-1 block text-sm font-medium text-gray-700">
-            Civico
-          </label>
-          <input id="sede-civico" value={fields.civico} onChange={set('civico')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="sede-cap" className="mb-1 block text-sm font-medium text-gray-700">
-            CAP
-          </label>
-          <input id="sede-cap" value={fields.cap} onChange={set('cap')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="sede-citta" className="mb-1 block text-sm font-medium text-gray-700">
-            Città
-          </label>
-          <input id="sede-citta" value={fields.citta} onChange={set('citta')} className={inputClass()} />
-        </div>
-        <div>
-          <label htmlFor="sede-nazione" className="mb-1 block text-sm font-medium text-gray-700">
-            Nazione
-          </label>
-          <select id="sede-nazione" value={fields.nazione} onChange={set('nazione')} className={inputClass()}>
-            {PAESI.map((p) => (
-              <option key={p.nome} value={p.nome}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="sede-sigla-provincia" className="mb-1 block text-sm font-medium text-gray-700">
-            {labelProvincia ?? 'Sigla provincia'}
-          </label>
-          <input
-            id="sede-sigla-provincia"
-            value={fields.siglaProvincia}
-            onChange={set('siglaProvincia')}
-            placeholder="Es. BO"
-            className={inputClass()}
-          />
-        </div>
-      </div>
+      {/* Campi indirizzo (Città → Provincia → Nazione, era Città →
+          Nazione → Provincia): componente condiviso
+          components/campi-indirizzo.tsx, vedi CLAUDE.md 2026-08-13 —
+          stesso bug già corretto una prima volta in lavoro-form.tsx il
+          2026-08-12, centralizzato qui per evitare un terzo episodio. */}
+      <CampiIndirizzo
+        idPrefix="sede"
+        values={{
+          indirizzo: fields.indirizzo,
+          civico: fields.civico,
+          cap: fields.cap,
+          citta: fields.citta,
+          siglaProvincia: fields.siglaProvincia,
+          nazione: fields.nazione,
+        }}
+        onChange={(campo, valore) => setFields((f) => ({ ...f, [campo]: valore }))}
+      />
 
       <div className="flex gap-2">
         <button
