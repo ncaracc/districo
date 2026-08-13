@@ -232,6 +232,23 @@ export function Modal({
   // ignorato, non è un tentativo di uscita dell'utente.
   const consumandoFantasmaRef = useRef(false)
 
+  // --- Bug Android: picker data nativo che chiude la modale (audit 2026-08,
+  // vedi docs/audit-2026-08.md — causa isolata lì, corretta qui) ---
+  // Il fantasma sopra si arma solo quando `dirty` diventa vero: se l'utente
+  // apre il picker nativo della Data (primo campo di un form ancora
+  // "pulito", es. Acconto) e lo dismette con il tasto Back fisico PRIMA di
+  // selezionare una data — su alcuni dispositivi/versioni Android (Samsung
+  // One UI, riportato) quel Back non resta confinato al picker ma si
+  // propaga al browser come un vero back di pagina — non esiste ancora
+  // alcun fantasma ad assorbirlo (dirty è ancora falso), quindi arriva come
+  // navigazione reale e chiude l'intera modale. `fantasmaDaFocusRef`
+  // distingue un fantasma armato per QUESTO motivo (focus su un campo
+  // data/ora, non modifiche reali) da uno armato per dirty — necessario per
+  // sapere come reagire quando viene consumato: nessun dialog (nessuna
+  // modifica da confermare) e nessun ri-arm (un secondo Back deve poter
+  // uscire davvero, a differenza del caso dirty che si ri-arma sempre).
+  const fantasmaDaFocusRef = useRef(false)
+
   function registraGuardia(guardia: Guardia | null) {
     const eraSporco = guardiaRef.current !== null
     const oraSporco = guardia !== null
@@ -239,13 +256,66 @@ export function Modal({
     if (!bloccaBackConModifiche) return
 
     if (!eraSporco && oraSporco) {
-      fantasmaAttivoRef.current = true
-      window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+      // Se un fantasma "da focus" è già presente (l'utente stava
+      // interagendo con un campo data/ora quando è scattato il dirty, es.
+      // ha davvero scelto una data), non se ne pusha un secondo — si
+      // "promuove" quello esistente a proteggere le modifiche reali, così
+      // da qui in poi segue le regole del ramo dirty (ri-arm su ogni pop).
+      if (fantasmaAttivoRef.current) {
+        fantasmaDaFocusRef.current = false
+      } else {
+        fantasmaAttivoRef.current = true
+        window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+      }
     } else if (eraSporco && !oraSporco && fantasmaAttivoRef.current) {
       fantasmaAttivoRef.current = false
       consumandoFantasmaRef.current = true
       window.history.back()
     }
+  }
+
+  // Arma il fantasma al focus di un campo data/ora (potenziale apertura di
+  // un picker nativo), lo rilascia al blur se non è mai stato consumato da
+  // un Back fisico né promosso a "dirty" nel frattempo (altrimenti
+  // resterebbe un fantasma orfano in history, che confonderebbe il conteggio
+  // di chiudiConPulizia — go(-2) presume un solo fantasma). Scoped ai soli
+  // input nativi con un picker a overlay (date/time/datetime-local): non i
+  // <select> usati per gli slot orari, mai segnalati con lo stesso problema.
+  function isCampoConPicker(el: EventTarget | null): el is HTMLInputElement {
+    return el instanceof HTMLInputElement && ['date', 'time', 'datetime-local'].includes(el.type)
+  }
+
+  function onFocusBox(e: React.FocusEvent<HTMLDivElement>) {
+    if (!bloccaBackConModifiche || !isCampoConPicker(e.target)) return
+    if (!fantasmaAttivoRef.current) {
+      fantasmaAttivoRef.current = true
+      fantasmaDaFocusRef.current = true
+      window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
+    }
+    // Se un fantasma "da focus" è già attivo (spostamento diretto da un
+    // campo data/ora a un altro, es. tap sul campo Fine subito dopo Inizio),
+    // non ne serve un secondo: lo stesso resta valido, il rilascio rimandato
+    // di onBlurBox sotto lo riconoscerà ancora "voluto" e non lo consumerà.
+  }
+
+  function onBlurBox(e: React.FocusEvent<HTMLDivElement>) {
+    if (!bloccaBackConModifiche || !isCampoConPicker(e.target)) return
+    // Non rilasciare subito: se questo blur è seguito a ruota da un focus su
+    // un ALTRO campo data/ora (tap diretto da un campo all'altro, focus/blur
+    // sono sincroni in sequenza mentre history.back() è asincrono sotto il
+    // cofano) vogliamo mantenere lo stesso fantasma invece di rilasciarlo e
+    // riarmarne subito un secondo — rischio concreto di corsa tra la back()
+    // in sospeso e una pushState eseguita nel frattempo. Rimandata a un
+    // microtask, quando l'eventuale nuovo focus si è già stabilizzato.
+    queueMicrotask(() => {
+      if (isCampoConPicker(document.activeElement)) return
+      if (fantasmaAttivoRef.current && fantasmaDaFocusRef.current) {
+        fantasmaAttivoRef.current = false
+        fantasmaDaFocusRef.current = false
+        consumandoFantasmaRef.current = true
+        window.history.back()
+      }
+    })
   }
 
   // Chiusura "vera" unificata: se un fantasma è ancora sulla history (mai
@@ -326,6 +396,20 @@ export function Modal({
         window.history.pushState({ __districoModaleFantasma: true }, '', window.location.href)
         fantasmaAttivoRef.current = true
         guardiaRef.current()
+        return
+      }
+      if (fantasmaDaFocusRef.current) {
+        // Bug Android picker data (vedi commento su fantasmaDaFocusRef più
+        // sopra): il fantasma "da focus" appena consumato aveva esattamente
+        // la stessa URL della modale — il pop non ha quindi causato alcuna
+        // navigazione visibile, l'ha solo assorbito. Nessun dialog (nessuna
+        // modifica reale da confermare, dirty è falso) e nessun ri-arm (a
+        // differenza del ramo dirty sopra): un secondo Back dell'utente deve
+        // poter uscire davvero, non restare intrappolato mentre il campo
+        // data ha ancora il focus.
+        fantasmaAttivoRef.current = false
+        fantasmaDaFocusRef.current = false
+        return
       }
       // else: nessuna guardia attiva — non c'era alcun fantasma da
       // consumare (mai pushato), quindi questo è un back reale e Next lo
@@ -378,6 +462,8 @@ export function Modal({
         <div
           className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]"
           style={altezzaMassimaMobile !== undefined ? { maxHeight: altezzaMassimaMobile } : undefined}
+          onFocus={onFocusBox}
+          onBlur={onBlurBox}
         >
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">{titolo}</p>

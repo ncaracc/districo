@@ -20,11 +20,10 @@ insert into specializzazione (valore, ufficiale) values
   ('Giardiniere',        true),
   ('Restauratore',       true);
 
--- SLA default di sistema (artigiano_id NULL = sistema)
--- Convenzione PK: uuid sentinel per artigiano_id NULL
-insert into sla_attivita (artigiano_id, tipo_attivita, giorni_max) values
-  (null, 'briefing',     3),
-  (null, 'progetto',    14),
-  (null, 'preventivo',   7),
-  (null, 'sopralluogo',  5),
-  (null, 'campioni',    10);
+-- Il seed "SLA default di sistema" (sla_attivita) è stato rimosso insieme
+-- alla tabella nella migration 0045_pulizia_schema_morto.sql (audit
+-- 2026-08, vedi docs/audit-2026-08.md) — modello Attività/SLA del brief
+-- 16/7, mai avuto un equivalente nel modello satellite reale, zero
+-- riferimenti applicativi. Scoperto qui (bloccava `supabase start` da zero
+-- con "relation sla_attivita does not exist") mentre si allestiva
+-- l'ambiente locale per un'altra sessione — coerenza ripristinata.
