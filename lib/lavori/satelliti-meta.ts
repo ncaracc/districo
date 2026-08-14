@@ -96,9 +96,11 @@ export type Satellite = {
 export type SatelliteArticolo = {
   id: string
   satellite_id: string
+  referenza_id: string | null
   descrizione: string
   colore_finitura: string | null
   quantita: number
+  prezzo_unitario: number | null
 }
 
 export type SatelliteAllegato = {

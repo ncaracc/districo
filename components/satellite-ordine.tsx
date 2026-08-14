@@ -1,41 +1,85 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { aggiornaOrdine, impostaOrdinatoAcquisto } from '@/lib/lavori/satelliti'
 import { cercaFornitoreSedi } from '@/lib/fornitori/actions'
+import { cercaReferenze, type ReferenzaOption } from '@/lib/acquisti/referenze'
 import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-email'
 import { formattaValuta } from '@/lib/formato-valuta'
 import { InputValuta } from '@/components/input-valuta'
 import { Combobox } from '@/components/combobox'
+import { ComboboxCreabile } from '@/components/combobox-creabile'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
-import { SalvaFlottante } from '@/components/salva-flottante'
+import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
 
 type SedeSelezionata = { id: string; label: string }
-type RigaBozza = { descrizione: string }
+
+// Riga di Acquisto: può essere collegata al catalogo Referenze personale
+// dell'artigiano (referenzaId valorizzato) o "ad hoc" (referenzaId null,
+// mai salvata nel catalogo) — restyling 2026-08-14, vedi CLAUDE.md.
+type RigaBozza = {
+  referenzaId: string | null
+  descrizione: string
+  coloreFinitura: string
+  prezzo: string
+  quantita: string
+  // Rilevante solo quando referenzaId è null: se true, al salvataggio viene
+  // creata una nuova Referenza nel catalogo personale (categoria scelta
+  // sopra). Irrilevante per una riga già collegata a una referenza
+  // esistente (il prezzo aggiorna comunque `ultimo_prezzo` di quella).
+  salvaComeReferenza: boolean
+}
+
+function rigaVuota(): RigaBozza {
+  return { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', salvaComeReferenza: true }
+}
+
+function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
+  return {
+    referenzaId: r.referenza_id,
+    descrizione: r.descrizione,
+    coloreFinitura: r.colore_finitura ?? '',
+    prezzo: r.prezzo_unitario != null ? String(r.prezzo_unitario) : '',
+    quantita: String(r.quantita),
+    salvaComeReferenza: false,
+  }
+}
+
+function totaleRighe(righe: RigaBozza[]): number {
+  return righe.reduce((somma, r) => {
+    const prezzo = Number(r.prezzo) || 0
+    const quantita = Number(r.quantita) || 0
+    return somma + prezzo * quantita
+  }, 0)
+}
 
 // Revisione 2026-08-03 (vedi CLAUDE.md): il vecchio stato a 3 valori
 // testuali con transizioni manuali è sostituito da un solo flag booleano
 // `ordinato`. Finché ordinato=false l'intero Acquisto è modificabile qui
-// (fornitore/categoria/referenze/valore, prima possibile solo al momento
-// della creazione). `ordinato` è rappresentato come checkbox (non bottoni
-// d'azione, corretto lo stesso giorno: uno stato reversibile non dovrebbe
-// somigliare a un'azione che "accade") — nessuna conferma nativa finché
-// l'ordine non è stato inviato via mail, l'unico commit definitivo.
+// (fornitore/categoria/referenze/prezzi/quantità, prima possibile solo al
+// momento della creazione). `ordinato` è rappresentato come checkbox (non
+// bottoni d'azione) — nessuna conferma nativa finché l'ordine non è stato
+// inviato via mail, l'unico commit definitivo.
 //
-// Corretto in sessione successiva (vedi CLAUDE.md/docs/audit): "Ordinato"
-// era rimasto auto-salvante (chiamava il server direttamente sull'onChange,
-// fuori da qualunque dirty-tracking) — allineato allo stesso principio
-// "nessun salvataggio implicito" già applicato a data/descrizione/testo,
-// richiede ora Salva esplicito come ogni altro campo (vedi useState(ordinato)
-// e handleSalva più sotto per la sequenza in due passi verso il server,
-// invariata nei vincoli, solo spostata da un click diretto a "Salva").
+// Restyling 2026-08-14 (vedi CLAUDE.md — catalogo Referenze): SOSTITUISCE
+// il vecchio Valore complessivo a inserimento manuale e le righe a solo
+// testo libero. Ogni riga è ora una Referenza (dal catalogo personale
+// dell'artigiano, legata a una Categoria — non a un Fornitore — o creata al
+// volo) con prezzo e quantità propri; il Valore complessivo diventa un
+// campo calcolato, sola lettura, somma di prezzo×quantità. Il Fornitore
+// resta un passo di navigazione indipendente (non filtra le Referenze) ma
+// è bloccato ("Cambia" nascosto) non appena una Categoria è stata scelta,
+// per evitare lo scenario segnalato dall'utente — cambiare fornitore dopo
+// aver già scelto categoria/referenze rischierebbe di scegliere un
+// fornitore che non vende quella categoria: il blocco previene l'errore
+// invece di richiedere solo una conferma testuale (opzione scartata).
 export function SatelliteOrdine({
   satellite,
   righe,
@@ -60,38 +104,94 @@ export function SatelliteOrdine({
   const [sede, setSede] = useState<SedeSelezionata | null>(
     satellite.fornitore_sede_id && fornitoreSedeLabel ? { id: satellite.fornitore_sede_id, label: fornitoreSedeLabel } : null,
   )
-  const [categoria, setCategoria] = useState(satellite.acquisto_categoria ?? '')
-  const [valore, setValore] = useState(satellite.valore_complessivo != null ? String(satellite.valore_complessivo) : '')
-  const [righeBozza, setRigheBozza] = useState<RigaBozza[]>(
-    righe.length > 0 ? righe.map((r) => ({ descrizione: r.descrizione })) : [{ descrizione: '' }],
-  )
+  // Solo testo libero a schema (acquisto_categoria, nessuna FK — vedi
+  // CLAUDE.md): l'id qui è puro stato locale, serve solo a scoping delle
+  // Referenze (che invece SONO legate a categoria_acquisto.id per FK) e non
+  // viene mai inviato al server così com'è — solo il nome corrispondente
+  // (vedi campiCorrenti). Se il nome persistito non corrisponde più a
+  // nessuna categoria attuale (rinominata/eliminata dopo la creazione di
+  // questo Acquisto, nessun vincolo FK lo impedisce), l'id resta vuoto: le
+  // Referenze restano indisponibili finché l'utente non sceglie di nuovo
+  // una categoria esplicitamente — degradazione accettata, non un bug.
+  const [categoriaId, setCategoriaId] = useState(() => categorie.find((c) => c.nome === satellite.acquisto_categoria)?.id ?? '')
+  const [righeBozza, setRigheBozza] = useState<RigaBozza[]>(righe.length > 0 ? righe.map(rigaDaArticolo) : [rigaVuota()])
 
   // Corretto in sessione successiva (vedi CLAUDE.md/docs/audit): "Ordinato"
-  // era auto-salvante (handleToggleOrdinato chiamava il server
-  // direttamente sull'onChange) — ora fa parte dello stesso dirty-state di
-  // Fornitore/Categoria/Referenze/Valore, richiede Salva esplicito come
-  // ogni altro campo. Stato locale (non più letto da satellite.ordinato
-  // direttamente in JSX): pilota anche `editabile` sotto, in modo che
-  // spuntare/despuntare la checkbox mostri subito la vista corretta prima
-  // ancora di salvare, stesso principio già in uso per "Accettato" di
-  // Progetto e "Prenotazione effettuata" di Noleggio.
+  // era auto-salvante — ora fa parte dello stesso dirty-state di
+  // Fornitore/Categoria/Referenze, richiede Salva esplicito come ogni altro
+  // campo. Stato locale (non più letto da satellite.ordinato direttamente
+  // in JSX): pilota anche `editabile` sotto, in modo che spuntare/despuntare
+  // la checkbox mostri subito la vista corretta prima ancora di salvare.
   const [ordinato, setOrdinato] = useState(satellite.ordinato)
 
   const [invioAperto, setInvioAperto] = useState(false)
   const [contatti, setContatti] = useState<{ id: string; label: string }[] | null>(null)
   const [contattoScelto, setContattoScelto] = useState('')
   const [richiedeConfigurazione, setRichiedeConfigurazione] = useState(false)
+  // Errore dell'invio ordine (email), distinto da `errore` (flusso Salva,
+  // mostrato solo dentro PilloleSalvaAnnulla — che appare solo a `dirty`):
+  // l'invio è un'azione indipendente dal dirty-state dei campi, deve avere
+  // sempre un posto dove mostrarsi indipendentemente da quello.
+  const [erroreInvio, setErroreInvio] = useState<string | null>(null)
 
-  function aggiornaRiga(i: number, descrizione: string) {
-    setRigheBozza((r) => r.map((riga, idx) => (idx === i ? { descrizione } : riga)))
+  function aggiornaRiga(i: number, patch: Partial<RigaBozza>) {
+    setRigheBozza((r) => r.map((riga, idx) => (idx === i ? { ...riga, ...patch } : riga)))
+  }
+
+  function selezionaReferenzaEsistente(i: number, opt: ReferenzaOption) {
+    aggiornaRiga(i, {
+      referenzaId: opt.id,
+      descrizione: opt.descrizione,
+      coloreFinitura: opt.coloreFinitura ?? '',
+      prezzo: opt.ultimoPrezzo != null ? String(opt.ultimoPrezzo) : '',
+      salvaComeReferenza: false,
+    })
+  }
+
+  function creaReferenzaAlVolo(i: number, testo: string) {
+    aggiornaRiga(i, { referenzaId: null, descrizione: testo, coloreFinitura: '', salvaComeReferenza: true })
+  }
+
+  function svincolaRiga(i: number) {
+    aggiornaRiga(i, { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', salvaComeReferenza: true })
+  }
+
+  // Ricerca scoped alla categoria corrente (non al fornitore, vedi CLAUDE.md
+  // — modello corretto): identità stabile via useCallback, cambia solo
+  // quando cambia categoriaId, per non far ripartire la ricerca del
+  // Combobox ad ogni render.
+  const fetchReferenze = useCallback((query: string) => cercaReferenze(categoriaId, query), [categoriaId])
+
+  // Cambiare categoria dopo aver già scelto delle referenze le renderebbe
+  // incoerenti (referenze del catalogo della categoria precedente): non
+  // esplicitamente richiesto, ma necessario per evitare uno stato silenzioso
+  // inconsistente — stessa cautela già applicata altrove nell'app per
+  // conseguenze non ovvie di un cambio di selezione (window.confirm nativo,
+  // nessuna nuova primitiva di dialog introdotta per questo caso singolo).
+  function handleCategoriaChange(nuovoId: string) {
+    const haRigheConDati = righeBozza.some((r) => r.descrizione.trim())
+    if (haRigheConDati && nuovoId !== categoriaId) {
+      if (!confirm('Cambiando categoria, le referenze già scelte in questo Acquisto verranno rimosse. Continuare?')) return
+      setRigheBozza([rigaVuota()])
+    }
+    setCategoriaId(nuovoId)
   }
 
   function campiCorrenti() {
     return {
       fornitoreSedeId: sede?.id ?? null,
-      acquistoCategoria: categoria || null,
-      valoreComplessivo: valore ? Number(valore) : null,
-      righe: righeBozza.filter((r) => r.descrizione.trim()).map((r) => ({ descrizione: r.descrizione.trim() })),
+      acquistoCategoria: categorie.find((c) => c.id === categoriaId)?.nome ?? null,
+      categoriaId: categoriaId || null,
+      righe: righeBozza
+        .filter((r) => r.descrizione.trim())
+        .map((r) => ({
+          referenzaId: r.referenzaId,
+          descrizione: r.descrizione.trim(),
+          coloreFinitura: r.coloreFinitura.trim() || null,
+          prezzo: r.prezzo,
+          quantita: r.quantita,
+          salvaComeReferenza: r.salvaComeReferenza,
+        })),
     }
   }
 
@@ -111,6 +211,20 @@ export function SatelliteOrdine({
     setLoading(true)
     setErrore(null)
 
+    const campi = campiCorrenti()
+    for (const r of campi.righe) {
+      if (!r.prezzo || Number(r.prezzo) < 0) {
+        setLoading(false)
+        setErrore('Inserisci un prezzo per ogni referenza')
+        return false
+      }
+      if (!r.quantita || Number(r.quantita) <= 0) {
+        setLoading(false)
+        setErrore('Inserisci una quantità valida per ogni referenza')
+        return false
+      }
+    }
+
     let ordinatoDb = satellite.ordinato
 
     if (ordinatoDb && !ordinato) {
@@ -124,7 +238,19 @@ export function SatelliteOrdine({
     }
 
     if (!ordinatoDb) {
-      const salvatoCampi = await aggiornaOrdine(satellite.id, lavoroId, campiCorrenti())
+      const salvatoCampi = await aggiornaOrdine(satellite.id, lavoroId, {
+        fornitoreSedeId: campi.fornitoreSedeId,
+        acquistoCategoria: campi.acquistoCategoria,
+        categoriaId: campi.categoriaId,
+        righe: campi.righe.map((r) => ({
+          referenzaId: r.referenzaId,
+          descrizione: r.descrizione,
+          coloreFinitura: r.coloreFinitura,
+          prezzoUnitario: Number(r.prezzo),
+          quantita: Number(r.quantita),
+          salvaComeReferenza: r.salvaComeReferenza,
+        })),
+      })
       if (!salvatoCampi.ok) {
         setLoading(false)
         setErrore(salvatoCampi.error)
@@ -142,7 +268,7 @@ export function SatelliteOrdine({
     }
 
     setLoading(false)
-    segnaSalvato({ ...campiCorrenti(), ordinato })
+    segnaSalvato({ ...campi, ordinato })
     router.refresh()
     return true
   }
@@ -159,9 +285,13 @@ export function SatelliteOrdine({
     chiudiReale()
   }
 
+  function handleAnnulla() {
+    chiudiReale()
+  }
+
   async function apriInvio() {
     setInvioAperto(true)
-    setErrore(null)
+    setErroreInvio(null)
     if (satellite.fornitore_sede_id) {
       setContatti(await contattiPerInvio(satellite.fornitore_sede_id))
     } else {
@@ -172,12 +302,12 @@ export function SatelliteOrdine({
   async function confermaInvio() {
     if (!contattoScelto) return
     setLoading(true)
-    setErrore(null)
+    setErroreInvio(null)
     setRichiedeConfigurazione(false)
     const result = await inviaOrdineSatellite(satellite.id, lavoroId, contattoScelto)
     setLoading(false)
     if (!result.ok) {
-      setErrore(result.error)
+      setErroreInvio(result.error)
       setRichiedeConfigurazione(!!result.richiedeConfigurazione)
       return
     }
@@ -186,11 +316,12 @@ export function SatelliteOrdine({
   }
 
   const editabile = isOwner && !ordinato
+  const totale = totaleRighe(righeBozza.filter((r) => r.descrizione.trim()))
 
   return (
-    // Frammento, non un unico div: SalvaFlottante sibling del div a bordo,
-    // non annidato dentro — stesso motivo già documentato in
-    // satellite-appuntamento.tsx (Sprint UI-2, vedi CLAUDE.md).
+    // Frammento, non un unico div: PilloleSalvaAnnulla sibling del div a
+    // bordo, non annidato dentro — stesso motivo già documentato negli altri
+    // satelliti restylati sul template Briefing.
     <>
       <div className="rounded-lg border border-gray-200 p-4">
         <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
@@ -204,9 +335,14 @@ export function SatelliteOrdine({
               {sede ? (
                 <div className="flex items-center justify-between gap-3 rounded-lg bg-gray-50 px-3 py-2">
                   <p className="text-sm text-gray-700">{sede.label}</p>
-                  <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
-                    Cambia
-                  </button>
+                  {/* "Cambia" nascosto una volta scelta una categoria (vedi
+                      commento sopra la funzione) — per tornare a cambiare
+                      fornitore bisogna prima azzerare la categoria. */}
+                  {!categoriaId && (
+                    <button type="button" onClick={() => setSede(null)} className="shrink-0 text-xs font-medium text-gray-600 underline">
+                      Cambia
+                    </button>
+                  )}
                 </div>
               ) : (
                 <Combobox
@@ -222,10 +358,15 @@ export function SatelliteOrdine({
               <label htmlFor="ordine-categoria" className="mb-1 block text-sm font-medium text-gray-700">
                 Categoria
               </label>
-              <select id="ordine-categoria" value={categoria} onChange={(e) => setCategoria(e.target.value)} className={inputClass()}>
+              <select
+                id="ordine-categoria"
+                value={categoriaId}
+                onChange={(e) => handleCategoriaChange(e.target.value)}
+                className={inputClass()}
+              >
                 <option value="">— Nessuna —</option>
                 {categorie.map((c) => (
-                  <option key={c.id} value={c.nome}>
+                  <option key={c.id} value={c.id}>
                     {c.nome}
                   </option>
                 ))}
@@ -234,22 +375,111 @@ export function SatelliteOrdine({
 
             <div>
               <span className="mb-1 block text-sm font-medium text-gray-700">Referenze</span>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {righeBozza.map((riga, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input
-                      value={riga.descrizione}
-                      onChange={(e) => aggiornaRiga(i, e.target.value)}
-                      placeholder="Es. truciolare nobilitato bianco W10100 sp. 25 – 2 pannelli"
-                      className={`${inputClass()} min-w-0 flex-1`}
-                    />
+                  <div key={i} className="space-y-2 rounded-lg bg-gray-50 p-3">
+                    {riga.referenzaId ? (
+                      // Referenza già a catalogo: descrizione/colore di
+                      // sola lettura (modificarli qui non aggiornerebbe il
+                      // catalogo, solo il prezzo lo fa — vedi
+                      // salvaRigheOrdine) — "Cambia" torna alla ricerca.
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm text-gray-900">{riga.descrizione}</p>
+                          {riga.coloreFinitura && <p className="text-xs text-gray-500">{riga.coloreFinitura}</p>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => svincolaRiga(i)}
+                          className="shrink-0 text-xs font-medium text-gray-600 underline"
+                        >
+                          Cambia
+                        </button>
+                      </div>
+                    ) : riga.descrizione.trim() ? (
+                      // Referenza "ad hoc" (creata al volo in questa sessione
+                      // o già così a DB): descrizione/colore restano
+                      // editabili, nessun catalogo a cui restare coerenti.
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <input
+                            value={riga.descrizione}
+                            onChange={(e) => aggiornaRiga(i, { descrizione: e.target.value })}
+                            placeholder="Descrizione referenza"
+                            className={`${inputClass()} min-w-0 flex-1`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => svincolaRiga(i)}
+                            className="shrink-0 text-xs font-medium text-gray-600 underline"
+                          >
+                            Svuota
+                          </button>
+                        </div>
+                        <input
+                          value={riga.coloreFinitura}
+                          onChange={(e) => aggiornaRiga(i, { coloreFinitura: e.target.value })}
+                          placeholder="Colore / finitura (opz.)"
+                          className={inputClass()}
+                        />
+                        <label className="flex items-center gap-2 text-xs text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={riga.salvaComeReferenza}
+                            onChange={(e) => aggiornaRiga(i, { salvaComeReferenza: e.target.checked })}
+                            className="accent-primary"
+                          />
+                          Salva come referenza riutilizzabile
+                        </label>
+                      </>
+                    ) : categoriaId ? (
+                      <ComboboxCreabile
+                        placeholder="Cerca o crea una referenza..."
+                        fetchOptions={fetchReferenze}
+                        onSelect={(opt) => selezionaReferenzaEsistente(i, opt)}
+                        onCrea={(testo) => creaReferenzaAlVolo(i, testo)}
+                      />
+                    ) : (
+                      <p className="text-xs text-gray-500">Scegli prima una categoria per selezionare o creare una referenza.</p>
+                    )}
+
+                    {riga.descrizione.trim() && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label htmlFor={`ordine-prezzo-${i}`} className="mb-1 block text-xs font-medium text-gray-700">
+                            Prezzo <span className="text-red-500">*</span>
+                          </label>
+                          <InputValuta
+                            id={`ordine-prezzo-${i}`}
+                            value={riga.prezzo}
+                            onChange={(v) => aggiornaRiga(i, { prezzo: v })}
+                            className={inputClass()}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor={`ordine-quantita-${i}`} className="mb-1 block text-xs font-medium text-gray-700">
+                            Quantità <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            id={`ordine-quantita-${i}`}
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={riga.quantita}
+                            onChange={(e) => aggiornaRiga(i, { quantita: e.target.value })}
+                            className={inputClass()}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {righeBozza.length > 1 && (
                       <button
                         type="button"
                         onClick={() => setRigheBozza((r) => r.filter((_, idx) => idx !== i))}
-                        className="shrink-0 text-xs text-gray-400 hover:text-red-600"
+                        className="text-xs text-gray-400 hover:text-red-600"
                       >
-                        ✕
+                        ✕ Rimuovi
                       </button>
                     )}
                   </div>
@@ -257,46 +487,55 @@ export function SatelliteOrdine({
               </div>
               <button
                 type="button"
-                onClick={() => setRigheBozza((r) => [...r, { descrizione: '' }])}
+                onClick={() => setRigheBozza((r) => [...r, rigaVuota()])}
                 className="mt-2 text-xs font-medium text-gray-600 hover:text-gray-900"
               >
                 + Aggiungi referenza
               </button>
             </div>
 
+            {/* Valore complessivo: sola lettura, somma di prezzo×quantità
+                di tutte le righe — non più un campo inserito a mano (vedi
+                CLAUDE.md, restyling 2026-08-14). Ricalcolato ad ogni render
+                dallo stato locale non ancora salvato, stesso principio già
+                in uso per "Totale ore" di Costruzione/Montaggio. */}
             <div>
-              <label htmlFor="ordine-valore" className="mb-1 block text-sm font-medium text-gray-700">
-                Valore complessivo
-              </label>
-              <InputValuta id="ordine-valore" value={valore} onChange={setValore} className={inputClass()} />
+              <span className="mb-1 block text-sm font-medium text-gray-700">Valore complessivo</span>
+              <p className="text-sm font-medium text-gray-900">{formattaValuta(totale)}</p>
             </div>
           </div>
         ) : (
           <>
             {/* Una volta ordinato, il campo Fornitore (con la sua Combobox)
                 non è più renderizzato — questa riga evita che il nome del
-                fornitore diventi altrimenti irrecuperabile dalla Modal
-                (prima era l'unico posto in cui appariva ancora, come
-                sostituto del nome nel pallino+nome ora spostato in header).
-                Valori letti dallo stato locale (sede/categoria/righeBozza/
-                valore), non dalle prop persistite: "Ordinato" ora richiede
-                Salva esplicito (vedi commento sopra useState(ordinato)) —
-                se l'owner ha modificato dei campi e spuntato "Ordinato"
-                nella stessa sessione senza ancora salvare, questa vista
-                deve riflettere la bozza corrente, non i vecchi valori a DB
-                (che coincidono comunque finché non c'è nulla di sporco). */}
+                fornitore diventi altrimenti irrecuperabile dalla Modal.
+                Valori letti dallo stato locale (sede/categoriaId/righeBozza),
+                non dalle prop persistite: "Ordinato" richiede Salva
+                esplicito — se l'owner ha modificato dei campi e spuntato
+                "Ordinato" nella stessa sessione senza ancora salvare, questa
+                vista deve riflettere la bozza corrente. */}
             <p className="mb-1 text-sm text-gray-700">{sede?.label ?? 'Nessun fornitore'}</p>
-            {categoria && <p className="mb-1 text-xs text-gray-500">{categoria}</p>}
+            {categoriaId && (
+              <p className="mb-1 text-xs text-gray-500">{categorie.find((c) => c.id === categoriaId)?.nome}</p>
+            )}
             {righeBozza.filter((r) => r.descrizione.trim()).length > 0 && (
-              <ul className="mb-2 list-disc pl-4 text-sm text-gray-700">
+              <ul className="mb-2 space-y-1 text-sm text-gray-700">
                 {righeBozza
                   .filter((r) => r.descrizione.trim())
                   .map((r, i) => (
-                    <li key={i}>{r.descrizione}</li>
+                    <li key={i} className="flex items-baseline justify-between gap-3">
+                      <span>
+                        {r.descrizione}
+                        {r.coloreFinitura && ` — ${r.coloreFinitura}`}
+                        {' '}
+                        <span className="text-gray-500">× {r.quantita}</span>
+                      </span>
+                      {r.prezzo && <span className="shrink-0 text-gray-500">{formattaValuta(Number(r.prezzo))}</span>}
+                    </li>
                   ))}
               </ul>
             )}
-            {valore && <p className="mb-2 text-sm text-gray-700">{formattaValuta(Number(valore))}</p>}
+            {totale > 0 && <p className="mb-2 text-sm font-medium text-gray-900">{formattaValuta(totale)}</p>}
           </>
         )}
 
@@ -315,9 +554,9 @@ export function SatelliteOrdine({
           <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
         </div>
 
-        {errore && (
+        {erroreInvio && (
           <p className="mb-2 text-xs text-red-600">
-            {errore}
+            {erroreInvio}
             {richiedeConfigurazione && (
               <>
                 {' '}
@@ -402,14 +641,14 @@ export function SatelliteOrdine({
         )}
       </div>
 
-      {/* Nessun errore={errore} qui: è già mostrato sopra, condiviso anche
-          con handleToggleOrdinato/confermaInvio — duplicherebbe altrimenti. */}
       {/* isOwner, non `editabile`: quest'ultimo dipende ora dallo stato
           locale di "Ordinato" (vedi commento sopra useState(ordinato)) — se
           l'owner ha appena spuntato la checkbox, editabile è già falso (la
           vista è già passata a sola lettura) ma la modifica resta comunque
           da salvare, la barra deve restare visibile. */}
-      {isOwner && <SalvaFlottante visibile={dirty} salvando={loading} onSalva={handleSalva} />}
+      {isOwner && (
+        <PilloleSalvaAnnulla visibile={dirty} salvando={loading} errore={errore} onSalva={handleSalva} onAnnulla={handleAnnulla} />
+      )}
 
       <DialogConferma
         aperto={confermaUscitaAperta}

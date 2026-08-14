@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
 import { PillolaFlottante } from '@/components/pillola-flottante'
 import { IconaCestino, IconaMatita, IconaOcchio } from '@/components/icons'
-import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
   creaAcconto,
   creaAppuntamento,
@@ -14,6 +13,7 @@ import {
   creaCostruzione,
   creaMontaggio,
   creaNoleggio,
+  creaOrdine,
   creaPreventivo,
   creaProgetto,
   creaSpesaNonPreventivata,
@@ -68,7 +68,6 @@ export function LavoroSatelliteTabella({
   chiusuraEsiste,
   costruzioneEsiste,
   montaggioEsiste,
-  categorieAcquisto,
 }: {
   righe: RigaSatellite[]
   lavoroId: string
@@ -84,13 +83,11 @@ export function LavoroSatelliteTabella({
   // stesso trattamento di progetto/preventivo/chiusura sopra.
   costruzioneEsiste: boolean
   montaggioEsiste: boolean
-  categorieAcquisto: { id: string; nome: string }[]
 }) {
   const router = useRouter()
   const [eliminandoId, setEliminandoId] = useState<string | null>(null)
 
   const [mostraAggiungi, setMostraAggiungi] = useState(false)
-  const [formAcquistoAperto, setFormAcquistoAperto] = useState(false)
   const [creandoChiave, setCreandoChiave] = useState<ChiaveAttivita | null>(null)
   const [erroreAggiungi, setErroreAggiungi] = useState<string | null>(null)
 
@@ -112,7 +109,6 @@ export function LavoroSatelliteTabella({
 
   function chiudiAggiungi() {
     setMostraAggiungi(false)
-    setFormAcquistoAperto(false)
     setErroreAggiungi(null)
   }
 
@@ -169,10 +165,6 @@ export function LavoroSatelliteTabella({
   }
 
   function handleSeleziona(chiave: ChiaveAttivita) {
-    if (chiave === 'acquisto') {
-      setFormAcquistoAperto(true)
-      return
-    }
     setCreandoChiave(chiave)
     const azione = (() => {
       switch (chiave) {
@@ -185,6 +177,17 @@ export function LavoroSatelliteTabella({
           return () => creaPreventivo(lavoroId)
         case 'acconto':
           return () => creaAcconto(lavoroId)
+        // Restyling 2026-08-14 (vedi CLAUDE.md): fino ad oggi "Aggiungi
+        // attività" mostrava per Acquisto un form di creazione dedicato
+        // (SatelliteNuovoOrdine, rimosso) invece di creare subito e navigare
+        // come ogni altro tipo — motivato all'epoca dal fatto che la modale
+        // di dettaglio non permetteva ancora di modificare fornitore/
+        // categoria/righe dopo la creazione. Non più vero dopo il
+        // restyling di SatelliteOrdine sul template Briefing (PilloleSalvaAnnulla,
+        // pienamente editabile) — stesso pattern "crea vuoto e naviga in
+        // modifica" di tutti gli altri tipi, nessuna eccezione residua.
+        case 'acquisto':
+          return () => creaOrdine(lavoroId, { fornitoreSedeId: null, acquistoCategoria: null, categoriaId: null, righe: [] })
         case 'costruzione':
           return () => creaCostruzione(lavoroId)
         case 'montaggio':
@@ -315,32 +318,20 @@ export function LavoroSatelliteTabella({
       )}
 
       <Modal aperto={mostraAggiungi} onChiudi={chiudiAggiungi} titolo="Aggiungi attività">
-        {formAcquistoAperto ? (
-          <SatelliteNuovoOrdine
-            lavoroId={lavoroId}
-            categorie={categorieAcquisto}
-            onSuccesso={() => {
-              chiudiAggiungi()
-              router.refresh()
-            }}
-            onAnnulla={chiudiAggiungi}
-          />
-        ) : (
-          <div className="space-y-1">
-            {erroreAggiungi && <p className="mb-2 text-xs text-red-600">{erroreAggiungi}</p>}
-            {opzioni.map((chiave) => (
-              <button
-                key={chiave}
-                type="button"
-                onClick={() => handleSeleziona(chiave)}
-                disabled={creandoChiave !== null}
-                className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {creandoChiave === chiave ? 'Creazione…' : LABEL_ATTIVITA[chiave]}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="space-y-1">
+          {erroreAggiungi && <p className="mb-2 text-xs text-red-600">{erroreAggiungi}</p>}
+          {opzioni.map((chiave) => (
+            <button
+              key={chiave}
+              type="button"
+              onClick={() => handleSeleziona(chiave)}
+              disabled={creandoChiave !== null}
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {creandoChiave === chiave ? 'Creazione…' : LABEL_ATTIVITA[chiave]}
+            </button>
+          ))}
+        </div>
       </Modal>
     </div>
   )

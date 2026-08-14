@@ -106,6 +106,20 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['categoria_acquisto']['Insert']>
         Relationships: []
       }
+      referenza: {
+        Row: {
+          id: string; artigiano_id: string; categoria_id: string
+          descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string; artigiano_id: string; categoria_id: string
+          descrizione: string; colore_finitura?: string | null; ultimo_prezzo?: number | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['referenza']['Insert']>
+        Relationships: []
+      }
       lavoro: {
         Row: {
           id: string; cliente_id: string; titolo: string; descrizione: string | null
@@ -244,8 +258,16 @@ export type Database = {
         Relationships: []
       }
       lavoro_satellite_articolo: {
-        Row: { id: string; satellite_id: string; descrizione: string; colore_finitura: string | null; quantita: number; created_at: string }
-        Insert: { id?: string; satellite_id: string; descrizione: string; colore_finitura?: string | null; quantita: number; created_at?: string }
+        Row: {
+          id: string; satellite_id: string; referenza_id: string | null
+          descrizione: string; colore_finitura: string | null; quantita: number
+          prezzo_unitario: number | null; created_at: string
+        }
+        Insert: {
+          id?: string; satellite_id: string; referenza_id?: string | null
+          descrizione: string; colore_finitura?: string | null; quantita: number
+          prezzo_unitario?: number | null; created_at?: string
+        }
         Update: Partial<Database['public']['Tables']['lavoro_satellite_articolo']['Insert']>
         Relationships: []
       }

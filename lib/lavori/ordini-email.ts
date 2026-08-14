@@ -73,7 +73,7 @@ export async function inviaOrdineSatellite(
   const [{ data: righe }, { data: contatto }, { data: lavoro }] = await Promise.all([
     supabase
       .from('lavoro_satellite_articolo')
-      .select('descrizione, colore_finitura')
+      .select('descrizione, colore_finitura, quantita')
       .eq('satellite_id', satelliteId),
     supabase
       .from('fornitore_sede_contatto')
@@ -95,16 +95,15 @@ export async function inviaOrdineSatellite(
 
   const subject = `Ordine ${oggettoTipo} rif. ${cliente?.nome ?? 'lavoro'}`
 
-  // Niente più "× quantità" nel testo (audit 2026-08, allineato al fix già
-  // applicato alla lista di sola lettura in satellite-ordine.tsx il 2/8):
-  // dal fix modale Acquisto dello stesso giorno, ogni nuova riga viene
-  // scritta con `quantita: 1` fisso (nessun significato residuo, il campo
-  // non è più raccolto in UI) — mostrarlo nell'email al fornitore avrebbe
-  // mostrato un fuorviante "× 1" su ogni singola referenza, esattamente il
-  // problema già risolto lato UI ma rimasto qui. `colore_finitura` resta
-  // (sempre null per le righe nuove, quindi la condizione non produce mai
-  // output oggi, ma può ancora comparire su righe storiche pre-2/8).
-  const righeTesto = (righe ?? []).map((r) => `${r.descrizione}${r.colore_finitura ? ` — ${r.colore_finitura}` : ''}`)
+  // Restyling 2026-08-14 (vedi CLAUDE.md — catalogo Referenze): "×
+  // quantità" torna nel testo, questa volta con un significato reale — ogni
+  // riga ha ora una quantità raccolta davvero in UI (non più il vecchio
+  // `quantita: 1` fisso senza significato residuo, rimosso lo stesso
+  // giorno). Il prezzo resta fuori dall'email: è il costo per l'artigiano,
+  // non un dato da comunicare al fornitore che lo sta preventivando.
+  const righeTesto = (righe ?? []).map(
+    (r) => `${r.descrizione}${r.colore_finitura ? ` — ${r.colore_finitura}` : ''} × ${r.quantita}`,
+  )
 
   const html = `
     <p>Ciao ${contatto.nome},</p>

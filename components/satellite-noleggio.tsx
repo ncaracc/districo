@@ -22,7 +22,7 @@ const LABEL_ALLEGATI = 'Puoi allegare foto e documenti inerenti il noleggio (fil
 
 // La "compagnia" di noleggio è un Fornitore a tutti gli effetti (emette
 // fattura, va in contabilità), non un campo testo libero — stesso pattern di
-// ricerca già in uso in SatelliteNuovoOrdine per Acquisto, riusa la colonna
+// ricerca già in uso in SatelliteOrdine per Acquisto, riusa la colonna
 // fornitore_sede_id già esistente (Sprint D, produzione, 2/8, vedi
 // CLAUDE.md). A differenza di Acquisto, qui il fornitore resta modificabile
 // anche dopo la creazione (nessun form di creazione dedicato per Noleggio).

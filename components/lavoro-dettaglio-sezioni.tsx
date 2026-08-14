@@ -54,7 +54,6 @@ export function LavoroDettaglioSezioni({
   chiusuraEsiste,
   costruzioneEsiste,
   montaggioEsiste,
-  categorieAcquisto,
   children,
 }: {
   lavoroId: string
@@ -72,7 +71,6 @@ export function LavoroDettaglioSezioni({
   chiusuraEsiste: boolean
   costruzioneEsiste: boolean
   montaggioEsiste: boolean
-  categorieAcquisto: { id: string; nome: string }[]
   children?: React.ReactNode
 }) {
   const [modificaLavoro, setModificaLavoro] = useState(false)
@@ -111,7 +109,6 @@ export function LavoroDettaglioSezioni({
           chiusuraEsiste={chiusuraEsiste}
           costruzioneEsiste={costruzioneEsiste}
           montaggioEsiste={montaggioEsiste}
-          categorieAcquisto={categorieAcquisto}
         />
       )}
     </>

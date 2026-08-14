@@ -561,26 +561,109 @@ export async function aggiornaCampione(
 // testo libero facoltativo (dalle preferenze dell'artigiano, vedi
 // lib/acquisti/categorie.ts). Più istanze sullo stesso Lavoro sono ammesse
 // (più ordini successivi), nessun vincolo di unicità nello schema.
-// Righe: un solo campo di testo libero per riga ("Articolo", fix modale
-// Acquisto 2026-08-02, vedi CLAUDE.md) — l'artigiano scrive materiale/
-// codice/spessore/quantità tutto insieme in linguaggio naturale, coerente
-// col documento di revisione. colore_finitura/quantita restano a schema
-// (nessuna migration: quantita ha un check quantita > 0, non nullable) ma
-// non sono più raccolti da UI — scritti con un default fisso (null/1) per
-// soddisfare il vincolo, senza alcun significato residuo.
+//
+// Restyling 2026-08-14 (vedi CLAUDE.md — catalogo Referenze): ogni riga ha
+// ora prezzo e quantità reali (colonne prezzo_unitario/quantita, migration
+// 0048) — `valore_complessivo` non è più un campo inserito a mano, viene
+// ricalcolato qui come somma di prezzo×quantità di tutte le righe, stesso
+// principio "leggi poi scrivi" già in uso altrove nell'app per campi
+// derivati che restano comunque persistiti (consumati da "Spese
+// complessive" di Chiusura Lavoro e dai KPI, invariati).
+type RigaOrdineInput = {
+  referenzaId: string | null
+  descrizione: string
+  coloreFinitura: string | null
+  prezzoUnitario: number
+  quantita: number
+  salvaComeReferenza: boolean
+}
+
+function valoreComplessivoRighe(righe: RigaOrdineInput[]): number {
+  return righe.reduce((somma, r) => somma + r.prezzoUnitario * r.quantita, 0)
+}
+
+// Risolve ogni riga verso una referenza (nuova, esistente aggiornata, o
+// nessuna) e inserisce le righe vere e proprie in lavoro_satellite_articolo.
+// Condiviso da creaOrdine/aggiornaOrdine per non duplicare la logica di
+// creazione/aggiornamento del catalogo Referenze in due punti.
+async function salvaRigheOrdine(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  satelliteId: string,
+  artigianoId: string,
+  categoriaId: string | null,
+  righe: RigaOrdineInput[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  for (const r of righe) {
+    let referenzaId = r.referenzaId
+
+    if (referenzaId) {
+      // Referenza esistente: il prezzo di questo Acquisto diventa il nuovo
+      // "ultimo prezzo" indicativo per la prossima volta (RLS "solo
+      // proprietario" applicata comunque, un id non posseduto non
+      // aggiornerebbe nulla anziché sollevare un errore — coerente col
+      // comportamento già accettato altrove per gli update scoped da RLS).
+      const { error } = await supabase.from('referenza').update({ ultimo_prezzo: r.prezzoUnitario }).eq('id', referenzaId)
+      if (error) {
+        console.error('salvaRigheOrdine: aggiornamento ultimo_prezzo fallito', error)
+        return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
+      }
+    } else if (r.salvaComeReferenza) {
+      if (!categoriaId) return { ok: false, error: 'Seleziona una categoria prima di salvare una referenza riutilizzabile' }
+      const { data: nuova, error } = await supabase
+        .from('referenza')
+        .insert({
+          artigiano_id: artigianoId,
+          categoria_id: categoriaId,
+          descrizione: r.descrizione,
+          colore_finitura: r.coloreFinitura,
+          ultimo_prezzo: r.prezzoUnitario,
+        })
+        .select('id')
+        .single()
+      if (error || !nuova) {
+        console.error('salvaRigheOrdine: creazione referenza fallita', error)
+        return { ok: false, error: 'Errore nella creazione della referenza, riprova' }
+      }
+      referenzaId = nuova.id
+    }
+
+    const { error: rigaErr } = await supabase.from('lavoro_satellite_articolo').insert({
+      satellite_id: satelliteId,
+      referenza_id: referenzaId,
+      descrizione: r.descrizione,
+      colore_finitura: r.coloreFinitura,
+      quantita: r.quantita,
+      prezzo_unitario: r.prezzoUnitario,
+    })
+    if (rigaErr) {
+      console.error('salvaRigheOrdine: insert riga fallito', rigaErr)
+      return { ok: false, error: 'Errore nel salvataggio delle righe, riprova' }
+    }
+  }
+
+  return { ok: true }
+}
+
 export async function creaOrdine(
   lavoroId: string,
   fields: {
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
-    valoreComplessivo: number | null
-    righe: { descrizione: string }[]
+    categoriaId: string | null
+    righe: RigaOrdineInput[]
   },
 ): Promise<CreazioneResult> {
   const supabase = await createClient()
 
   const bloccato = await assertLavoroModificabile(supabase, lavoroId)
   if (bloccato) return bloccato
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const righe = fields.righe.filter((r) => r.descrizione.trim())
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
@@ -589,7 +672,7 @@ export async function creaOrdine(
       tipo: 'acquisti',
       fornitore_sede_id: fields.fornitoreSedeId,
       acquisto_categoria: fields.acquistoCategoria,
-      valore_complessivo: fields.valoreComplessivo,
+      valore_complessivo: righe.length > 0 ? valoreComplessivoRighe(righe) : null,
     })
     .select('id')
     .single()
@@ -599,21 +682,11 @@ export async function creaOrdine(
     return { ok: false, error: 'Errore nella creazione, riprova' }
   }
 
-  const righe = fields.righe.filter((r) => r.descrizione.trim())
   if (righe.length > 0) {
-    const { error: righeErr } = await supabase.from('lavoro_satellite_articolo').insert(
-      righe.map((r) => ({
-        satellite_id: data.id,
-        descrizione: r.descrizione.trim(),
-        colore_finitura: null,
-        quantita: 1,
-      })),
-    )
-
-    if (righeErr) {
-      console.error('creaOrdine: insert righe fallito', righeErr)
+    const risultato = await salvaRigheOrdine(supabase, data.id, user.id, fields.categoriaId, righe)
+    if (!risultato.ok) {
       await supabase.from('lavoro_satellite').delete().eq('id', data.id)
-      return { ok: false, error: 'Errore nel salvataggio delle righe, riprova' }
+      return risultato
     }
   }
 
@@ -622,25 +695,24 @@ export async function creaOrdine(
   return { ok: true, id: data.id }
 }
 
-// Modifica fornitore/categoria/valore/righe di un Acquisto — possibile solo
-// finché ordinato=false (revisione 2026-08-03, vedi CLAUDE.md): oltre al
-// gate generico "Lavoro modificabile", questo tipo ha un secondo lock
-// specifico — bloccato mentre ordinato=true, ma quel flag stesso è
-// reversibile finché l'ordine non è stato inviato via mail (vedi
-// impostaOrdinatoAcquisto più sotto): per tornare a modificare basta
-// disattivare "ordinato", nessun bisogno di eliminare/ricreare l'Acquisto.
-// Verificato qui leggendo lo stato reale a DB, non un valore passato dal
-// client. Righe sostituite per intero (delete + insert), stesso pattern già
-// in uso per la creazione — più semplice che calcolare un diff, e il volume
-// per Acquisto è sempre piccolo.
+// Modifica fornitore/categoria/righe di un Acquisto — possibile solo finché
+// ordinato=false (revisione 2026-08-03, vedi CLAUDE.md): oltre al gate
+// generico "Lavoro modificabile", questo tipo ha un secondo lock specifico —
+// bloccato mentre ordinato=true, ma quel flag stesso è reversibile finché
+// l'ordine non è stato inviato via mail (vedi impostaOrdinatoAcquisto più
+// sotto): per tornare a modificare basta disattivare "ordinato", nessun
+// bisogno di eliminare/ricreare l'Acquisto. Verificato qui leggendo lo stato
+// reale a DB, non un valore passato dal client. Righe sostituite per intero
+// (delete + insert), stesso pattern già in uso per la creazione — più
+// semplice che calcolare un diff, e il volume per Acquisto è sempre piccolo.
 export async function aggiornaOrdine(
   satelliteId: string,
   lavoroId: string,
   fields: {
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
-    valoreComplessivo: number | null
-    righe: { descrizione: string }[]
+    categoriaId: string | null
+    righe: RigaOrdineInput[]
   },
 ): Promise<AzioneResult> {
   const supabase = await createClient()
@@ -648,15 +720,22 @@ export async function aggiornaOrdine(
   const bloccato = await assertSatelliteModificabile(supabase, satelliteId)
   if (bloccato) return bloccato
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
   const { data: satellite } = await supabase.from('lavoro_satellite').select('ordinato').eq('id', satelliteId).maybeSingle()
   if (satellite?.ordinato) return { ok: false, error: 'Acquisto ordinato: disattiva il flag "ordinato" prima di modificare' }
+
+  const righe = fields.righe.filter((r) => r.descrizione.trim())
 
   const { error } = await supabase
     .from('lavoro_satellite')
     .update({
       fornitore_sede_id: fields.fornitoreSedeId,
       acquisto_categoria: fields.acquistoCategoria,
-      valore_complessivo: fields.valoreComplessivo,
+      valore_complessivo: righe.length > 0 ? valoreComplessivoRighe(righe) : null,
     })
     .eq('id', satelliteId)
 
@@ -671,20 +750,9 @@ export async function aggiornaOrdine(
     return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
   }
 
-  const righe = fields.righe.filter((r) => r.descrizione.trim())
   if (righe.length > 0) {
-    const { error: righeErr } = await supabase.from('lavoro_satellite_articolo').insert(
-      righe.map((r) => ({
-        satellite_id: satelliteId,
-        descrizione: r.descrizione.trim(),
-        colore_finitura: null,
-        quantita: 1,
-      })),
-    )
-    if (righeErr) {
-      console.error('aggiornaOrdine: insert righe fallito', righeErr)
-      return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
-    }
+    const risultato = await salvaRigheOrdine(supabase, satelliteId, user.id, fields.categoriaId, righe)
+    if (!risultato.ok) return risultato
   }
 
   revalidatePath(`/lavori/${lavoroId}`)
