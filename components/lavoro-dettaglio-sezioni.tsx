@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { LavoroInfo, type LavoroInfoFields } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
-import { ORIGINE_INFO, type SezioneOrigine } from '@/lib/nav/origine-sezione'
+import { OrigineLink } from '@/components/origine-link'
+import { type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
 // Wrapper client (sessione rifinitura 2026-08-08, vedi CLAUDE.md): Sezione 2
 // (LavoroInfo) e Sezioni 3/4 (LavoroSatelliteTabella) erano sibling dentro
@@ -29,10 +29,15 @@ import { ORIGINE_INFO, type SezioneOrigine } from '@/lib/nav/origine-sezione'
 //
 // Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
 // lib/nav/origine-sezione.ts): il link "← Dashboard" era hardcoded — ora
-// "← {label della sezione di origine}" (Dashboard o Conclusi), calcolato
-// server-side in page.tsx dal cookie che ricorda l'ultima visita reale a
-// una delle due, indipendentemente da quante pagine intermedie (Cliente,
-// Fornitore...) sono state attraversate per arrivare qui.
+// "← {label della sezione di origine}" (Dashboard o Conclusi), dal cookie
+// che ricorda l'ultima visita reale a una delle due, indipendentemente da
+// quante pagine intermedie (Cliente, Fornitore...) sono state attraversate
+// per arrivare qui. Reso client-side (OrigineLink, 2026-08-14, vedi
+// CLAUDE.md) dopo la scoperta di un bug di staleness: il valore calcolato
+// server-side qui restava "congelato" al cookie del momento in cui Next.js
+// aveva prefetchato questa pagina (Client Router Cache), anche dopo che il
+// cookie era cambiato — origineSezione ricevuto come prop resta quindi solo
+// il valore iniziale per l'hydration, non più la fonte di verità.
 export function LavoroDettaglioSezioni({
   lavoroId,
   origineSezione,
@@ -71,15 +76,12 @@ export function LavoroDettaglioSezioni({
   children?: React.ReactNode
 }) {
   const [modificaLavoro, setModificaLavoro] = useState(false)
-  const origine = ORIGINE_INFO[origineSezione]
 
   return (
     <>
       {!modificaLavoro && (
         <div className="mb-2">
-          <Link href={origine.href} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
-            ← {origine.label}
-          </Link>
+          <OrigineLink origineIniziale={origineSezione} />
         </div>
       )}
 

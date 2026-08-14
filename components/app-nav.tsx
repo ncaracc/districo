@@ -8,7 +8,7 @@ import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
 import { ModalTest } from '@/components/test/modal-test'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { ORIGINE_INFO, type SezioneOrigine } from '@/lib/nav/origine-sezione'
+import { ORIGINE_INFO, leggiOrigineSezioneClient, type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Dashboard' },
@@ -16,6 +16,21 @@ const VOCI_ATTIVE = [
   { href: '/fornitori', label: 'Fornitori' },
   { href: '/statistiche', label: 'Conclusi' },
 ]
+
+// Causa reale del bug di provenienza scoperto in questa sessione (vedi
+// CLAUDE.md e middleware.ts): /lavori e /statistiche sono voci SEMPRE
+// visibili nel menu, quindi Next.js le prefetcha automaticamente in
+// background non appena una pagina qualunque monta — ogni prefetch passa dal
+// middleware e sovrascrive silenziosamente il cookie "sezione di origine",
+// indipendentemente da dove l'utente sta realmente guardando. Impossibile
+// distinguere un prefetch da una navigazione reale DENTRO al middleware
+// (Next.js nasconde l'header che lo segnalerebbe, per design — vedi
+// middleware.ts). L'unico fix robusto è a monte: questi Link non vengono mai
+// prefetchati, quindi il middleware vede solo navigazioni reali per questi
+// due path. Applicato a ogni Link che punta esattamente a uno dei due (logo,
+// voci di menu desktop/mobile, link "← ..." in origine-link.tsx) — non alle
+// altre voci (Clienti/Fornitori/Profilo), che non toccano questo cookie.
+const PATH_SENSIBILI_PREFETCH = ['/lavori', '/statistiche']
 
 // Profilo/Impostazioni ha un trattamento a parte (icona ingranaggio invece di
 // testo su desktop, stesso principio già applicato a "Esci"): non fa parte
@@ -110,16 +125,35 @@ export function AppNav({
   // porta già lì, nessun elenco/dropdown dedicato in questo sprint.
   appuntamentiScaduti?: number
   // Provenienza (vedi CLAUDE.md e lib/nav/origine-sezione.ts): letta
-  // server-side (cookie) nel root layout, passata qui per decidere quale
-  // voce evidenziare quando si è dentro /lavori/[id]/..., /clienti/[id] o
-  // /fornitori/[id] (inCatenaConOrigine) — irrilevante altrove, dove resta
-  // la normale evidenziazione per sezione.
+  // server-side (cookie) nel root layout, passata qui SOLO come valore
+  // iniziale per l'hydration (deve combaciare con l'HTML server-renderizzato
+  // al primo paint, altrimenti React segnala un mismatch) — non più la
+  // fonte di verità dopo il mount. Bug scoperto in sessione successiva
+  // (2026-08-14, vedi CLAUDE.md): AppNav vive nel root layout, che Next.js
+  // non ri-esegue ad ogni navigazione client-side (le UI condivise
+  // persistono per design) — la prop restava quindi congelata al valore
+  // dell'ultimo hard reload, mai aggiornata dalle navigazioni successive.
   origineSezione: SezioneOrigine
 }) {
   const pathname = usePathname()
   const router = useRouter()
+  // Rilettura client-side ad ogni cambio pathname (leggiOrigineSezioneClient,
+  // vedi lib/nav/origine-sezione.ts): legge document.cookie direttamente,
+  // fuori da qualunque payload RSC cacheabile — l'unico modo verificato per
+  // riflettere sempre il valore corrente, sia per il problema del root
+  // layout sopra sia per lo staleness da prefetch dello stesso bug fix.
+  // "Adjusting state during rendering" (pattern ufficiale React), non un
+  // useEffect: il linting di questo progetto vieta setState sincrono dentro
+  // un effect (react-hooks/set-state-in-effect, compatibilità React
+  // Compiler) — stesso pattern usato in components/origine-link.tsx.
+  const [pathnamePrecedente, setPathnamePrecedente] = useState(pathname)
+  const [origineSezioneClient, setOrigineSezioneClient] = useState(origineSezione)
+  if (pathname !== pathnamePrecedente) {
+    setPathnamePrecedente(pathname)
+    setOrigineSezioneClient(leggiOrigineSezioneClient())
+  }
   const inCatena = inCatenaConOrigine(pathname)
-  const hrefAttivoOrigine = ORIGINE_INFO[origineSezione].href
+  const hrefAttivoOrigine = ORIGINE_INFO[origineSezioneClient].href
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
   // Ambiente di iterazione rapida sul design (vedi components/test/modal-test.tsx
@@ -181,7 +215,7 @@ export function AppNav({
           usano CONTENITORE_LARGO sia per quelle più strette
           (CONTENITORE_STRETTO), tutte centrate allo stesso modo. */}
       <div className={`${CONTENITORE_LARGO} px-4 py-5 flex items-center justify-between md:grid md:grid-cols-3 md:items-center`}>
-        <Link href="/lavori" className="flex items-center py-1">
+        <Link href="/lavori" prefetch={false} className="flex items-center py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-14 w-auto" />
         </Link>
@@ -198,6 +232,7 @@ export function AppNav({
               <Link
                 key={voce.href}
                 href={voce.href}
+                prefetch={PATH_SENSIBILI_PREFETCH.includes(voce.href) ? false : undefined}
                 className={`border-b-2 pb-0.5 text-sm transition-colors ${
                   attiva
                     ? 'border-gray-900 font-medium text-gray-900'
@@ -309,6 +344,7 @@ export function AppNav({
               <li key={voce.href}>
                 <Link
                   href={voce.href}
+                  prefetch={PATH_SENSIBILI_PREFETCH.includes(voce.href) ? false : undefined}
                   onClick={() => setAperto(false)}
                   className={`block rounded-lg border-l-2 py-4 pl-3 pr-2 text-xl transition-colors hover:bg-gray-50 ${
                     attiva ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-600'

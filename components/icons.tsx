@@ -19,6 +19,22 @@ export function IconaMatita({ className }: { className?: string }) {
   )
 }
 
+// Icona "occhio" (visualizza/sola lettura): forma standard/universale del
+// simbolo "view" — mandorla esterna + cerchio interno, stesso trattamento
+// stroke-based delle altre icone di questo file. Aggiunta per la riga
+// Attività del Dettaglio Lavoro (sessione correzione navigazione, vedi
+// CLAUDE.md): sostituisce il link testuale sull'etichetta con una terza
+// icona affiancata a matita/cestino, stessa azione già esistente (apertura
+// in sola lettura), nessuna nuova logica.
+export function IconaOcchio({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>
+      <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  )
+}
+
 export function IconaCestino({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={className}>

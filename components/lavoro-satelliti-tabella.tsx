@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Modal } from '@/components/modal'
 import { PillolaFlottante } from '@/components/pillola-flottante'
-import { IconaCestino, IconaMatita } from '@/components/icons'
+import { IconaCestino, IconaMatita, IconaOcchio } from '@/components/icons'
 import { SatelliteNuovoOrdine } from '@/components/satellite-nuovo-ordine'
 import {
   creaAcconto,
@@ -33,14 +33,18 @@ import type { VoceAttivita } from '@/lib/lavori/satelliti-render'
 // definizione duplicata.
 export type RigaSatellite = VoceAttivita
 
-// Tabella riepilogativa delle attività nel dettaglio Lavoro. Il click sul
-// nome naviga in sola lettura, il click sulla matita naviga in modifica —
-// STESSA distinzione UX di sempre (fix UX 2026-08-02, vedi CLAUDE.md,
-// sezione "Visualizzazione vs modifica"), ma ora tramite router.push verso
-// l'URL dell'attività invece di stato locale: il tasto Back del browser
-// chiude la modale e torna qui, gestito dalla route intercettata
-// (@modal/(.)attivita/[attivitaId]), non più da questo componente. Nessuna
-// Modal di dettaglio satellite qui — vive nella nuova route.
+// Tabella riepilogativa delle attività nel dettaglio Lavoro. Il click
+// sull'icona occhio naviga in sola lettura, il click sulla matita naviga in
+// modifica — STESSA distinzione UX di sempre (fix UX 2026-08-02, vedi
+// CLAUDE.md, sezione "Visualizzazione vs modifica"), tramite router.push
+// verso l'URL dell'attività: il tasto Back del browser chiude la modale e
+// torna qui, gestito dalla route intercettata (@modal/(.)attivita/[attivitaId]),
+// non da questo componente. Nessuna Modal di dettaglio satellite qui — vive
+// nella nuova route. Il trigger di "sola lettura" era in origine un link
+// testuale sull'etichetta (nome attività) — sostituito il 2026-08-14 (vedi
+// CLAUDE.md) da una terza icona (occhio) affiancata a matita/cestino, per
+// coerenza visiva: stessa azione, nessuna logica nuova. L'etichetta è ora
+// testo semplice, non più cliccabile.
 //
 // "Aggiungi attività" (Sprint "fondamenta" 2026-08-02, vedi CLAUDE.md)
 // RESTA invece stato locale in questo componente, deliberatamente non
@@ -223,59 +227,71 @@ export function LavoroSatelliteTabella({
               <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-2">Attività</th>
                 <th className="px-4 py-2">Stato</th>
-                {isOwner && <th className="px-4 py-2 text-right">Azioni</th>}
+                <th className="px-4 py-2 text-right">Azioni</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
               {righe.map((riga) => (
                 <tr key={riga.satelliteId}>
-                  <td className="px-4 py-2.5">
-                    <button
-                      type="button"
-                      onClick={() => router.push(urlAttivita(riga.satelliteId, 'lettura'))}
-                      className="text-left font-medium text-gray-900 underline-offset-2 hover:underline"
-                    >
-                      {riga.nome}
-                    </button>
-                  </td>
+                  <td className="px-4 py-2.5 font-medium text-gray-900">{riga.nome}</td>
                   <td className="px-4 py-2.5">
                     <span className="flex items-center gap-2 whitespace-nowrap text-gray-700">
                       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[riga.colore]}`} />
                       {riga.statoLabel}
                     </span>
                   </td>
-                  {isOwner && (
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => router.push(urlAttivita(riga.satelliteId, 'modifica'))}
-                          disabled={completato}
-                          aria-label="Modifica"
-                          title={completato ? 'Riapri il lavoro per modificare' : 'Modifica'}
-                          className={`rounded-lg p-1.5 transition-colors ${
-                            completato
-                              ? 'cursor-not-allowed text-gray-300 opacity-50'
-                              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-                          }`}
-                        >
-                          <IconaMatita className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleElimina(riga)}
-                          disabled={completato || eliminandoId === riga.satelliteId}
-                          aria-label="Elimina"
-                          title={completato ? 'Riapri il lavoro per modificare' : 'Elimina'}
-                          className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
-                            completato ? 'cursor-not-allowed text-gray-300' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
-                          }`}
-                        >
-                          <IconaCestino className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  )}
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Occhio (2026-08-14, vedi CLAUDE.md): sostituisce il
+                          vecchio link testuale sull'etichetta — stessa azione
+                          già esistente (apertura in sola lettura), solo
+                          spostata a icona. Sempre presente, anche per un
+                          ospite non-owner (a differenza di Matita/Cestino):
+                          era l'unico modo per un non-owner di aprire
+                          un'attività prima di questa sessione, la colonna
+                          Azioni non può quindi restare interamente
+                          isOwner-gated come lo era prima. */}
+                      <button
+                        type="button"
+                        onClick={() => router.push(urlAttivita(riga.satelliteId, 'lettura'))}
+                        aria-label="Visualizza"
+                        title="Visualizza"
+                        className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <IconaOcchio className="h-4 w-4" />
+                      </button>
+                      {isOwner && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => router.push(urlAttivita(riga.satelliteId, 'modifica'))}
+                            disabled={completato}
+                            aria-label="Modifica"
+                            title={completato ? 'Riapri il lavoro per modificare' : 'Modifica'}
+                            className={`rounded-lg p-1.5 transition-colors ${
+                              completato
+                                ? 'cursor-not-allowed text-gray-300 opacity-50'
+                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                            }`}
+                          >
+                            <IconaMatita className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleElimina(riga)}
+                            disabled={completato || eliminandoId === riga.satelliteId}
+                            aria-label="Elimina"
+                            title={completato ? 'Riapri il lavoro per modificare' : 'Elimina'}
+                            className={`rounded-lg p-1.5 transition-colors disabled:opacity-50 ${
+                              completato ? 'cursor-not-allowed text-gray-300' : 'text-gray-500 hover:bg-red-50 hover:text-red-600'
+                            }`}
+                          >
+                            <IconaCestino className="h-4 w-4" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
