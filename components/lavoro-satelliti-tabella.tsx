@@ -238,9 +238,17 @@ export function LavoroSatelliteTabella({
                 <tr key={riga.satelliteId}>
                   <td className="px-4 py-2.5 font-medium text-gray-900">{riga.nome}</td>
                   <td className="px-4 py-2.5">
-                    <span className="flex items-center gap-2 whitespace-nowrap text-gray-700">
+                    {/* Overflow orizzontale su mobile (2026-08-16, vedi
+                        CLAUDE.md): solo il pallino sotto `sm:` — l'etichetta
+                        testuale ("Concluso", "In attesa", ecc.) è quella che
+                        eccedeva lo schermo, il colore da solo resta comunque
+                        informativo (stesso principio già in uso altrove
+                        nell'app: il colore *è* il semaforo, il testo è un
+                        rinforzo, non l'unica fonte). Su desktop (`sm:` in
+                        su) invariato: pallino + etichetta. */}
+                    <span className="flex items-center gap-2 whitespace-nowrap text-gray-700" title={riga.statoLabel}>
                       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${DOT_COLOR[riga.colore]}`} />
-                      {riga.statoLabel}
+                      <span className="hidden sm:inline">{riga.statoLabel}</span>
                     </span>
                   </td>
                   <td className="px-4 py-2.5">

@@ -22,7 +22,6 @@ import {
   labelStatoPreventivo,
   labelStatoProgetto,
   labelStatoSpesaNonPreventivata,
-  satelliteTipoLabelBreve,
   DOT_COLOR,
   type ColoreSemaforo,
   type Satellite,
@@ -112,6 +111,25 @@ function nomeNumerato(gruppo: Satellite[], satelliteId: string, base: string): s
   return gruppo.length > 1 ? `${base} ${indice + 1}` : base
 }
 
+// Etichetta Acquisto — SENZA numerazione e senza parentesi, a differenza di
+// ogni altro tipo ripetibile (2026-08-16, vedi CLAUDE.md): "Acquisto"
+// (nessuna categoria ancora scelta) o "Acquisto Categoria" (spazio, non
+// "Acquisto (Categoria)"). Istanze diverse con la stessa categoria
+// condividono quindi la stessa etichetta in elenco — accettato
+// esplicitamente dall'utente, si distinguono aprendole, nessun elemento
+// distintivo aggiuntivo richiesto. Non riusa `nomeNumerato()` (quella resta
+// invariata per tutti gli altri tipi ripetibili — Briefing/Acconto/
+// Campionatura/Verifica misure/Costruzione/Noleggio/Montaggio/Attività non
+// preventivate — verificato che nessuno di loro condivida questa stessa
+// funzione prima di modificarla: la vecchia `satelliteTipoLabelBreve()`,
+// rimossa da satelliti-meta.ts, era in teoria generica ma di fatto
+// chiamata solo per Acquisto in entrambi i punti dell'app — i suoi rami
+// per Appuntamento/Campione erano già codice morto, mai raggiunti, rimossi
+// insieme).
+function labelAcquisto(s: Satellite): string {
+  return s.acquisto_categoria ? `Acquisto ${s.acquisto_categoria}` : 'Acquisto'
+}
+
 export type VoceAttivita = {
   satelliteId: string
   nome: string
@@ -198,12 +216,11 @@ export function costruisciVociAttivita(dati: DatiLavoroSatelliti): VoceAttivita[
   })
 
   g.acquisti.forEach((s) => {
-    const base = satelliteTipoLabelBreve(s)
     const haFornitore = !!s.fornitore_sede_id
     const haRighe = (dati.righePerSatellite[s.id] ?? []).length > 0
     voci.push({
       satelliteId: s.id,
-      nome: nomeNumerato(g.acquisti, s.id, base),
+      nome: labelAcquisto(s),
       colore: coloreAcquisti(s.ordinato, haFornitore, haRighe),
       statoLabel: labelStatoAcquisti(s.ordinato, haFornitore, haRighe),
       posizione: POSIZIONE_ATTIVITA.acquisto,
@@ -342,11 +359,10 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
   }
 
   if (satellite.tipo === 'acquisti') {
-    const base = satelliteTipoLabelBreve(satellite)
     const haFornitore = !!satellite.fornitore_sede_id
     const righe = dati.righePerSatellite[satelliteId] ?? []
     return {
-      nome: nomeNumerato(g.acquisti, satelliteId, base),
+      nome: labelAcquisto(satellite),
       colore: coloreAcquisti(satellite.ordinato, haFornitore, righe.length > 0),
       contenuto: (
         <SatelliteOrdine
