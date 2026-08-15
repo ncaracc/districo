@@ -145,6 +145,7 @@ export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Refe
                       onChange={(v) => setModificaCampi((c) => ({ ...c, prezzo: v }))}
                       placeholder="Prezzo indicativo (opz.)"
                       className={inputClass()}
+                      decimali={1}
                     />
                     {erroreModifica && <p className="text-xs text-red-600">{erroreModifica}</p>}
                     <div className="flex gap-2">
@@ -171,7 +172,7 @@ export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Refe
                     <div className="min-w-0">
                       <span>{r.descrizione}</span>
                       {r.coloreFinitura && <span className="text-gray-500"> — {r.coloreFinitura}</span>}
-                      {r.ultimoPrezzo != null && <span className="ml-2 text-xs text-gray-500">{formattaValuta(r.ultimoPrezzo)}</span>}
+                      {r.ultimoPrezzo != null && <span className="ml-2 text-xs text-gray-500">{formattaValuta(r.ultimoPrezzo, 1)}</span>}
                     </div>
                     <div className="flex shrink-0 gap-3">
                       <button type="button" onClick={() => apriModifica(r)} className="text-xs font-medium text-gray-600 hover:text-gray-900">
@@ -222,6 +223,7 @@ export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Refe
             onChange={(v) => setNuova((n) => ({ ...n, prezzo: v }))}
             placeholder="Prezzo indicativo (opz.)"
             className={inputClass()}
+            decimali={1}
           />
           {errore && <p className="text-xs text-red-600">{errore}</p>}
           <button

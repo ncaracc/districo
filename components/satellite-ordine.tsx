@@ -52,12 +52,38 @@ function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
   }
 }
 
+// Somma prezzo×quantità, arrotondata a 2 decimali (2026-08-15, vedi
+// CLAUDE.md): con Prezzo e Quantità entrambi a 1 decimale, il prodotto ha
+// matematicamente al più 2 decimali (es. 12,5 × 3,5 = 43,75) — ma la
+// moltiplicazione in virgola mobile può introdurre artefatti oltre quella
+// precisione (es. 12,3 × 3,7 → 45.510000000000005 in JS), sia qui sia
+// server-side in valoreComplessivoRighe() (lib/lavori/satelliti.ts, stessa
+// formula, stesso arrotondamento) — mai visibile in UI prima di questa
+// modifica perché Prezzo/Quantità erano sempre interi.
 function totaleRighe(righe: RigaBozza[]): number {
-  return righe.reduce((somma, r) => {
+  const somma = righe.reduce((tot, r) => {
     const prezzo = Number(r.prezzo) || 0
     const quantita = Number(r.quantita) || 0
-    return somma + prezzo * quantita
+    return tot + prezzo * quantita
   }, 0)
+  return Math.round(somma * 100) / 100
+}
+
+// Quantità: nessuna mascheratura (a differenza di Prezzo/InputValuta, non
+// c'è mai un separatore delle migliaia iniettato da mostrare) — accetta sia
+// virgola sia punto come separatore decimale, senza ambiguità possibile
+// proprio per questo motivo (un solo separatore comunque ammesso, al
+// massimo una cifra dopo di esso). Rianalizza l'intero testo digitato ad
+// ogni evento `change` (non carattere-per-carattere), stesso principio già
+// scelto per InputValuta/decimali: corretto anche con "seleziona tutto e
+// digita" o incolla.
+function filtraQuantita(testo: string): string {
+  const validi = testo.replace(/[^0-9,.]/g, '')
+  const primoSeparatore = validi.search(/[,.]/)
+  if (primoSeparatore === -1) return validi.replace(/^0+(?=\d)/, '')
+  const intero = validi.slice(0, primoSeparatore).replace(/^0+(?=\d)/, '') || '0'
+  const decimale = validi.slice(primoSeparatore + 1).replace(/[,.]/g, '').slice(0, 1)
+  return `${intero}.${decimale}`
 }
 
 // Revisione 2026-08-03 (vedi CLAUDE.md): il vecchio stato a 3 valori
@@ -454,19 +480,24 @@ export function SatelliteOrdine({
                             value={riga.prezzo}
                             onChange={(v) => aggiornaRiga(i, { prezzo: v })}
                             className={inputClass()}
+                            decimali={1}
                           />
                         </div>
                         <div>
                           <label htmlFor={`ordine-quantita-${i}`} className="mb-1 block text-xs font-medium text-gray-700">
                             Quantità <span className="text-red-500">*</span>
                           </label>
+                          {/* type="text" (non "number"): rimuove le frecce
+                              di incremento/decremento nativo — permettevano
+                              variazioni non intenzionali (2026-08-15, vedi
+                              CLAUDE.md). filtraQuantita() ammette al più
+                              un decimale, virgola o punto indifferentemente. */}
                           <input
                             id={`ordine-quantita-${i}`}
-                            type="number"
-                            min="0"
-                            step="0.001"
+                            type="text"
+                            inputMode="decimal"
                             value={riga.quantita}
-                            onChange={(e) => aggiornaRiga(i, { quantita: e.target.value })}
+                            onChange={(e) => aggiornaRiga(i, { quantita: filtraQuantita(e.target.value) })}
                             className={inputClass()}
                           />
                         </div>
@@ -501,7 +532,7 @@ export function SatelliteOrdine({
                 in uso per "Totale ore" di Costruzione/Montaggio. */}
             <div>
               <span className="mb-1 block text-sm font-medium text-gray-700">Valore complessivo</span>
-              <p className="text-sm font-medium text-gray-900">{formattaValuta(totale)}</p>
+              <p className="text-sm font-medium text-gray-900">{formattaValuta(totale, 2)}</p>
             </div>
           </div>
         ) : (
@@ -528,14 +559,18 @@ export function SatelliteOrdine({
                         {r.descrizione}
                         {r.coloreFinitura && ` — ${r.coloreFinitura}`}
                         {' '}
-                        <span className="text-gray-500">× {r.quantita}</span>
+                        {/* Virgola per la sola visualizzazione (lo stato
+                            interno resta a punto, coerente con Number()) —
+                            coerenza con la convenzione italiana già in uso
+                            per Prezzo. */}
+                        <span className="text-gray-500">× {r.quantita.replace('.', ',')}</span>
                       </span>
-                      {r.prezzo && <span className="shrink-0 text-gray-500">{formattaValuta(Number(r.prezzo))}</span>}
+                      {r.prezzo && <span className="shrink-0 text-gray-500">{formattaValuta(Number(r.prezzo), 1)}</span>}
                     </li>
                   ))}
               </ul>
             )}
-            {totale > 0 && <p className="mb-2 text-sm font-medium text-gray-900">{formattaValuta(totale)}</p>}
+            {totale > 0 && <p className="mb-2 text-sm font-medium text-gray-900">{formattaValuta(totale, 2)}</p>}
           </>
         )}
 

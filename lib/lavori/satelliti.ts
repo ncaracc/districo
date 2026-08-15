@@ -578,8 +578,14 @@ type RigaOrdineInput = {
   salvaComeReferenza: boolean
 }
 
+// Arrotondato a 2 decimali (2026-08-15, vedi CLAUDE.md): stessa cautela già
+// applicata lato client in totaleRighe() (satellite-ordine.tsx, stessa
+// formula) — la moltiplicazione in virgola mobile di due valori a 1
+// decimale ciascuno può introdurre artefatti oltre i 2 decimali
+// matematicamente attesi (es. 12.3 × 3.7 → 45.510000000000005 in JS).
 function valoreComplessivoRighe(righe: RigaOrdineInput[]): number {
-  return righe.reduce((somma, r) => somma + r.prezzoUnitario * r.quantita, 0)
+  const somma = righe.reduce((tot, r) => tot + r.prezzoUnitario * r.quantita, 0)
+  return Math.round(somma * 100) / 100
 }
 
 // Risolve ogni riga verso una referenza (nuova, esistente aggiornata, o
