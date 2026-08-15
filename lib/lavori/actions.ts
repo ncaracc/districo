@@ -95,6 +95,21 @@ export async function aggiornaLavoro(
 ): Promise<AzioneResult> {
   const supabase = await createClient()
 
+  // Correzione 2026-08-15 (vedi CLAUDE.md — unificazione bottoni Modifica/
+  // Riapri lavoro): un Lavoro concluso (completato o rifiutato) non è più
+  // modificabile da qui — il bottone "Modifica" in UI diventa "Riapri
+  // lavoro" per questi due stati (vedi lavoro-info.tsx) e non apre più
+  // questo form, ma la garanzia reale resta questa ri-verifica server-side,
+  // indipendente dal client (stesso principio "guardia UX primaria +
+  // ri-verifica server autoritativa" già in uso altrove nell'app). Non
+  // riusa assertLavoroModificabile() (lib/lavori/lavoro-modificabile.ts):
+  // quella blocca solo 'completato' ed è scoped ai satelliti — scope
+  // intenzionalmente diverso, non toccato qui.
+  const { data: statoAttuale } = await supabase.from('lavoro').select('stato').eq('id', lavoroId).maybeSingle()
+  if (statoAttuale?.stato === 'completato' || statoAttuale?.stato === 'rifiutato') {
+    return { ok: false, error: 'Lavoro concluso: riaprirlo per modificare' }
+  }
+
   const { error } = await supabase
     .from('lavoro')
     .update({

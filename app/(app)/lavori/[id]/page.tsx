@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { LavoroRiapri } from '@/components/lavoro-riapri'
 import { LavoroDettaglioSezioni } from '@/components/lavoro-dettaglio-sezioni'
 import { caricaDatiLavoroSatelliti } from '@/lib/lavori/dettaglio-lavoro-data'
 import { costruisciVociAttivita } from '@/lib/lavori/satelliti-render'
@@ -80,15 +79,15 @@ export default async function LavoroDettaglioPage({
         costruzioneEsiste={dati.costruzioneEsiste}
         montaggioEsiste={dati.montaggioEsiste}
       >
+        {/* Unificazione bottoni Modifica/Riapri lavoro (2026-08-15, vedi
+            CLAUDE.md): il vecchio bottone "Riapri lavoro" qui sotto
+            (components/lavoro-riapri.tsx, rimosso) è stato sostituito dal
+            bottone in alto (lavoro-info.tsx), che ora cambia etichetta/
+            azione da solo quando il Lavoro è concluso — nessun secondo
+            bottone da renderizzare qui. */}
         {lavoro.stato === 'opportunita' && dati.preventivoEsiste && !dati.isOwner && (
           <div className="mb-8">
             <p className="text-sm text-gray-500">Lavoro ancora in fase di opportunità.</p>
-          </div>
-        )}
-
-        {dati.isOwner && (lavoro.stato === 'completato' || lavoro.stato === 'rifiutato') && (
-          <div className="mb-8">
-            <LavoroRiapri lavoroId={lavoro.id} statoAttuale={lavoro.stato} />
           </div>
         )}
       </LavoroDettaglioSezioni>

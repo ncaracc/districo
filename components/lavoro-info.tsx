@@ -1,11 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { LavoroForm } from '@/components/lavoro-form'
 import { IconaMatita, IconaPin } from '@/components/icons'
 import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
 import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
+import { riapriLavoro } from '@/lib/lavori/actions'
 
 export type LavoroInfoFields = {
   titolo: string
@@ -70,10 +72,38 @@ export function LavoroInfo({
   // "Annulla"). Facoltativo: nessun impatto per chi non lo passa.
   onModificaChange?: (modifica: boolean) => void
 }) {
+  const router = useRouter()
   const [modifica, setModificaState] = useState(false)
   function setModifica(v: boolean) {
     setModificaState(v)
     onModificaChange?.(v)
+  }
+
+  // Unificazione bottoni Modifica/Riapri lavoro (2026-08-15, vedi CLAUDE.md):
+  // sostituisce il vecchio bottone "Riapri lavoro" separato sotto
+  // l'indirizzo (components/lavoro-riapri.tsx, rimosso, nessun altro
+  // chiamante) — un Lavoro concluso non deve più offrire "Modifica" (che
+  // permetteva ancora di alterare titolo/descrizione/indirizzo, mai
+  // bloccato server-side prima di questa sessione), il bottone in alto
+  // stesso ne prende il posto: stessa etichetta/funzione/conferma di prima,
+  // solo spostata. "Concluso" = completato O rifiutato, stesso
+  // raggruppamento già in uso per LavoroRiapri (page.tsx) — non solo
+  // 'completato': entrambi avevano lo stesso problema dei due bottoni.
+  const concluso = stato === 'completato' || stato === 'rifiutato'
+  const [riapertura, setRiapertura] = useState(false)
+  const [erroreRiapertura, setErroreRiapertura] = useState<string | null>(null)
+
+  async function handleRiapri() {
+    if (!window.confirm('Riaprire questo lavoro?')) return
+    setRiapertura(true)
+    setErroreRiapertura(null)
+    const result = await riapriLavoro(lavoroId, stato as 'completato' | 'rifiutato')
+    setRiapertura(false)
+    if (!result.ok) {
+      setErroreRiapertura(result.error)
+      return
+    }
+    router.refresh()
   }
 
   const indirizzoFormattato = formattaIndirizzo(fields)
@@ -90,16 +120,32 @@ export function LavoroInfo({
       <div className="flex items-center justify-between gap-3">
         {clienteNome && <p className="text-sm font-medium text-gray-600">{clienteNome}</p>}
         {isOwner && !modifica && (
-          <button
-            type="button"
-            onClick={() => setModifica(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            <IconaMatita className="h-4 w-4" />
-            Modifica
-          </button>
+          concluso ? (
+            // Nessuna icona (il vecchio bottone "Riapri lavoro" non ne aveva
+            // una) — stesse classi/posizione del bottone Modifica per
+            // coerenza visiva, solo etichetta/azione diverse.
+            <button
+              type="button"
+              onClick={handleRiapri}
+              disabled={riapertura}
+              className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {riapertura ? 'Salvataggio…' : 'Riapri lavoro'}
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setModifica(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <IconaMatita className="h-4 w-4" />
+              Modifica
+            </button>
+          )
         )}
       </div>
+
+      {erroreRiapertura && <p className="mt-2 text-xs text-red-600">{erroreRiapertura}</p>}
 
       {/* Sessione rifinitura 2026-08-08 (vedi CLAUDE.md): titolo nascosto
           in modalità Modifica — niente più trattamento grafico speciale,
