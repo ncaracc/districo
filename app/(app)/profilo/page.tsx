@@ -24,7 +24,7 @@ export default async function ProfiloPage() {
       ? supabase
           .from('artigiano')
           .select(
-            'nome, cognome, ragione_sociale, partita_iva, codice_fiscale, specializzazione, telefono, email, via, civico, cap, localita, provincia, paese, immagine_profilo',
+            'nome, cognome, ragione_sociale, partita_iva, codice_fiscale, codice_sdi, pec, specializzazione, telefono, email, via, civico, cap, localita, provincia, paese, immagine_profilo',
           )
           .eq('id', user.id)
           .maybeSingle()
@@ -69,6 +69,8 @@ export default async function ProfiloPage() {
           ragioneSociale: artigiano.ragione_sociale,
           partitaIva: artigiano.partita_iva,
           codiceFiscale: artigiano.codice_fiscale,
+          codiceSdi: artigiano.codice_sdi,
+          pec: artigiano.pec,
           specializzazione: artigiano.specializzazione,
           telefono: artigiano.telefono,
           via: artigiano.via,

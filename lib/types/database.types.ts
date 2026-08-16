@@ -15,7 +15,7 @@ export type Database = {
         Row: {
           id: string; nome: string; cognome: string
           ragione_sociale: string | null; partita_iva: string | null
-          codice_fiscale: string | null
+          codice_fiscale: string | null; codice_sdi: string | null; pec: string | null
           specializzazione: string; telefono: string; email: string
           via: string | null; civico: string | null; cap: string | null
           localita: string | null; provincia: string | null; paese: string
@@ -31,7 +31,7 @@ export type Database = {
         Insert: {
           id: string; nome: string; cognome: string
           ragione_sociale?: string | null; partita_iva?: string | null
-          codice_fiscale?: string | null
+          codice_fiscale?: string | null; codice_sdi?: string | null; pec?: string | null
           specializzazione: string; telefono: string; email: string
           via?: string | null; civico?: string | null; cap?: string | null
           localita?: string | null; provincia?: string | null; paese?: string

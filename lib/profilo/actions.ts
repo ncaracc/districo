@@ -253,6 +253,8 @@ type AnagraficaFields = {
   ragioneSociale: string | null
   partitaIva: string | null
   codiceFiscale: string | null
+  codiceSdi: string | null
+  pec: string | null
   specializzazione: string
   telefono: string
   via: string | null
@@ -262,6 +264,12 @@ type AnagraficaFields = {
   provincia: string | null
   paese: string
 }
+
+// Stessa regex già in uso per la validazione email in CambioEmail
+// (components/profilo-anagrafica-form.tsx) — nessun formato "PEC" a parte,
+// una PEC è a tutti gli effetti un indirizzo email, solo ospitato da un
+// gestore certificato: il formato da validare è lo stesso.
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function aggiornaAnagraficaArtigiano(fields: AnagraficaFields): Promise<AzioneResult> {
   const supabase = await createClient()
@@ -285,6 +293,15 @@ export async function aggiornaAnagraficaArtigiano(fields: AnagraficaFields): Pro
   // di una violazione di CHECK constraint.
   if (fields.partitaIva?.trim() && !fields.codiceFiscale?.trim()) {
     return { ok: false, error: 'Il codice fiscale è obbligatorio se inserisci la partita IVA' }
+  }
+  // Codice SDI/PEC: nessun vincolo di obbligatorietà incrociata (né tra
+  // loro né con partita IVA/codice fiscale) — richiesto esplicitamente,
+  // sono campi di preparazione per la futura fatturazione elettronica, la
+  // vera regola di obbligatorietà verrà decisa con l'integrazione
+  // Stripe/fatturazione. Solo il formato della PEC è validato (è un
+  // indirizzo email a tutti gli effetti).
+  if (fields.pec?.trim() && !EMAIL_REGEX.test(fields.pec.trim())) {
+    return { ok: false, error: 'Inserisci un indirizzo PEC valido' }
   }
 
   // specializzazione custom ("Altro..."): stesso comportamento del trigger
@@ -310,6 +327,8 @@ export async function aggiornaAnagraficaArtigiano(fields: AnagraficaFields): Pro
       ragione_sociale: fields.ragioneSociale?.trim() || null,
       partita_iva: fields.partitaIva?.trim() || null,
       codice_fiscale: fields.codiceFiscale?.trim() || null,
+      codice_sdi: fields.codiceSdi?.trim() || null,
+      pec: fields.pec?.trim() || null,
       specializzazione: fields.specializzazione.trim(),
       telefono: fields.telefono.trim(),
       via: fields.via?.trim() || null,
@@ -349,6 +368,24 @@ export async function aggiornaAnagraficaArtigiano(fields: AnagraficaFields): Pro
 // browser (supabase.auth.updateUser gira lato client con il client
 // standard, non da un Server Action con un client server-side scoped alla
 // richiesta) — non esposta qui, vedi components/profilo-anagrafica-form.tsx.
+
+// Cambio password (2026-08-19, vedi CLAUDE.md — "Codice SDI/PEC + cambio
+// password"): stesso motivo del cambio email, nessuna action qui.
+// `supabase.auth.updateUser({ password })` richiede solo una sessione
+// valida (nessuna verifica della password attuale integrata,
+// secure_password_change=false in questo progetto — vedi config.toml) —
+// la verifica della password attuale richiesta esplicitamente e'
+// implementata lato client componendo due chiamate native Supabase Auth,
+// non una gestione custom: signInWithPassword({email, password: quella
+// attuale}) per confermare l'identita' (se fallisce, password attuale
+// errata, updateUser non viene nemmeno chiamato), poi updateUser({
+// password: quella nuova}) solo se la prima e' andata a buon fine. Scartata
+// supabase.auth.reauthenticate() (flusso nativo alternativo): richiede di
+// abilitare "Secure password change" nel progetto, cambierebbe il
+// comportamento per OGNI aggiornamento password incluso il flusso
+// "password dimenticata" esistente, e introduce un passaggio OTP via email
+// non richiesto qui (verifica della password attuale, non un codice). Vedi
+// components/profilo-anagrafica-form.tsx (CambioPassword).
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
 const LATO_AVATAR = 512

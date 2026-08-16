@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { aggiornaAnagraficaArtigiano } from '@/lib/profilo/actions'
 import { CampiIndirizzo } from '@/components/campi-indirizzo'
+import { PasswordInput } from '@/components/password-input'
 import { PAESI, PAESE_DEFAULT, trovaPaese } from '@/lib/paesi'
 import { inputClass } from '@/lib/input-class'
 
@@ -16,6 +17,8 @@ type Fields = {
   ragioneSociale: string
   partitaIva: string
   codiceFiscale: string
+  codiceSdi: string
+  pec: string
   specializzazione: string
   prefissoTelefono: string
   numeroTelefono: string
@@ -49,6 +52,8 @@ export function ProfiloAnagraficaForm({
     ragioneSociale: string | null
     partitaIva: string | null
     codiceFiscale: string | null
+    codiceSdi: string | null
+    pec: string | null
     specializzazione: string
     telefono: string
     via: string | null
@@ -71,6 +76,8 @@ export function ProfiloAnagraficaForm({
     ragioneSociale: initialValues.ragioneSociale ?? '',
     partitaIva: initialValues.partitaIva ?? '',
     codiceFiscale: initialValues.codiceFiscale ?? '',
+    codiceSdi: initialValues.codiceSdi ?? '',
+    pec: initialValues.pec ?? '',
     specializzazione: specializzazioneNota ? initialValues.specializzazione : ALTRO,
     prefissoTelefono: telefonoIniziale.prefisso,
     numeroTelefono: telefonoIniziale.numero,
@@ -123,6 +130,15 @@ export function ProfiloAnagraficaForm({
     setErrore(null)
     setSalvato(false)
 
+    // Stessa regex di CambioEmail: la PEC è a tutti gli effetti un
+    // indirizzo email, validata solo se compilata (opzionale, nessun
+    // vincolo incrociato col Codice SDI — vedi CLAUDE.md).
+    if (fields.pec.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.pec.trim())) {
+      setLoading(false)
+      setErrore('Inserisci un indirizzo PEC valido')
+      return
+    }
+
     const specializzazione = fields.specializzazione === ALTRO ? specializzazioneAltro : fields.specializzazione
     const telefono = `${fields.prefissoTelefono} ${fields.numeroTelefono}`.trim()
 
@@ -132,6 +148,8 @@ export function ProfiloAnagraficaForm({
       ragioneSociale: fields.ragioneSociale || null,
       partitaIva: fields.partitaIva || null,
       codiceFiscale: fields.codiceFiscale || null,
+      codiceSdi: fields.codiceSdi || null,
+      pec: fields.pec || null,
       specializzazione,
       telefono,
       via: fields.via || null,
@@ -260,6 +278,38 @@ export function ProfiloAnagraficaForm({
             {fields.partitaIva.trim() && !fields.codiceFiscale.trim() && (
               <p className="text-xs text-gray-500">Il codice fiscale è obbligatorio se inserisci la partita IVA.</p>
             )}
+            {/* Codice SDI/PEC (2026-08-19): campi di preparazione per la
+                futura fatturazione elettronica, entrambi opzionali e senza
+                alcun vincolo incrociato tra loro o con partita IVA/codice
+                fiscale — vedi CLAUDE.md, "la vera regola di obbligatorietà
+                verrà decisa con l'integrazione Stripe/fatturazione". */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="anagrafica-codice-sdi" className="mb-1 block text-sm font-medium text-gray-700">
+                  Codice Destinatario SDI
+                </label>
+                <input
+                  id="anagrafica-codice-sdi"
+                  value={fields.codiceSdi}
+                  onChange={set('codiceSdi')}
+                  placeholder="7 caratteri"
+                  className={inputClass()}
+                />
+              </div>
+              <div>
+                <label htmlFor="anagrafica-pec" className="mb-1 block text-sm font-medium text-gray-700">
+                  PEC
+                </label>
+                <input
+                  id="anagrafica-pec"
+                  type="email"
+                  value={fields.pec}
+                  onChange={set('pec')}
+                  placeholder="nome@pec.it"
+                  className={inputClass()}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -290,6 +340,10 @@ export function ProfiloAnagraficaForm({
 
       <div className="border-t border-gray-200 pt-8">
         <CambioEmail emailAttuale={emailAttuale} />
+      </div>
+
+      <div className="border-t border-gray-200 pt-8">
+        <CambioPassword emailAttuale={emailAttuale} />
       </div>
     </div>
   )
@@ -365,6 +419,129 @@ function CambioEmail({ emailAttuale }: { emailAttuale: string }) {
         className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
       >
         {loading ? 'Invio in corso…' : 'Cambia email'}
+      </button>
+    </form>
+  )
+}
+
+// Password (2026-08-19, vedi CLAUDE.md — "Codice SDI/PEC + cambio
+// password"): a differenza del cambio email, qui l'esito è immediato (nessuna
+// conferma via link) ma richiede comunque due chiamate Auth in sequenza —
+// vedi il commento in lib/profilo/actions.ts per il perché non è una singola
+// updateUser() diretta: signInWithPassword() verifica prima la password
+// attuale (nessuna fiducia nella sola sessione già autenticata, richiesto
+// esplicitamente), solo se riesce si procede con updateUser({ password }).
+// Stessa soglia minima già in uso in registrazione/reimposta-password (8
+// caratteri, coerente con minimum_password_length=6 di config.toml — il
+// vincolo applicativo è più severo di quello DB, non il contrario).
+function CambioPassword({ emailAttuale }: { emailAttuale: string }) {
+  const [passwordAttuale, setPasswordAttuale] = useState('')
+  const [nuovaPassword, setNuovaPassword] = useState('')
+  const [confermaPassword, setConfermaPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [errore, setErrore] = useState<string | null>(null)
+  const [salvata, setSalvata] = useState(false)
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setLoading(true)
+    setErrore(null)
+    setSalvata(false)
+
+    if (!passwordAttuale) {
+      setLoading(false)
+      setErrore('Inserisci la password attuale')
+      return
+    }
+    if (nuovaPassword.length < 8) {
+      setLoading(false)
+      setErrore('La nuova password deve avere almeno 8 caratteri')
+      return
+    }
+    if (nuovaPassword !== confermaPassword) {
+      setLoading(false)
+      setErrore('Le nuove password non coincidono')
+      return
+    }
+
+    const supabase = createClient()
+
+    // Verifica identità: la sola sessione già autenticata non basta (richiesto
+    // esplicitamente) — un login riuscito con la password dichiarata "attuale"
+    // è la conferma nativa che serve, nessuna gestione custom.
+    const { error: verificaError } = await supabase.auth.signInWithPassword({
+      email: emailAttuale,
+      password: passwordAttuale,
+    })
+    if (verificaError) {
+      setLoading(false)
+      setErrore('Password attuale errata')
+      return
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: nuovaPassword })
+
+    setLoading(false)
+    if (error) {
+      setErrore('Errore durante l\'aggiornamento, riprova')
+      return
+    }
+    setSalvata(true)
+    setPasswordAttuale('')
+    setNuovaPassword('')
+    setConfermaPassword('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
+      <p className="mb-1 text-sm font-medium text-gray-700">Password</p>
+
+      <div>
+        <label htmlFor="password-attuale" className="mb-1 block text-sm font-medium text-gray-700">
+          Password attuale
+        </label>
+        <PasswordInput
+          id="password-attuale"
+          autoComplete="current-password"
+          value={passwordAttuale}
+          onChange={(e) => setPasswordAttuale(e.target.value)}
+          className={inputClass()}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="password-nuova" className="mb-1 block text-sm font-medium text-gray-700">
+            Nuova password
+          </label>
+          <PasswordInput
+            id="password-nuova"
+            autoComplete="new-password"
+            value={nuovaPassword}
+            onChange={(e) => setNuovaPassword(e.target.value)}
+            className={inputClass()}
+          />
+        </div>
+        <div>
+          <label htmlFor="password-conferma" className="mb-1 block text-sm font-medium text-gray-700">
+            Conferma nuova password
+          </label>
+          <PasswordInput
+            id="password-conferma"
+            autoComplete="new-password"
+            value={confermaPassword}
+            onChange={(e) => setConfermaPassword(e.target.value)}
+            className={inputClass()}
+          />
+        </div>
+      </div>
+      {errore && <p className="text-xs text-red-600">{errore}</p>}
+      {salvata && <p className="text-xs text-gray-700">Password aggiornata.</p>}
+      <button
+        type="submit"
+        disabled={loading}
+        className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+      >
+        {loading ? 'Aggiornamento…' : 'Cambia password'}
       </button>
     </form>
   )
