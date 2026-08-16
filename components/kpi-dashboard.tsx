@@ -13,12 +13,15 @@ import { FILTRO_LABEL_CONTEGGIO, type FiltroLavori } from '@/lib/lavori/lista-fi
 // per gli altri filtri, invece di lasciarli fissi o inventarne di nuovi
 // senza conferma:
 //   - "In corso"/"Tutti": i 4 KPI di sempre, invariati.
-//   - "Conclusi": "Importi da incassare" -> "Valore totale generato" (nuovo,
-//     migration 0049, stessa formula di "Valore complessivo" di Chiusura
-//     Lavoro ma sommata sui soli Lavori completati); tempo medio
-//     preventivo/completamento restano (entrambi pertinenti: il primo
-//     include già accettati e rifiutati, il secondo è per definizione solo
-//     sui completati).
+//   - "Completati" (rinominato da "Conclusi" il 2026-08-17, vedi CLAUDE.md —
+//     prima mostrava insieme completato+rifiutato, ridondante col chip
+//     "Rifiutati"): "Importi da incassare" -> "Valore totale generato"
+//     (migration 0049, stessa formula di "Valore complessivo" di Chiusura
+//     Lavoro, già filtrata su stato='completato' — nessun cambio di formula
+//     necessario con la rinomina, i Rifiutati non vi hanno mai contribuito);
+//     tempo medio preventivo/completamento restano (entrambi pertinenti: il
+//     primo include anche gli esiti rifiutati per definizione, indipendente
+//     da questo filtro; il secondo è comunque solo sui completati).
 //   - "Rifiutati": un solo KPI, il conteggio — gli altri 3 non hanno un
 //     valore sensato per questo sottoinsieme (nessun importo da incassare
 //     né generato, "tempo medio" mescolerebbe la media globale con un
@@ -56,7 +59,7 @@ export function KpiDashboardCards({
 
   if (filtro === 'in-corso' || filtro === 'tutti') {
     cards.push({ label: 'Importi da incassare', value: formattaValuta(importoDaIncassare) })
-  } else if (filtro === 'conclusi') {
+  } else if (filtro === 'completati') {
     cards.push({ label: 'Valore totale generato', value: formattaValuta(valoreTotaleGenerato) })
   }
 
@@ -73,7 +76,7 @@ export function KpiDashboardCards({
     })
   }
 
-  if (filtro === 'in-corso' || filtro === 'tutti' || filtro === 'conclusi') {
+  if (filtro === 'in-corso' || filtro === 'tutti' || filtro === 'completati') {
     cards.push({
       label: 'Tempo medio completamento',
       value: (

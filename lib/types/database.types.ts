@@ -285,11 +285,12 @@ export type Database = {
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       appuntamenti_scaduti_count: { Args: Record<string, never>; Returns: number }
       lavori_dashboard: {
-        // p_filtro (2026-08-16, unificazione Dashboard/Conclusi, vedi
-        // CLAUDE.md): 'in_corso' (default) | 'conclusi' | 'rifiutati' |
-        // qualunque altro valore per "Tutti" — solo p_filtro?: string,
-        // non un literal union, per non dover tenere questo tipo
-        // sincronizzato ogni volta 1:1 col CASE lato SQL.
+        // p_filtro (2026-08-16, unificazione Dashboard/Conclusi; 'completati'
+        // rinominato da 'conclusi' il 2026-08-17, vedi CLAUDE.md): 'in_corso'
+        // (default) | 'completati' | 'rifiutati' | qualunque altro valore per
+        // "Tutti" — solo p_filtro?: string, non un literal union, per non
+        // dover tenere questo tipo sincronizzato ogni volta 1:1 col CASE lato
+        // SQL.
         Args: { p_filtro?: string }
         Returns: {
           id: string; titolo: string

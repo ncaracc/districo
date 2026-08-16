@@ -51,7 +51,7 @@ function RiepilogoSatelliti({ rossi, gialli, verdi }: { rossi: number; gialli: n
 
 const MESSAGGIO_VUOTO: Record<FiltroLavori, string> = {
   'in-corso': 'Non hai ancora nessun lavoro aperto.',
-  conclusi: 'Nessun lavoro concluso o rifiutato.',
+  completati: 'Nessun lavoro completato.',
   rifiutati: 'Nessun lavoro rifiutato.',
   tutti: 'Non hai ancora nessun lavoro.',
 }

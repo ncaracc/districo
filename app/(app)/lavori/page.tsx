@@ -61,11 +61,11 @@ export default async function LavoriPage({
 
   // Ordinamento — dipende dal filtro attivo (deciso con l'utente in
   // sessione, vedi CLAUDE.md e lib/lavori/lista-filtri.ts). Il filtro
-  // "conclusi" richiede chiusura_data (vive su lavoro_satellite, non su
+  // "completati" richiede chiusura_data (vive su lavoro_satellite, non su
   // una colonna diretta di lavoro) — stessa query mirata già in uso nella
   // vecchia pagina Conclusi, eseguita solo quando serve davvero.
   let chiusuraDataPerLavoroId = new Map<string, string | null>()
-  if (filtro === 'conclusi') {
+  if (filtro === 'completati') {
     const lavoroIds = lavoriNonOrdinati.map((l) => l.id)
     const { data: chiusure } =
       lavoroIds.length > 0

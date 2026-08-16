@@ -77,18 +77,20 @@ export async function middleware(request: NextRequest) {
 
   // /statistiche non esiste più (unificazione Dashboard/Conclusi in
   // un'unica vista con filtri, 2026-08-16, vedi CLAUDE.md) — redirect di
-  // cortesia per bookmark/link vecchi verso l'equivalente diretto, stesso
-  // filtro che la vecchia pagina "Conclusi" mostrava di default (Tutti:
-  // completati+rifiutati). Elimina anche alla radice l'intero meccanismo
-  // "sezione di origine" (cookie scritto qui su /lavori vs /statistiche,
-  // lib/nav/origine-sezione.ts, componente OrigineLink, prefetch disabilitato
-  // sui Link di menu) rimosso in questa stessa sessione: esisteva solo per
-  // distinguere due sezioni che ora sono una sola, il problema che risolveva
-  // smette di esistere strutturalmente.
+  // cortesia per bookmark/link vecchi verso "Tutti" (non più "Completati",
+  // rinominato dal 2026-08-17: il vecchio "Conclusi" mostrava insieme
+  // completato+rifiutato, "Tutti" resta il filtro più vicino a quella
+  // vista come superset, "Completati" ora esclude i rifiutati). Elimina
+  // anche alla radice l'intero meccanismo "sezione di origine" (cookie
+  // scritto qui su /lavori vs /statistiche, lib/nav/origine-sezione.ts,
+  // componente OrigineLink, prefetch disabilitato sui Link di menu)
+  // rimosso in questa stessa sessione: esisteva solo per distinguere due
+  // sezioni che ora sono una sola, il problema che risolveva smette di
+  // esistere strutturalmente.
   if (pathname === '/statistiche') {
     const url = request.nextUrl.clone()
     url.pathname = '/lavori'
-    url.search = 'filtro=conclusi'
+    url.search = 'filtro=tutti'
     return NextResponse.redirect(url)
   }
 

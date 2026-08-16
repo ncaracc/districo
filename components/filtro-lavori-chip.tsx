@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { FILTRO_LABEL, type FiltroLavori } from '@/lib/lavori/lista-filtri'
 
-const FILTRI: FiltroLavori[] = ['in-corso', 'conclusi', 'rifiutati', 'tutti']
+const FILTRI: FiltroLavori[] = ['in-corso', 'completati', 'rifiutati', 'tutti']
 
 // Segmented control per il filtro di stato (unificazione Dashboard/Conclusi,
 // 2026-08-16, vedi CLAUDE.md) — stesso pattern Link+searchParams già in uso
