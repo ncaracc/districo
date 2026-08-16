@@ -27,24 +27,31 @@ import { formattaValuta } from '@/lib/formato-valuta'
 // drop-in replacement senza toccare useDirtyForm/handleSalva/`Number(valore)`
 // esistenti.
 //
-// **Solo la virgola è un separatore decimale valido in digitazione**
-// (`decimali={1}`), non il punto — scelta deliberata, non solo stilistica:
-// il punto compare già nel testo mostrato come separatore delle migliaia
-// iniettato dalla formattazione stessa (es. "1.234"). Un parsing che
-// accettasse anche il punto digitato dall'utente non potrebbe più
-// distinguerlo da quello delle migliaia non appena l'utente rimuove la
-// virgola con Backspace (provato empiricamente: dopo aver digitato
-// "1.234,5" e premuto Backspace due volte per tornare a "1234", un
-// parsing "ultimo separatore trovato" reinterpreta il punto delle migliaia
-// residuo come decimale, producendo "1,2" invece di "1234") — bug
-// strutturale, non un caso limite raro. La virgola invece non è MAI
-// iniettata dalla formattazione finché non c'è una parte decimale, quindi
-// la sua presenza nel testo digitato è sempre e solo intenzionale
-// dell'utente: nessuna ambiguità possibile. Coerente con le impostazioni
-// locali italiane già in uso da `formattaValuta()` (virgola decimale,
-// punto delle migliaia) — un punto digitato viene silenziosamente
-// ignorato (rumore, come lo spazio o il simbolo €), il valore mostrato
-// ricorda comunque sempre la virgola come separatore corretto.
+// **Il punto è un separatore decimale valido SOLO quando non può essere
+// confuso con un separatore delle migliaia iniettato dalla formattazione**
+// (fix 2026-08-19, vedi CLAUDE.md — bug reale segnalato: digitare "0.5",
+// il punto essendo il tasto decimale offerto da quasi ogni tastierino
+// numerico/`inputMode="decimal"`, produceva silenziosamente "€ 5" invece di
+// "€ 0,5" — il punto veniva scartato come rumore incondizionatamente, un
+// prezzo sotto l'euro/sotto le migliaia non può però MAI avere un
+// separatore delle migliaia già presente nel testo mostrato, quindi in
+// quel caso non c'è alcuna reale ambiguità da proteggere). La distinzione
+// (vedi `puntoAmbiguo` sotto) si basa sulla parte intera del valore GIÀ
+// noto prima di questo tasto (`Number(value)`, non quello che sta per
+// diventare): se ≥ 1000, la formattazione del render precedente avrebbe
+// già mostrato un punto delle migliaia — un punto digitato in quel
+// contesto resta rumore scartato, esattamente come da bug fix originale
+// del 2026-08-15 (provato empiricamente: dopo aver digitato "1.234,5" e
+// premuto Backspace due volte per tornare a "1234", un parsing "ultimo
+// separatore trovato" che accettasse sempre il punto reinterpreta quello
+// delle migliaia residuo come decimale, producendo "1,2" invece di
+// "1234") — quella protezione resta intatta, solo ristretta ai casi in cui
+// serve davvero. Sotto le migliaia, il punto è equivalente alla virgola:
+// stesso trattamento, stessa posizione come separatore. La virgola resta
+// comunque sempre valida in ogni caso (mai iniettata dalla formattazione
+// finché non c'è una parte decimale, quindi mai ambigua) — coerente con le
+// impostazioni locali italiane già in uso da `formattaValuta()` (virgola
+// decimale, punto delle migliaia).
 //
 // **Parsing "a blocco" (non carattere-per-carattere)**: l'intero testo
 // digitato viene rianalizzato da zero ad ogni evento `change` (stesso
@@ -85,18 +92,23 @@ export function InputValuta({
   }
 
   function handleChangeDecimale(e: React.ChangeEvent<HTMLInputElement>) {
-    // Solo cifre e virgola: il punto delle migliaia (e "€ ", lo spazio)
-    // sono rumore, sempre scartati — vedi commento sopra il componente.
-    const soloCifreEVirgola = e.target.value.replace(/[^0-9,]/g, '')
-    const indiceVirgola = soloCifreEVirgola.indexOf(',')
+    // Il punto è ambiguo (potrebbe essere un separatore delle migliaia
+    // residuo nel testo mostrato) solo se il valore GIÀ noto prima di
+    // questo tasto è ≥ 1000 — vedi commento sopra il componente. Sotto
+    // quella soglia, punto e virgola sono equivalenti; "€ "/lo spazio
+    // restano sempre rumore scartato.
+    const parteInteraAttuale = Math.trunc(Math.abs(Number(value) || 0))
+    const puntoAmbiguo = parteInteraAttuale >= 1000
+    const pulito = e.target.value.replace(puntoAmbiguo ? /[^0-9,]/g : /[^0-9,.]/g, '')
+    const indiceSeparatore = puntoAmbiguo ? pulito.indexOf(',') : pulito.search(/[,.]/)
 
-    if (indiceVirgola === -1) {
-      onChange(soloCifreEVirgola.replace(/^0+(?=\d)/, ''))
+    if (indiceSeparatore === -1) {
+      onChange(pulito.replace(/^0+(?=\d)/, ''))
       return
     }
 
-    const intero = soloCifreEVirgola.slice(0, indiceVirgola).replace(/^0+(?=\d)/, '') || '0'
-    const decimale = soloCifreEVirgola.slice(indiceVirgola + 1).replace(/,/g, '').slice(0, 1)
+    const intero = pulito.slice(0, indiceSeparatore).replace(/^0+(?=\d)/, '') || '0'
+    const decimale = pulito.slice(indiceSeparatore + 1).replace(/[,.]/g, '').slice(0, 1)
     onChange(`${intero}.${decimale}`)
   }
 
