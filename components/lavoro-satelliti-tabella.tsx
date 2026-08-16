@@ -326,7 +326,13 @@ export function LavoroSatelliteTabella({
         <PillolaFlottante onClick={() => setMostraAggiungi(true)}>Aggiungi attività</PillolaFlottante>
       )}
 
-      <Modal aperto={mostraAggiungi} onChiudi={chiudiAggiungi} titolo="Aggiungi attività">
+      {/* altezzaAdattiva (2026-08-19, vedi CLAUDE.md): la griglia di icone
+          (19/8 mattina) è molto più corta del contenuto tipico di un
+          satellite — su mobile lasciava un ampio vuoto sotto la griglia con
+          l'altezza standard `inset-5` (occupa quasi tutto lo schermo a
+          prescindere dal contenuto). Solo questa Modal la passa `true`,
+          nessun'altra modale satellite nell'app è coinvolta. */}
+      <Modal aperto={mostraAggiungi} onChiudi={chiudiAggiungi} titolo="Aggiungi attività" altezzaAdattiva>
         <div>
           {erroreAggiungi && <p className="mb-3 text-xs text-red-600">{erroreAggiungi}</p>}
           {/* Griglia di icone (restyling 2026-08-19, vedi CLAUDE.md):

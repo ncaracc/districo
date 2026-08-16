@@ -168,6 +168,7 @@ export function Modal({
   titolo,
   children,
   bloccaBackConModifiche = false,
+  altezzaAdattiva = false,
 }: {
   aperto: boolean
   onChiudi: () => void
@@ -188,6 +189,20 @@ export function Modal({
   // invece di lasciare che la navigazione proceda — vedi la voce d'archivio
   // per la spiegazione completa della tecnica ("storia fantasma").
   bloccaBackConModifiche?: boolean
+  // Altezza adattiva al contenuto su mobile (2026-08-19, vedi CLAUDE.md —
+  // "altezza modale Aggiungi attività"): opt-in, default false — tutte le
+  // modali satellite restano sull'altezza standard di sempre (`inset-5`,
+  // occupa quasi tutto lo schermo indipendentemente dal contenuto). Solo
+  // "Aggiungi attività" (griglia di icone, molto più corta del contenuto
+  // tipico di un satellite) la passa `true`. Su desktop (`sm:`) NESSUNA
+  // differenza rispetto al comportamento standard: verificato che lì il box
+  // è già "adattivo" per costruzione — `sm:relative` (non `fixed`/`inset-*`)
+  // lo lascia nel flusso normale del flex del backdrop, la sua altezza è
+  // quindi già determinata dal contenuto con `sm:max-h-[80vh]` come solo
+  // tetto, mai un'altezza forzata — il problema segnalato è specificamente
+  // dell'`inset-5` di mobile, che fissa CONTEMPORANEAMENTE top e bottom
+  // (quindi l'altezza) indipendentemente da quanto contenuto c'è.
+  altezzaAdattiva?: boolean
 }) {
   // Ref, non state: la guardia cambia spesso (ogni tasto digitato in un
   // campo del form aggiorna `dirty`) e non deve mai causare un re-render
@@ -485,7 +500,23 @@ export function Modal({
             arrotondata anche su mobile (il vecchio bordo-a-bordo non lo era,
             essendo `w-full` senza margine). */}
         <div
-          className="fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]"
+          className={
+            altezzaAdattiva
+              ? // Adattiva su mobile (2026-08-19): stessa tecnica già in uso
+                // per il desktop (`sm:relative`, mai `fixed`) — il box resta
+                // nel flusso normale del flex del backdrop (`items-center
+                // justify-center` sul contenitore sopra), quindi si centra
+                // verticalmente da solo in base alla propria altezza reale,
+                // niente `inset-*` che fissi top+bottom indipendentemente
+                // dal contenuto. `w-[calc(100%-2.5rem)]`/`max-h-[calc(100%-
+                // 2.5rem)]` replicano lo stesso budget di margine di
+                // `inset-5` (20px+20px = 2.5rem) ma come tetto, non come
+                // dimensione forzata — stessi identici margini laterali/
+                // massimi visti finora, cambia solo che l'altezza reale può
+                // essere inferiore al tetto quando il contenuto è corto.
+                'relative w-[calc(100%-2.5rem)] max-h-[calc(100%-2.5rem)] flex flex-col overflow-hidden rounded-2xl bg-white sm:w-full sm:max-w-[640px] sm:max-h-[80vh]'
+              : 'fixed inset-5 flex flex-col overflow-hidden rounded-2xl bg-white sm:relative sm:inset-auto sm:w-full sm:max-w-[640px] sm:max-h-[80vh]'
+          }
           style={altezzaMassimaMobile !== undefined ? { maxHeight: altezzaMassimaMobile } : undefined}
           onFocus={onFocusBox}
           onBlur={onBlurBox}
