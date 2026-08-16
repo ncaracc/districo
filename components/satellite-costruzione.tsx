@@ -3,7 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { aggiornaCostruzione } from '@/lib/lavori/satelliti'
+import { calcolaTotaleMinutiSessioni, calcolaCostoManodopera } from '@/lib/lavori/satelliti-meta'
 import type { Satellite, SatelliteAllegato, SessioneLavoro } from '@/lib/lavori/satelliti-meta'
+import { formattaValuta } from '@/lib/formato-valuta'
 import { inputClass, inputClassFisso } from '@/lib/input-class'
 import { aDataOraLocal, combinaDataOraLocale, SLOT_ORARI, RIGA_DATA_ORA_CLASSI, CAMPO_DATA_CLASSI, CAMPO_ORA_CLASSI } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
@@ -14,47 +16,40 @@ import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 
 const LABEL_ALLEGATI = 'Puoi allegare foto e documenti inerenti alla costruzione (file di immagine e PDF).'
 
-type SessioneBozza = { inizioData: string; inizioOra: string; fineData: string; fineOra: string }
+// `persone` (2026-08-19, vedi CLAUDE.md — tariffe orarie e costo
+// manodopera): stringa come gli altri campi numerici di bozza (coerente con
+// l'input controllato), default "1" per una sessione nuova ("da solo" è
+// l'ipotesi più comune). `arrotondaSuA30Min`/`calcolaTotaleMinuti` (locali,
+// duplicate anche in satellite-montaggio.tsx) sono state spostate in
+// satelliti-meta.ts come `calcolaTotaleMinutiSessioni` (invariata) perché
+// ora serve la stessa formula anche lato server (dettaglio-lavoro-data.ts/
+// satelliti.ts) per il costo manodopera — un solo punto, niente rischio di
+// divergenza tra le versioni client e quella server.
+type SessioneBozza = { inizioData: string; inizioOra: string; fineData: string; fineOra: string; persone: string }
 
 function sessioneVuota(): SessioneBozza {
-  return { inizioData: '', inizioOra: '', fineData: '', fineOra: '' }
+  return { inizioData: '', inizioOra: '', fineData: '', fineOra: '', persone: '1' }
 }
 
 function aSessioneBozza(s: SessioneLavoro): SessioneBozza {
   const inizio = aDataOraLocal(s.inizio)
   const fine = aDataOraLocal(s.fine)
-  return { inizioData: inizio.data, inizioOra: inizio.ora, fineData: fine.data, fineOra: fine.ora }
+  return { inizioData: inizio.data, inizioOra: inizio.ora, fineData: fine.data, fineOra: fine.ora, persone: String(s.persone ?? 1) }
 }
 
 // Converte le bozze in sessioni valide da salvare/usare per il calcolo del
 // totale ore — una riga "Aggiungi sessione" mai completata (inizio ancora
 // vuoto) viene scartata qui, non bloccante per il salvataggio delle altre.
+// Persone: minimo 1 (un valore vuoto/0/non numerico non deve azzerare il
+// costo di una sessione realmente lavorata).
 function sessioniValide(bozze: SessioneBozza[]): SessioneLavoro[] {
   return bozze
     .filter((b) => b.inizioData)
     .map((b) => ({
       inizio: combinaDataOraLocale(b.inizioData, b.inizioOra)!,
       fine: combinaDataOraLocale(b.fineData, b.fineOra),
+      persone: Math.max(1, Math.round(Number(b.persone)) || 1),
     }))
-}
-
-// Arrotonda per eccesso ai 30 minuti (0 resta 0 — è già un multiplo di 30,
-// nessun "minimo 30 minuti" forzato: "per eccesso" si applica solo quando
-// la durata non è già un multiplo esatto).
-function arrotondaSuA30Min(minuti: number): number {
-  return Math.ceil(minuti / 30) * 30
-}
-
-// Durata negativa (fine impostata prima di inizio, es. errore di
-// battitura) azzerata invece di sottratta al totale — non esplicitamente
-// richiesto ma difensivo, evita un "Totale ore" fuorviante/negativo.
-function calcolaTotaleMinuti(sessioni: SessioneLavoro[]): number {
-  return sessioni.reduce((totale, s) => {
-    const inizio = new Date(s.inizio).getTime()
-    const fine = s.fine ? new Date(s.fine).getTime() : Date.now()
-    const minuti = Math.max(0, (fine - inizio) / 60000)
-    return totale + arrotondaSuA30Min(minuti)
-  }, 0)
 }
 
 function formattaTotaleOre(minutiTotali: number): string {
@@ -65,10 +60,13 @@ function formattaTotaleOre(minutiTotali: number): string {
   return `${ore}h ${min}min`
 }
 
+// "(N persone)" solo quando diverso dal caso comune (da solo) — nessun
+// rumore visivo per la maggioranza delle sessioni.
 function formattaSessioneLettura(s: SessioneLavoro): string {
   const inizio = new Date(s.inizio).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' })
   const fine = s.fine ? new Date(s.fine).toLocaleString('it-IT', { dateStyle: 'medium', timeStyle: 'short' }) : 'in corso'
-  return `${inizio} → ${fine}`
+  const persone = s.persone && s.persone > 1 ? ` (${s.persone} persone)` : ''
+  return `${inizio} → ${fine}${persone}`
 }
 
 // Restyling 2026-08-12 (vedi CLAUDE.md — mappatura campi Costruzione),
@@ -84,11 +82,23 @@ export function SatelliteCostruzione({
   lavoroId,
   allegati,
   isOwner,
+  tariffaOraria,
+  costoManodoperaStimato,
 }: {
   satellite: Satellite
   lavoroId: string
   allegati: SatelliteAllegato[]
   isOwner: boolean
+  // Tariffe orarie e costo manodopera (2026-08-19, vedi CLAUDE.md).
+  // `tariffaOraria`: tariffa VIVA dell'artigiano owner del Lavoro, usata
+  // SOLO per il ricalcolo reattivo del ramo editabile (isOwner=true implica
+  // già Lavoro non completato, vedi dettaglio-lavoro-data.ts — nessun
+  // congelamento in gioco mentre si sta ancora modificando).
+  // `costoManodoperaStimato`: valore già risolto server-side (congelato se
+  // il Lavoro è chiuso, altrimenti calcolato dal vivo al caricamento della
+  // pagina) — usato SOLO dal ramo di sola lettura, mai ricalcolato qui.
+  tariffaOraria: number
+  costoManodoperaStimato: number
 }) {
   const router = useRouter()
   const [sessioni, setSessioni] = useState<SessioneBozza[]>(satellite.sessioni_lavoro.map(aSessioneBozza))
@@ -106,10 +116,12 @@ export function SatelliteCostruzione({
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
-  // Ricalcolato ad ogni render (nessun useEffect/timer): riflette anche le
-  // modifiche non ancora salvate nel form, stesso principio già in uso per
-  // "Valore - Acconti" di Chiusura Lavoro.
-  const totaleMinuti = calcolaTotaleMinuti(sessioniValide(sessioni))
+  // Ricalcolati ad ogni render (nessun useEffect/timer): riflettono anche
+  // le modifiche non ancora salvate nel form, stesso principio già in uso
+  // per "Valore - Acconti" di Chiusura Lavoro.
+  const sessioniAttuali = sessioniValide(sessioni)
+  const totaleMinuti = calcolaTotaleMinutiSessioni(sessioniAttuali)
+  const costoManodoperaVivo = calcolaCostoManodopera(sessioniAttuali, tariffaOraria)
 
   function aggiornaSessione(indice: number, campo: keyof SessioneBozza, valore: string) {
     setSessioni((prev) => prev.map((s, i) => (i === indice ? { ...s, [campo]: valore } : s)))
@@ -240,6 +252,28 @@ export function SatelliteCostruzione({
                         </select>
                       </div>
                     </div>
+
+                    {/* Persone (2026-08-19, vedi CLAUDE.md): numero di
+                        persone su questa sessione, usato per il costo
+                        manodopera — 1 = da solo, 2 = con un aiutante, ecc.
+                        Stesso pattern type="number" già in uso per i campi
+                        Obiettivi (ProfiloObiettiviForm), non il testo
+                        filtrato di Quantità/Acquisto: qui non c'è alcuna
+                        mascheratura con separatore delle migliaia da cui
+                        distinguere le frecce native, il rischio di
+                        variazioni accidentali è marginale su un contatore
+                        a step 1. */}
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-gray-700">Persone</p>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={s.persone}
+                        onChange={(e) => aggiornaSessione(i, 'persone', e.target.value)}
+                        className={`${inputClassFisso()} w-24`}
+                      />
+                    </div>
                   </div>
                 ))}
 
@@ -257,6 +291,15 @@ export function SatelliteCostruzione({
               <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
                 <span className="text-sm font-medium text-gray-700">Totale ore di costruzione</span>
                 <span className="text-sm text-gray-900">{formattaTotaleOre(totaleMinuti)}</span>
+              </div>
+
+              {/* Riga 4bis — Costo manodopera stimato (2026-08-19, vedi
+                  CLAUDE.md): sola lettura, calcolato dal vivo qui (ramo
+                  editabile, Lavoro sempre non completato — nessun
+                  congelamento in gioco, vedi commento sui prop sopra). */}
+              <div className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                <span className="text-sm font-medium text-gray-700">Costo manodopera stimato</span>
+                <span className="text-sm text-gray-900">{formattaValuta(costoManodoperaVivo, 2)}</span>
               </div>
 
               {/* Riga 5 — Appunti e commenti */}
@@ -307,7 +350,11 @@ export function SatelliteCostruzione({
               ) : (
                 <p className="text-gray-500">Nessuna sessione ancora avviata.</p>
               )}
-              <p className="text-gray-600">Totale ore di costruzione: {formattaTotaleOre(calcolaTotaleMinuti(satellite.sessioni_lavoro))}</p>
+              <p className="text-gray-600">Totale ore di costruzione: {formattaTotaleOre(calcolaTotaleMinutiSessioni(satellite.sessioni_lavoro))}</p>
+              {/* Costo manodopera stimato (2026-08-19, vedi CLAUDE.md):
+                  valore già risolto server-side (congelato se il Lavoro è
+                  chiuso) — non ricalcolato qui, vedi commento sui prop. */}
+              <p className="text-gray-600">Costo manodopera stimato: {formattaValuta(costoManodoperaStimato, 2)}</p>
               {satellite.descrizione_libera && <p className="whitespace-pre-wrap text-gray-600">{satellite.descrizione_libera}</p>}
               <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
             </div>

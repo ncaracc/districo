@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ProfiloSmtpForm } from '@/components/profilo-smtp-form'
 import { ProfiloObiettiviForm } from '@/components/profilo-obiettivi-form'
 import { ProfiloTestoMailForm } from '@/components/profilo-testo-mail-form'
+import { ProfiloTariffeForm } from '@/components/profilo-tariffe-form'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 
 // Categorie acquisto/Referenze spostate nella nuova sezione di menu
@@ -17,7 +18,7 @@ export default async function ProfiloImpostazioniPage() {
     ? await supabase
         .from('artigiano')
         .select(
-          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale',
+          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale, tariffa_oraria_costruzione, tariffa_oraria_montaggio',
         )
         .eq('id', user.id)
         .maybeSingle()
@@ -60,6 +61,19 @@ export default async function ProfiloImpostazioniPage() {
             congedoFormale: artigiano?.mail_ordine_congedo_formale ?? '',
             aperturaInformale: artigiano?.mail_ordine_apertura_informale ?? '',
             congedoInformale: artigiano?.mail_ordine_congedo_informale ?? '',
+          }}
+        />
+      </div>
+
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <h2 className="mb-1 text-lg font-semibold text-gray-900">Tariffe orarie</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Usate per stimare il costo manodopera di Costruzione e Montaggio e per il Margine di Chiusura Lavoro.
+        </p>
+        <ProfiloTariffeForm
+          initialValues={{
+            tariffaCostruzione: String(artigiano?.tariffa_oraria_costruzione ?? 50),
+            tariffaMontaggio: String(artigiano?.tariffa_oraria_montaggio ?? 30),
           }}
         />
       </div>

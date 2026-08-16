@@ -48,6 +48,8 @@ export function SatelliteChiusura({
   margine,
   accontiComplessivi,
   importoDaIncassare,
+  costoManodoperaCostruzione,
+  costoManodoperaMontaggio,
   tutteAttivitaVerdi,
   attivitaNonVerdiCount,
 }: {
@@ -59,6 +61,12 @@ export function SatelliteChiusura({
   margine: number
   accontiComplessivi: number
   importoDaIncassare: number
+  // Costo manodopera Costruzione/Montaggio (2026-08-19, vedi CLAUDE.md —
+  // tariffe orarie e costo manodopera): già sottratti da `margine` sopra
+  // (calcolato server-side) — esposti anche qui separatamente per le due
+  // righe dedicate richieste, sola lettura come gli altri campi economici.
+  costoManodoperaCostruzione: number
+  costoManodoperaMontaggio: number
   // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
   // CLAUDE.md): calcolati server-side (dettaglio-lavoro-data.ts, dove sono
   // già disponibili allegatiById/righePerSatellite necessari per
@@ -129,6 +137,21 @@ export function SatelliteChiusura({
             <p className="flex items-center justify-between">
               <span>Spese complessive</span>
               <span className="font-medium text-gray-900">{formattaValuta(speseComplessive)}</span>
+            </p>
+            {/* Costo manodopera Costruzione/Montaggio (2026-08-19, vedi
+                CLAUDE.md — tariffe orarie e costo manodopera): sola
+                lettura, già sottratti da Margine sotto. Due decimali (non
+                lo 0 di default delle altre righe): stesso arrotondamento
+                già mostrato nella riga "Costo manodopera stimato" dei
+                satelliti Costruzione/Montaggio — lo stesso numero deve
+                apparire identico ovunque compaia. */}
+            <p className="flex items-center justify-between">
+              <span>Costo manodopera Costruzione</span>
+              <span className="font-medium text-gray-900">{formattaValuta(costoManodoperaCostruzione, 2)}</span>
+            </p>
+            <p className="flex items-center justify-between">
+              <span>Costo manodopera Montaggio</span>
+              <span className="font-medium text-gray-900">{formattaValuta(costoManodoperaMontaggio, 2)}</span>
             </p>
             {/* Margine e Importo da incassare in grassetto (sessione
                 rifinitura 2026-08-13, vedi CLAUDE.md): enfasi visiva sulle

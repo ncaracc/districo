@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import {
   attivitaRilevantiPerChiusura,
+  calcolaCostoManodopera,
   coloreQualsiasiSatellite,
   type SessioneLavoro,
   type SottotipoAppuntamento,
@@ -1184,6 +1185,53 @@ async function tutteAttivitaVerdi(
   )
 }
 
+// Costo manodopera al momento della chiusura (2026-08-19, vedi CLAUDE.md —
+// tariffe orarie e costo manodopera): la tariffa applicata è quella
+// dell'artigiano OWNER del Lavoro (`lavoro_artigiani.ruolo='owner'`), non
+// di chi clicca "Salva" — un Lavoro "a quattro mani" ha un solo owner
+// deterministico indipendentemente da chi dei due lo chiude, evitando
+// l'ambiguità "tariffa di quale dei due artigiani" (funzionalità priva di
+// un punto di ingresso in UI, vedi audit 13/8 — questa scelta resta comunque
+// corretta anche se oggi nessun Lavoro reale ha davvero due artigiani).
+// Best-effort per design (come il resto della correzione automatica in
+// dettaglio-lavoro-data.ts): se l'owner o le sue tariffe non si trovano per
+// qualunque motivo, ritorna null — il chiamante lascia i due campi
+// congelati assenti piuttosto che bloccare la chiusura per un problema
+// indipendente dal flusso principale.
+async function calcolaCostiManodoperaPerLavoro(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lavoroId: string,
+): Promise<{ costruzione: number; montaggio: number } | null> {
+  const { data: ownerRow } = await supabase
+    .from('lavoro_artigiani')
+    .select('artigiano_id')
+    .eq('lavoro_id', lavoroId)
+    .eq('ruolo', 'owner')
+    .maybeSingle()
+  if (!ownerRow?.artigiano_id) return null
+
+  const { data: artigiano } = await supabase
+    .from('artigiano')
+    .select('tariffa_oraria_costruzione, tariffa_oraria_montaggio')
+    .eq('id', ownerRow.artigiano_id)
+    .maybeSingle()
+  if (!artigiano) return null
+
+  const { data: satelliti } = await supabase
+    .from('lavoro_satellite')
+    .select('tipo, sessioni_lavoro')
+    .eq('lavoro_id', lavoroId)
+    .in('tipo', ['costruzione', 'montaggio'])
+
+  const costruzioneSessioni = satelliti?.find((s) => s.tipo === 'costruzione')?.sessioni_lavoro ?? []
+  const montaggioSessioni = satelliti?.find((s) => s.tipo === 'montaggio')?.sessioni_lavoro ?? []
+
+  return {
+    costruzione: calcolaCostoManodopera(costruzioneSessioni as SessioneLavoro[], artigiano.tariffa_oraria_costruzione),
+    montaggio: calcolaCostoManodopera(montaggioSessioni as SessioneLavoro[], artigiano.tariffa_oraria_montaggio),
+  }
+}
+
 export async function aggiornaChiusuraFlags(
   satelliteId: string,
   lavoroId: string,
@@ -1216,11 +1264,31 @@ export async function aggiornaChiusuraFlags(
     .eq('id', satelliteId)
     .maybeSingle()
 
-  const update: { chiusura_incassata: boolean; chiusura_conclusa: boolean; chiusura_data?: string } = {
+  const update: {
+    chiusura_incassata: boolean
+    chiusura_conclusa: boolean
+    chiusura_data?: string
+    chiusura_costo_manodopera_costruzione?: number
+    chiusura_costo_manodopera_montaggio?: number
+  } = {
     chiusura_incassata: fields.incassata,
     chiusura_conclusa: fields.conclusa,
   }
   if (entrambi && !attuale?.chiusura_data) update.chiusura_data = new Date().toISOString()
+
+  // Congelamento (2026-08-19, vedi CLAUDE.md): ricalcolato e sovrascritto
+  // OGNI volta che `conclusa` passa a true (non solo la prima, a differenza
+  // di chiusura_data sopra) — se il Lavoro viene riaperto e richiuso, le
+  // sessioni/la tariffa possono essere legittimamente cambiate nel
+  // frattempo, il nuovo congelamento deve riflettere lo stato reale
+  // all'atto di QUESTA chiusura, non quella originaria.
+  if (fields.conclusa) {
+    const costi = await calcolaCostiManodoperaPerLavoro(supabase, lavoroId)
+    if (costi) {
+      update.chiusura_costo_manodopera_costruzione = costi.costruzione
+      update.chiusura_costo_manodopera_montaggio = costi.montaggio
+    }
+  }
 
   const { error } = await supabase.from('lavoro_satellite').update(update).eq('id', satelliteId)
 

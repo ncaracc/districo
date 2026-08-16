@@ -382,7 +382,16 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
     return {
       nome: nomeNumerato(g.costruzione, satelliteId, 'Costruzione'),
       colore: coloreSessioniLavoro(satellite.sessioni_lavoro, satellite.concluso),
-      contenuto: <SatelliteCostruzione satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
+      contenuto: (
+        <SatelliteCostruzione
+          satellite={satellite}
+          lavoroId={lavoroId}
+          allegati={allegati}
+          isOwner={isOwner}
+          tariffaOraria={dati.tariffaOrariaCostruzione}
+          costoManodoperaStimato={dati.costoManodoperaCostruzione}
+        />
+      ),
     }
   }
 
@@ -390,7 +399,16 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
     return {
       nome: nomeNumerato(g.montaggio, satelliteId, 'Montaggio'),
       colore: coloreSessioniLavoro(satellite.sessioni_lavoro, satellite.concluso),
-      contenuto: <SatelliteMontaggio satellite={satellite} lavoroId={lavoroId} allegati={allegati} isOwner={isOwner} />,
+      contenuto: (
+        <SatelliteMontaggio
+          satellite={satellite}
+          lavoroId={lavoroId}
+          allegati={allegati}
+          isOwner={isOwner}
+          tariffaOraria={dati.tariffaOrariaMontaggio}
+          costoManodoperaStimato={dati.costoManodoperaMontaggio}
+        />
+      ),
     }
   }
 
@@ -432,6 +450,8 @@ export function costruisciContenutoAttivita(dati: DatiLavoroSatelliti, satellite
         margine={dati.margine}
         accontiComplessivi={dati.accontiComplessivi}
         importoDaIncassare={dati.importoDaIncassare}
+        costoManodoperaCostruzione={dati.costoManodoperaCostruzione}
+        costoManodoperaMontaggio={dati.costoManodoperaMontaggio}
         tutteAttivitaVerdi={dati.tutteAttivitaVerdi}
         attivitaNonVerdiCount={dati.attivitaNonVerdiCount}
       />

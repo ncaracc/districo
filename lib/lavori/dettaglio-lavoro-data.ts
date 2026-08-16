@@ -1,5 +1,6 @@
 import {
   attivitaRilevantiPerChiusura,
+  calcolaCostoManodopera,
   coloreQualsiasiSatellite,
   costruisciCatena,
   type Satellite,
@@ -71,6 +72,20 @@ export type DatiLavoroSatelliti = {
   margine: number
   accontiComplessivi: number
   importoDaIncassare: number
+  // Costo manodopera Costruzione/Montaggio (2026-08-19, vedi CLAUDE.md —
+  // tariffe orarie e costo manodopera): già sottratti da `margine` sopra,
+  // esposti anche singolarmente per le due righe dedicate di Chiusura
+  // Lavoro e per la riga "Costo manodopera stimato" dei due satelliti
+  // stessi — congelati se il Lavoro è chiuso, altrimenti calcolati dal
+  // vivo (vedi il commento dettagliato nel corpo della funzione).
+  costoManodoperaCostruzione: number
+  costoManodoperaMontaggio: number
+  // Tariffe orarie VIVE dell'artigiano owner del Lavoro — usate SOLO dal
+  // ramo editabile di SatelliteCostruzione/SatelliteMontaggio per il
+  // ricalcolo reattivo prima del salvataggio (mai per il ramo di sola
+  // lettura, che usa i due campi congelati-o-vivi sopra).
+  tariffaOrariaCostruzione: number
+  tariffaOrariaMontaggio: number
   // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
   // CLAUDE.md): true solo se TUTTE le Attività esistenti del Lavoro
   // (Chiusura esclusa) sono verdi — usato da SatelliteChiusura per
@@ -102,23 +117,40 @@ export async function caricaDatiLavoroSatelliti(
 
   if (!lavoro) return null
 
-  const [{ data: isOwner }, { data: satellitiGrezzi }, { data: cliente }] = await Promise.all([
+  const [{ data: isOwner }, { data: satellitiGrezzi }, { data: cliente }, { data: ownerRow }] = await Promise.all([
     supabase.rpc('is_owner_del_lavoro', { p_lavoro_id: lavoroId }),
     supabase.from('lavoro_satellite').select('*').eq('lavoro_id', lavoroId),
     supabase.from('cliente').select('nome').eq('id', lavoro.cliente_id).maybeSingle(),
+    // Tariffe orarie manodopera (2026-08-19, vedi CLAUDE.md): la tariffa
+    // applicata è quella dell'artigiano OWNER del Lavoro (non di chi sta
+    // guardando la pagina) — stesso principio deterministico già usato in
+    // satelliti.ts (aggiornaChiusuraFlags) per il congelamento, evita
+    // l'ambiguità "tariffa di quale artigiano" su un Lavoro "a quattro
+    // mani". Solo l'id qui, la riga artigiano vera e propria arriva sotto
+    // insieme ad allegati/righe (dipende da questo risultato).
+    supabase.from('lavoro_artigiani').select('artigiano_id').eq('lavoro_id', lavoroId).eq('ruolo', 'owner').maybeSingle(),
   ])
 
   const satelliti: Satellite[] = satellitiGrezzi ?? []
   const satelliteIds = satelliti.map((s) => s.id)
 
-  const [{ data: allegatiGrezzi }, { data: righeGrezze }] = await Promise.all([
+  const [{ data: allegatiGrezzi }, { data: righeGrezze }, { data: ownerArtigiano }] = await Promise.all([
     satelliteIds.length > 0
       ? supabase.from('lavoro_satellite_allegato').select('*').in('satellite_id', satelliteIds)
       : Promise.resolve({ data: [] as SatelliteAllegato[] }),
     satelliteIds.length > 0
       ? supabase.from('lavoro_satellite_articolo').select('*').in('satellite_id', satelliteIds)
       : Promise.resolve({ data: [] as SatelliteArticolo[] }),
+    ownerRow?.artigiano_id
+      ? supabase.from('artigiano').select('tariffa_oraria_costruzione, tariffa_oraria_montaggio').eq('id', ownerRow.artigiano_id).maybeSingle()
+      : Promise.resolve({ data: null as { tariffa_oraria_costruzione: number; tariffa_oraria_montaggio: number } | null }),
   ])
+
+  // Fallback ai default applicativi (stessi della migration 0054) se
+  // l'owner non si trova per qualunque motivo — degradazione accettata,
+  // stesso principio best-effort già in uso altrove in questo file.
+  const tariffaOrariaCostruzione = ownerArtigiano?.tariffa_oraria_costruzione ?? 50
+  const tariffaOrariaMontaggio = ownerArtigiano?.tariffa_oraria_montaggio ?? 30
 
   const allegati: SatelliteAllegato[] = allegatiGrezzi ?? []
   const allegatiById: Record<string, SatelliteAllegato[]> = {}
@@ -208,25 +240,6 @@ export async function caricaDatiLavoroSatelliti(
   const preventivoCorrente = preventivoCatena[0] ?? null
   const valorePreventivo = preventivoCorrente?.valore_complessivo ?? null
 
-  // Chiusura Lavoro — 5 campi calcolati (2026-08-13, vedi CLAUDE.md):
-  // Valore complessivo = Preventivo rilevante + Attività non preventivate
-  // accettate; Margine = Valore complessivo - Spese complessive; Acconti
-  // complessivi = somma degli Acconto con acconto_incassato=true; Importo
-  // da incassare = Valore complessivo - Acconti complessivi (normale che
-  // non sia zero finché non si incassa il saldo finale — gli Acconto
-  // tracciano solo pagamenti parziali, nessun avviso di incoerenza).
-  const speseNonPreventivateAccettate = satelliti.reduce((somma, s) => {
-    if (s.tipo === 'spesa_non_preventivata' && s.spesa_accettata) return somma + (s.valore_complessivo ?? 0)
-    return somma
-  }, 0)
-  const accontiComplessivi = satelliti.reduce((somma, s) => {
-    if (s.tipo === 'acconto' && s.acconto_incassato) return somma + (s.valore_complessivo ?? 0)
-    return somma
-  }, 0)
-  const valoreComplessivo = (valorePreventivo ?? 0) + speseNonPreventivateAccettate
-  const margine = valoreComplessivo - speseComplessive
-  const importoDaIncassare = valoreComplessivo - accontiComplessivi
-
   // Vincolo "Contrassegna il lavoro come chiuso." (2026-08-13, vedi
   // CLAUDE.md): abilitabile solo se TUTTE le Attività esistenti (Chiusura
   // esclusa, revisioni Preventivo storiche superate escluse) sono verdi.
@@ -246,6 +259,13 @@ export async function caricaDatiLavoroSatelliti(
   // aggiornaChiusuraFlags() al momento del salvataggio). Scrittura
   // best-effort: un errore qui non deve mai bloccare il caricamento della
   // pagina, semplicemente non si corregge in questo giro.
+  //
+  // Spostato PRIMA del calcolo di Margine/costo manodopera (2026-08-19,
+  // vedi CLAUDE.md): il congelamento del costo manodopera deve guardare il
+  // valore FINALE/corretto di chiusura_conclusa (post reset automatico),
+  // non quello letto a inizio funzione — altrimenti un Lavoro appena
+  // "sbloccato" da questo reset mostrerebbe ancora per un istante un costo
+  // congelato ormai scaduto.
   const chiusuraSatellite = satelliti.find((s) => s.tipo === 'chiusura') ?? null
   const attivitaRilevanti = attivitaRilevantiPerChiusura(satelliti)
   const attivitaNonVerdiCount = attivitaRilevanti.filter(
@@ -265,6 +285,47 @@ export async function caricaDatiLavoroSatelliti(
     if (!resetErr) chiusuraSatellite.chiusura_conclusa = false
   }
 
+  // Chiusura Lavoro — campi calcolati (2026-08-13, vedi CLAUDE.md, esteso
+  // 2026-08-19 con il costo manodopera): Valore complessivo = Preventivo
+  // rilevante + Attività non preventivate accettate; Margine = Valore
+  // complessivo - Spese complessive - Costo manodopera Costruzione - Costo
+  // manodopera Montaggio; Acconti complessivi = somma degli Acconto con
+  // acconto_incassato=true; Importo da incassare = Valore complessivo -
+  // Acconti complessivi (normale che non sia zero finché non si incassa il
+  // saldo finale — gli Acconto tracciano solo pagamenti parziali, nessun
+  // avviso di incoerenza).
+  const speseNonPreventivateAccettate = satelliti.reduce((somma, s) => {
+    if (s.tipo === 'spesa_non_preventivata' && s.spesa_accettata) return somma + (s.valore_complessivo ?? 0)
+    return somma
+  }, 0)
+  const accontiComplessivi = satelliti.reduce((somma, s) => {
+    if (s.tipo === 'acconto' && s.acconto_incassato) return somma + (s.valore_complessivo ?? 0)
+    return somma
+  }, 0)
+  const valoreComplessivo = (valorePreventivo ?? 0) + speseNonPreventivateAccettate
+
+  // Costo manodopera Costruzione/Montaggio (2026-08-19, vedi CLAUDE.md):
+  // se il Lavoro è chiuso E il valore congelato esiste (colonna
+  // valorizzata alla chiusura, vedi aggiornaChiusuraFlags in satelliti.ts),
+  // quello è la fonte di verità — mai ricalcolato con la tariffa corrente,
+  // che potrebbe essere cambiata. Altrimenti (Lavoro non ancora chiuso, o
+  // chiuso prima che questa colonna esistesse, vedi migration 0054) si
+  // calcola dal vivo dalle sessioni attuali × la tariffa VIVA dell'owner.
+  const costruzioneSatellite = satelliti.find((s) => s.tipo === 'costruzione') ?? null
+  const montaggioSatellite = satelliti.find((s) => s.tipo === 'montaggio') ?? null
+  const chiuso = !!chiusuraSatellite?.chiusura_conclusa
+  const costoManodoperaCostruzione =
+    chiuso && chiusuraSatellite?.chiusura_costo_manodopera_costruzione != null
+      ? chiusuraSatellite.chiusura_costo_manodopera_costruzione
+      : calcolaCostoManodopera(costruzioneSatellite?.sessioni_lavoro ?? [], tariffaOrariaCostruzione)
+  const costoManodoperaMontaggio =
+    chiuso && chiusuraSatellite?.chiusura_costo_manodopera_montaggio != null
+      ? chiusuraSatellite.chiusura_costo_manodopera_montaggio
+      : calcolaCostoManodopera(montaggioSatellite?.sessioni_lavoro ?? [], tariffaOrariaMontaggio)
+
+  const margine = valoreComplessivo - speseComplessive - costoManodoperaCostruzione - costoManodoperaMontaggio
+  const importoDaIncassare = valoreComplessivo - accontiComplessivi
+
   return {
     lavoro,
     clienteNome: cliente?.nome ?? null,
@@ -283,6 +344,10 @@ export async function caricaDatiLavoroSatelliti(
     margine,
     accontiComplessivi,
     importoDaIncassare,
+    costoManodoperaCostruzione,
+    costoManodoperaMontaggio,
+    tariffaOrariaCostruzione,
+    tariffaOrariaMontaggio,
     tutteAttivitaVerdi,
     attivitaNonVerdiCount,
     progettoEsiste: satelliti.some((s) => s.tipo === 'progetto'),

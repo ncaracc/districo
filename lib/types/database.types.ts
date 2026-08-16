@@ -27,6 +27,7 @@ export type Database = {
           kpi_finestra_mesi: number
           mail_ordine_apertura_formale: string | null; mail_ordine_congedo_formale: string | null
           mail_ordine_apertura_informale: string | null; mail_ordine_congedo_informale: string | null
+          tariffa_oraria_costruzione: number; tariffa_oraria_montaggio: number
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -44,6 +45,7 @@ export type Database = {
           kpi_finestra_mesi?: number
           mail_ordine_apertura_formale?: string | null; mail_ordine_congedo_formale?: string | null
           mail_ordine_apertura_informale?: string | null; mail_ordine_congedo_informale?: string | null
+          tariffa_oraria_costruzione?: number; tariffa_oraria_montaggio?: number
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -213,6 +215,14 @@ export type Database = {
           chiusura_conclusa: boolean; chiusura_data: string | null
           chiusura_acconti: { etichetta: string; data: string | null; importo: number }[]
           chiusura_incassata: boolean
+          // Costo manodopera congelato alla chiusura (2026-08-19, vedi
+          // CLAUDE.md — migration 0054): null finché il Lavoro non è mai
+          // stato chiuso, valorizzato quando chiusura_conclusa passa a true
+          // (vedi aggiornaChiusuraFlags, lib/lavori/satelliti.ts) — da quel
+          // momento è la fonte di verità, non più ricalcolato dal vivo con
+          // la tariffa oraria corrente (che potrebbe cambiare in futuro).
+          chiusura_costo_manodopera_costruzione: number | null
+          chiusura_costo_manodopera_montaggio: number | null
           // Acconto (2026-08-11, vedi CLAUDE.md): intenzionalmente indipendente
           // da chiusura_acconti sopra (due meccanismi distinti, vedi nota nel
           // file CLAUDE.md). Importo riusa valore_complessivo, Note riusa
@@ -220,11 +230,12 @@ export type Database = {
           acconto_data: string | null; acconto_incassato: boolean
           // Costruzione (2026-08-12, vedi CLAUDE.md): sostituisce
           // stato/data_inizio/data_fine per questo tipo (colonne legacy,
-          // non droppate) — array di {inizio, fine} (fine nullable, sessione
-          // ancora aperta). Nome generico: verrà riusata identica da
-          // Montaggio in una sessione futura dedicata. `concluso` sopra
-          // riusato come flag "conclusa".
-          sessioni_lavoro: { inizio: string; fine: string | null }[]
+          // non droppate) — array di {inizio, fine, persone} (fine nullable,
+          // sessione ancora aperta; persone aggiunto 2026-08-19, vedi
+          // CLAUDE.md — numero di persone su quella sessione, usato per il
+          // costo manodopera). Nome generico: riusata identica da Montaggio
+          // dal 2026-08-12. `concluso` sopra riusato come flag "conclusa".
+          sessioni_lavoro: { inizio: string; fine: string | null; persone: number }[]
           // Attività non preventivate (2026-08-13, vedi CLAUDE.md): stesso
           // schema di Acconto — Importo riusa valore_complessivo, Descrizione
           // riusa descrizione_libera, Data e il flag "accettata" dedicati.
@@ -257,8 +268,10 @@ export type Database = {
           chiusura_conclusa?: boolean; chiusura_data?: string | null
           chiusura_acconti?: { etichetta: string; data: string | null; importo: number }[]
           chiusura_incassata?: boolean
+          chiusura_costo_manodopera_costruzione?: number | null
+          chiusura_costo_manodopera_montaggio?: number | null
           acconto_data?: string | null; acconto_incassato?: boolean
-          sessioni_lavoro?: { inizio: string; fine: string | null }[]
+          sessioni_lavoro?: { inizio: string; fine: string | null; persone: number }[]
           spesa_data?: string | null; spesa_accettata?: boolean
           data_creazione?: string; data_ultimo_cambio_stato?: string
         }

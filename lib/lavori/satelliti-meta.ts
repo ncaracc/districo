@@ -18,8 +18,15 @@ export type Acconto = { etichetta: string; data: string | null; importo: number 
 // Nome del tipo generico ("SessioneLavoro", non "SessioneCostruzione"):
 // stessa colonna sessioni_lavoro riusata identica da Montaggio (promosso a
 // tipo autonomo il 2026-08-12, vedi CLAUDE.md — non più un sottotipo di
-// Appuntamento).
-export type SessioneLavoro = { inizio: string; fine: string | null }
+// Appuntamento). `persone` (2026-08-19, vedi CLAUDE.md — tariffe orarie e
+// costo manodopera): numero di persone su quella sessione, usato per il
+// calcolo del costo (vedi calcolaCostoManodopera sotto). Le sessioni salvate
+// prima di questa data non hanno questo campo nel JSON storico — ogni punto
+// che legge `persone` deve quindi trattarlo come possibilmente assente
+// (`s.persone ?? 1`, mai un accesso diretto), il tipo qui lo dichiara
+// comunque `number` (non opzionale) perché ogni scrittura da questo punto
+// in poi lo valorizza sempre.
+export type SessioneLavoro = { inizio: string; fine: string | null; persone: number }
 
 // Montaggio rimosso da qui il 2026-08-12 (promosso a tipo autonomo,
 // tipo='montaggio' — vedi CLAUDE.md): restano solo i due sottotipi che
@@ -68,6 +75,12 @@ export type Satellite = {
   // con acconto_incassato=true) — colonna non droppata, stesso trattamento
   // già riservato a data_presentazione.
   chiusura_incassata: boolean
+  // Costo manodopera congelato alla chiusura (2026-08-19, vedi CLAUDE.md —
+  // migration 0054): null finché il Lavoro non è mai stato chiuso. Fonte di
+  // verità per il Margine SOLO quando chiusura_conclusa=true — altrimenti
+  // il costo si calcola dal vivo (vedi dettaglio-lavoro-data.ts).
+  chiusura_costo_manodopera_costruzione: number | null
+  chiusura_costo_manodopera_montaggio: number | null
   // Acconto (2026-08-11, vedi CLAUDE.md): intenzionalmente indipendente da
   // chiusura_acconti sopra, due meccanismi distinti. Importo riusa
   // valore_complessivo, Note riusa descrizione_libera (già nel tipo).
@@ -454,4 +467,58 @@ export function attivitaRilevantiPerChiusura(satelliti: Satellite[]): Satellite[
     const superata = satelliti.some((altro) => altro.revisione_di === s.id)
     return !superata
   })
+}
+
+// --- Sessioni di lavoro (Costruzione/Montaggio) — tempo e costo manodopera ---
+// (2026-08-19, vedi CLAUDE.md — tariffe orarie e costo manodopera)
+//
+// Estratte qui (leaf module, nessun rischio di import circolare, stesso
+// motivo già seguito per coloreQualsiasiSatellite/attivitaRilevantiPerChiusura)
+// da satellite-costruzione.tsx/satellite-montaggio.tsx, dove le prime due
+// (arrotondaSuA30Min/calcolaTotaleMinutiSessioni, invariate nella formula)
+// erano duplicate identiche fin dal 12/8 — "duplicazione deliberata" per la
+// STRUTTURA dei due componenti (audit 13/8), non un divieto di condividere
+// funzioni pure quando serve davvero: qui la stessa formula ora serve anche
+// lato server (dettaglio-lavoro-data.ts, per il calcolo dal vivo mostrato
+// prima della chiusura, e satelliti.ts, per il congelamento al momento
+// della chiusura) — condividerla da un unico punto evita che le due
+// versioni client possano divergere da quella server nel tempo.
+
+// Arrotonda per eccesso ai 30 minuti (0 resta 0 — è già un multiplo di 30,
+// nessun "minimo 30 minuti" forzato: "per eccesso" si applica solo quando
+// la durata non è già un multiplo esatto).
+export function arrotondaSuA30Min(minuti: number): number {
+  return Math.ceil(minuti / 30) * 30
+}
+
+// Minuti totali di un elenco di sessioni — sessione ancora aperta (fine
+// null) conta come tempo trascorso finora (stessa logica di "Totale ore",
+// invariata). Durata negativa (fine impostata prima di inizio, es. errore
+// di battitura) azzerata invece di sottratta al totale.
+export function calcolaTotaleMinutiSessioni(sessioni: SessioneLavoro[]): number {
+  return sessioni.reduce((totale, s) => {
+    const inizio = new Date(s.inizio).getTime()
+    const fine = s.fine ? new Date(s.fine).getTime() : Date.now()
+    const minuti = Math.max(0, (fine - inizio) / 60000)
+    return totale + arrotondaSuA30Min(minuti)
+  }, 0)
+}
+
+// Costo manodopera: per ogni sessione, durata (arrotondata ai 30 minuti,
+// stessa regola di "Totale ore") × numero di persone di quella sessione ×
+// tariffa oraria — sommato su tutte le sessioni. Persone assente
+// (sessione salvata prima del 2026-08-19) trattata come 1. Arrotondato a 2
+// decimali, stessa cautela già in uso per Prezzo×Quantità di Acquisto
+// (moltiplicazioni in virgola mobile possono introdurre artefatti oltre la
+// precisione attesa).
+export function calcolaCostoManodopera(sessioni: SessioneLavoro[], tariffaOraria: number): number {
+  const totale = sessioni.reduce((tot, s) => {
+    const inizio = new Date(s.inizio).getTime()
+    const fine = s.fine ? new Date(s.fine).getTime() : Date.now()
+    const minuti = Math.max(0, (fine - inizio) / 60000)
+    const ore = arrotondaSuA30Min(minuti) / 60
+    const persone = s.persone ?? 1
+    return tot + ore * persone * tariffaOraria
+  }, 0)
+  return Math.round(totale * 100) / 100
 }

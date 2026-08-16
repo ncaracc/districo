@@ -47,6 +47,50 @@ export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<
   return { ok: true }
 }
 
+// Tariffe orarie manodopera (2026-08-19, vedi CLAUDE.md — tariffe orarie e
+// costo manodopera): due preferenze personali dell'artigiano, stesso
+// pattern di aggiornaObiettiviKpi sopra. A differenza degli Obiettivi
+// (senza più alcun effetto sui KPI attuali), queste alimentano un calcolo
+// reale — il costo manodopera di Costruzione/Montaggio e il Margine di
+// Chiusura Lavoro (vedi lib/lavori/dettaglio-lavoro-data.ts) — quindi
+// `revalidatePath('/lavori')` non basta da sola: ogni pagina Lavoro già
+// visitata mostra il valore aggiornato solo al prossimo caricamento (Server
+// Component, nessuna sottoscrizione live) — comportamento accettato, stesso
+// principio di ogni altra preferenza server-side in questo progetto.
+type TariffeOrarieFields = {
+  tariffaCostruzione: number
+  tariffaMontaggio: number
+}
+
+export async function aggiornaTariffeOrarie(fields: TariffeOrarieFields): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  if (fields.tariffaCostruzione < 0 || fields.tariffaMontaggio < 0) {
+    return { ok: false, error: 'Le tariffe orarie non possono essere negative' }
+  }
+
+  const { error } = await supabase
+    .from('artigiano')
+    .update({
+      tariffa_oraria_costruzione: fields.tariffaCostruzione,
+      tariffa_oraria_montaggio: fields.tariffaMontaggio,
+    })
+    .eq('id', user.id)
+
+  if (error) {
+    console.error('aggiornaTariffeOrarie: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/lavori')
+  return { ok: true }
+}
+
 // Testo mail ordine — Apertura/Congedo personalizzabili PER TONO
 // (2026-08-19, vedi CLAUDE.md — CORREGGE il design del 17/8, una singola
 // coppia): il tono si sceglie ora al momento dell'invio (vedi
