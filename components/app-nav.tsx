@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
+import { Avatar } from '@/components/avatar'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
 
 // "Conclusi" rimossa (unificazione Dashboard/Conclusi in un'unica vista con
@@ -28,10 +29,16 @@ const VOCI_ATTIVE = [
   { href: '/catalogo', label: 'Catalogo' },
 ]
 
-// Profilo/Impostazioni ha un trattamento a parte (icona ingranaggio invece di
-// testo su desktop, stesso principio già applicato a "Esci"): non fa parte
-// della normale navigazione testuale, quindi resta fuori da VOCI_ATTIVE.
-const VOCE_PROFILO = { href: '/profilo/impostazioni', label: 'Profilo/Impostazioni' }
+// Profilo/Impostazioni ha un trattamento a parte (icone invece di testo su
+// desktop, stesso principio già applicato a "Esci"): non fa parte della
+// normale navigazione testuale, quindi restano fuori da VOCI_ATTIVE.
+// Due punti di accesso distinti (2026-08-19, vedi CLAUDE.md —
+// riorganizzazione Profilo/Impostazioni): prima un'unica voce/icona
+// ingranaggio per una pagina che mescolava dati anagrafici e preferenze
+// applicative — ora l'avatar porta ai dati anagrafici (Profilo, nuova
+// pagina), l'ingranaggio resta dov'era per le preferenze (Impostazioni).
+const VOCE_PROFILO = { href: '/profilo', label: 'Profilo' }
+const VOCE_IMPOSTAZIONI = { href: '/profilo/impostazioni', label: 'Impostazioni' }
 
 const VOCI_IN_ARRIVO: string[] = []
 
@@ -97,6 +104,9 @@ function BadgeConteggio({ conteggio }: { conteggio: number }) {
 export function AppNav({
   isLoggedIn,
   appuntamentiScaduti = 0,
+  nome = '',
+  cognome = '',
+  immagineUrl = null,
 }: {
   isLoggedIn: boolean
   // Conteggio appuntamenti scaduti (data passata, mai conclusi) su tutti i
@@ -110,6 +120,13 @@ export function AppNav({
   // numero vive ora nel primo KPI della pagina /lavori stessa, il badge qui
   // resta un alert, non un contatore.
   appuntamentiScaduti?: number
+  // Avatar (2026-08-19, vedi CLAUDE.md): nome/cognome/immagineUrl
+  // dell'artigiano loggato, calcolati server-side in app/layout.tsx —
+  // vuoti/null quando non loggato (la voce Profilo comunque non è
+  // renderizzata in quel caso, isLoggedIn la esclude più sotto).
+  nome?: string
+  cognome?: string
+  immagineUrl?: string | null
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -206,12 +223,26 @@ export function AppNav({
         </nav>
 
         <div className="hidden md:flex md:items-center md:justify-end md:gap-1">
+          {/* Avatar → Profilo: match ESATTO su /profilo, non con
+              voceAttiva() (prefisso) — /profilo/impostazioni inizia anch'essa
+              per "/profilo/", il match a prefisso accenderebbe entrambe le
+              icone insieme quando si è su Impostazioni. */}
           <Link
             href={VOCE_PROFILO.href}
             aria-label={VOCE_PROFILO.label}
             title={VOCE_PROFILO.label}
+            className={`rounded-lg p-1 transition-opacity hover:opacity-80 ${
+              pathname === VOCE_PROFILO.href ? 'ring-2 ring-gray-900 ring-offset-2' : ''
+            }`}
+          >
+            <Avatar nome={nome} cognome={cognome} immagineUrl={immagineUrl} taglia="sm" />
+          </Link>
+          <Link
+            href={VOCE_IMPOSTAZIONI.href}
+            aria-label={VOCE_IMPOSTAZIONI.label}
+            title={VOCE_IMPOSTAZIONI.label}
             className={`rounded-lg p-2 transition-colors hover:bg-gray-50 ${
-              voceAttiva(pathname, VOCE_PROFILO.href) ? 'text-gray-900' : 'text-gray-700 hover:text-gray-900'
+              voceAttiva(pathname, VOCE_IMPOSTAZIONI.href) ? 'text-gray-900' : 'text-gray-700 hover:text-gray-900'
             }`}
           >
             <IconaImpostazioni className="h-5 w-5" />
@@ -307,15 +338,26 @@ export function AppNav({
             </li>
           ))}
           <li className="mt-2 border-t border-gray-100 pt-2">
+            {/* Match esatto per lo stesso motivo del desktop sopra. */}
             <Link
               href={VOCE_PROFILO.href}
               onClick={() => setAperto(false)}
               className={`flex items-center gap-3 rounded-lg px-3 py-4 text-lg transition-colors hover:bg-gray-50 ${
-                voceAttiva(pathname, VOCE_PROFILO.href) ? 'font-medium text-gray-900' : 'text-gray-600'
+                pathname === VOCE_PROFILO.href ? 'font-medium text-gray-900' : 'text-gray-600'
+              }`}
+            >
+              <Avatar nome={nome} cognome={cognome} immagineUrl={immagineUrl} taglia="sm" />
+              {VOCE_PROFILO.label}
+            </Link>
+            <Link
+              href={VOCE_IMPOSTAZIONI.href}
+              onClick={() => setAperto(false)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-4 text-lg transition-colors hover:bg-gray-50 ${
+                voceAttiva(pathname, VOCE_IMPOSTAZIONI.href) ? 'font-medium text-gray-900' : 'text-gray-600'
               }`}
             >
               <IconaImpostazioni className="h-5 w-5" />
-              {VOCE_PROFILO.label}
+              {VOCE_IMPOSTAZIONI.label}
             </Link>
             <button
               type="button"

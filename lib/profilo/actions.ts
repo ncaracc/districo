@@ -1,6 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { randomUUID } from 'node:crypto'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import sharp from 'sharp'
 import { createClient } from '@/lib/supabase/server'
 import { cifraPassword, decifraPassword } from '@/lib/crypto/credenziali-smtp'
 import { sendEmailPersonale, traduciErroreSmtp } from '@/lib/email/send-email-personale'
@@ -8,15 +12,21 @@ import { sendEmailPersonale, traduciErroreSmtp } from '@/lib/email/send-email-pe
 type AzioneResult = { ok: true } | { ok: false; error: string }
 type TestSmtpResult = { ok: true; email: string } | { ok: false; error: string }
 
-type ObiettiviKpiFields = {
-  targetPreventivoGiorni: number
-  targetProgettoGiorni: number
-  targetProduzioneGiorni: number
-  targetMontaggioGiorni: number
+// Obiettivi (4 campi "giorni") RIMOSSI il 2026-08-19 (vedi CLAUDE.md —
+// "Inventario Impostazioni" + questa sessione): confermati inerti,
+// nessuna query in tutto il codice li leggeva più dal 3/8, colonne
+// droppate dalla migration 0055 dopo aver verificato che tutti gli
+// artigiani reali avessero ancora esattamente i valori di default (nessun
+// dato personalizzato perso). `kpi_finestra_mesi` — l'unico campo del
+// vecchio gruppo "Obiettivi" ancora effettivamente usato (Tempo medio
+// preventivo/completamento, kpi_dashboard()) — SOPRAVVIVE, spostato in una
+// nuova sotto-sezione "Statistiche" a sé, non più bundlato con i 4 campi
+// morti.
+type StatisticheFields = {
   kpiFinestraMesi: number
 }
 
-export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<AzioneResult> {
+export async function aggiornaStatistiche(fields: StatisticheFields): Promise<AzioneResult> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -25,23 +35,14 @@ export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<
 
   const { error } = await supabase
     .from('artigiano')
-    .update({
-      target_preventivo_giorni: fields.targetPreventivoGiorni,
-      target_progetto_giorni: fields.targetProgettoGiorni,
-      target_produzione_giorni: fields.targetProduzioneGiorni,
-      target_montaggio_giorni: fields.targetMontaggioGiorni,
-      kpi_finestra_mesi: fields.kpiFinestraMesi,
-    })
+    .update({ kpi_finestra_mesi: fields.kpiFinestraMesi })
     .eq('id', user.id)
 
   if (error) {
-    console.error('aggiornaObiettiviKpi: update fallito', error)
+    console.error('aggiornaStatistiche: update fallito', error)
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 
-  // /statistiche non esiste più (unificazione Dashboard/Conclusi, 2026-08-16,
-  // vedi CLAUDE.md) — i lavori conclusi/rifiutati vivono ora dentro /lavori
-  // con un filtro, stessa revalidatePath('/lavori') qui sotto li copre già.
   revalidatePath('/profilo/impostazioni')
   revalidatePath('/lavori')
   return { ok: true }
@@ -234,4 +235,205 @@ export async function testaCredenzialiSmtp(): Promise<TestSmtpResult> {
   }
 
   return { ok: true, email: artigiano.email }
+}
+
+// =============================================================
+// Profilo — dati anagrafici, email, immagine (2026-08-19, vedi CLAUDE.md —
+// riorganizzazione Profilo/Impostazioni). Nuova pagina /profilo, distinta
+// da /profilo/impostazioni: qui vivono i dati che IDENTIFICANO l'artigiano
+// (nome, contatti, indirizzo, dati fiscali), non le sue preferenze
+// applicative. Prima di questa sessione nessuno di questi campi (a parte
+// nome/cognome/specializzazione/telefono/email/paese, raccolti in
+// registrazione) aveva alcuna UI di modifica.
+// =============================================================
+
+type AnagraficaFields = {
+  nome: string
+  cognome: string
+  ragioneSociale: string | null
+  partitaIva: string | null
+  codiceFiscale: string | null
+  specializzazione: string
+  telefono: string
+  via: string | null
+  civico: string | null
+  cap: string | null
+  localita: string | null
+  provincia: string | null
+  paese: string
+}
+
+export async function aggiornaAnagraficaArtigiano(fields: AnagraficaFields): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  if (!fields.nome.trim() || !fields.cognome.trim()) {
+    return { ok: false, error: 'Nome e cognome sono obbligatori' }
+  }
+  if (!fields.specializzazione.trim()) {
+    return { ok: false, error: 'La specializzazione è obbligatoria' }
+  }
+  if (!fields.telefono.trim()) {
+    return { ok: false, error: 'Il telefono è obbligatorio' }
+  }
+  // Stesso vincolo del CHECK a schema (artigiano_codice_fiscale_se_partita_iva,
+  // validato per davvero dalla migration 0055): anticipato qui lato
+  // applicativo per un messaggio d'errore leggibile invece del testo grezzo
+  // di una violazione di CHECK constraint.
+  if (fields.partitaIva?.trim() && !fields.codiceFiscale?.trim()) {
+    return { ok: false, error: 'Il codice fiscale è obbligatorio se inserisci la partita IVA' }
+  }
+
+  // specializzazione custom ("Altro..."): stesso comportamento del trigger
+  // di post-signup (handle_new_artigiano) — la registra come non ufficiale
+  // se non esiste già, da promuovere manualmente a voce del menu se
+  // ricorrente. Qui esplicito (non un trigger) perché questo è un UPDATE,
+  // non un INSERT su auth.users.
+  // Stesso `on conflict (valore) do nothing` del trigger SQL di post-signup
+  // (handle_new_artigiano) — qui espresso come upsert con ignoreDuplicates,
+  // l'equivalente lato client. Un errore qui (improbabile, solo la tabella
+  // dei suggerimenti) è solo loggato: non deve mai bloccare il salvataggio
+  // dell'anagrafica.
+  const { error: specErr } = await supabase
+    .from('specializzazione')
+    .upsert({ valore: fields.specializzazione.trim(), ufficiale: false }, { onConflict: 'valore', ignoreDuplicates: true })
+  if (specErr) console.error('aggiornaAnagraficaArtigiano: upsert specializzazione', specErr)
+
+  const { error } = await supabase
+    .from('artigiano')
+    .update({
+      nome: fields.nome.trim(),
+      cognome: fields.cognome.trim(),
+      ragione_sociale: fields.ragioneSociale?.trim() || null,
+      partita_iva: fields.partitaIva?.trim() || null,
+      codice_fiscale: fields.codiceFiscale?.trim() || null,
+      specializzazione: fields.specializzazione.trim(),
+      telefono: fields.telefono.trim(),
+      via: fields.via?.trim() || null,
+      civico: fields.civico?.trim() || null,
+      cap: fields.cap?.trim() || null,
+      localita: fields.localita?.trim() || null,
+      provincia: fields.provincia?.trim() || null,
+      paese: fields.paese,
+    })
+    .eq('id', user.id)
+
+  if (error) {
+    console.error('aggiornaAnagraficaArtigiano: update fallito', error)
+    // Il CHECK a schema (partita_iva/codice_fiscale) resta comunque la
+    // guardia autoritativa — la validazione applicativa sopra copre il
+    // caso comune, ma un bypass diretto (improbabile da questa UI) finisce
+    // comunque qui con un errore generico, non un crash.
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath('/profilo')
+  revalidatePath('/profilo/impostazioni')
+  return { ok: true }
+}
+
+// Email: NON un update diretto su artigiano.email — cambierebbe il dato
+// mostrato/usato come mittente senza toccare l'email di LOGIN
+// (auth.users.email), disallineando le due in modo silenzioso e
+// pericoloso (l'utente continuerebbe ad accedere con la vecchia email,
+// convinto di averla già cambiata). `supabase.auth.updateUser({ email })`
+// usa il flusso di conferma nativo di Supabase (double_confirm_changes=true
+// in questo progetto, vedi config.toml: un'email di conferma parte sia
+// verso il vecchio sia verso il nuovo indirizzo) — artigiano.email si
+// aggiorna da solo, in modo autoritativo, solo a conferma avvenuta
+// (trigger on_auth_user_email_updated, migration 0055), non da qui.
+// Questa action è quindi client-side nel vero senso: va chiamata dal
+// browser (supabase.auth.updateUser gira lato client con il client
+// standard, non da un Server Action con un client server-side scoped alla
+// richiesta) — non esposta qui, vedi components/profilo-anagrafica-form.tsx.
+
+const UPLOADS_DIR = path.join(process.cwd(), 'uploads')
+const LATO_AVATAR = 512
+const QUALITA_AVATAR = 85
+
+// Immagine profilo: upload con crop già fatto lato client (quadrato,
+// components/profilo-avatar-upload.tsx) — qui solo una normalizzazione
+// server-side difensiva (mai fidarsi ciecamente di un crop fatto nel
+// browser): resize forzato a un quadrato fisso 512×512 con `fit: 'cover'`,
+// innocuo su un input già quadrato, ma protegge comunque da un client
+// modificato che inviasse un'immagine non quadrata. Stesso toolchain
+// (sharp) e stessa cartella (UPLOADS_DIR) già in uso per gli allegati
+// satellite (lib/lavori/allegati.ts) — file su disco, non Supabase
+// Storage, coerente con l'infrastruttura esistente.
+export async function caricaImmagineProfilo(formData: FormData): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, error: 'Nessuna immagine selezionata' }
+  }
+
+  const { data: attuale } = await supabase.from('artigiano').select('immagine_profilo').eq('id', user.id).maybeSingle()
+
+  const cartella = path.join(UPLOADS_DIR, 'profili', user.id)
+  await fs.mkdir(cartella, { recursive: true })
+  const nomeFile = `${randomUUID()}.jpg`
+  const percorsoAssoluto = path.join(cartella, nomeFile)
+
+  try {
+    const bufferOriginale = Buffer.from(await file.arrayBuffer())
+    const buffer = await sharp(bufferOriginale, { animated: false })
+      .rotate()
+      .resize({ width: LATO_AVATAR, height: LATO_AVATAR, fit: 'cover' })
+      .jpeg({ quality: QUALITA_AVATAR })
+      .toBuffer()
+    await fs.writeFile(percorsoAssoluto, buffer)
+  } catch (err) {
+    console.error('caricaImmagineProfilo: elaborazione fallita', err)
+    return { ok: false, error: "Errore nell'elaborazione dell'immagine, riprova" }
+  }
+
+  const storagePath = path.posix.join('profili', user.id, nomeFile)
+  const { error } = await supabase.from('artigiano').update({ immagine_profilo: storagePath }).eq('id', user.id)
+
+  if (error) {
+    console.error('caricaImmagineProfilo: update fallito', error)
+    await fs.unlink(percorsoAssoluto).catch(() => {})
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  // Sostituisce l'immagine precedente (richiesto esplicitamente): rimossa
+  // solo DOPO che la nuova è già salvata e collegata con successo — se
+  // qualcosa fosse fallito sopra, la vecchia resta comunque valida invece
+  // di lasciare l'artigiano senza alcuna immagine.
+  if (attuale?.immagine_profilo) {
+    await fs.unlink(path.join(UPLOADS_DIR, attuale.immagine_profilo)).catch(() => {})
+  }
+
+  revalidatePath('/profilo')
+  return { ok: true }
+}
+
+export async function rimuoviImmagineProfilo(): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const { data: attuale } = await supabase.from('artigiano').select('immagine_profilo').eq('id', user.id).maybeSingle()
+  if (!attuale?.immagine_profilo) return { ok: true }
+
+  const { error } = await supabase.from('artigiano').update({ immagine_profilo: null }).eq('id', user.id)
+  if (error) {
+    console.error('rimuoviImmagineProfilo: update fallito', error)
+    return { ok: false, error: "Errore nella rimozione, riprova" }
+  }
+
+  await fs.unlink(path.join(UPLOADS_DIR, attuale.immagine_profilo)).catch(() => {})
+
+  revalidatePath('/profilo')
+  return { ok: true }
 }

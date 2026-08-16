@@ -22,8 +22,6 @@ export type Database = {
           immagine_profilo: string | null
           smtp_host: string | null; smtp_porta: number | null; smtp_username: string | null
           smtp_password_cifrata: string | null; smtp_sicurezza: 'ssl' | 'starttls' | 'nessuna' | null
-          target_preventivo_giorni: number; target_progetto_giorni: number
-          target_produzione_giorni: number; target_montaggio_giorni: number
           kpi_finestra_mesi: number
           mail_ordine_apertura_formale: string | null; mail_ordine_congedo_formale: string | null
           mail_ordine_apertura_informale: string | null; mail_ordine_congedo_informale: string | null
@@ -40,8 +38,6 @@ export type Database = {
           immagine_profilo?: string | null
           smtp_host?: string | null; smtp_porta?: number | null; smtp_username?: string | null
           smtp_password_cifrata?: string | null; smtp_sicurezza?: 'ssl' | 'starttls' | 'nessuna' | null
-          target_preventivo_giorni?: number; target_progetto_giorni?: number
-          target_produzione_giorni?: number; target_montaggio_giorni?: number
           kpi_finestra_mesi?: number
           mail_ordine_apertura_formale?: string | null; mail_ordine_congedo_formale?: string | null
           mail_ordine_apertura_informale?: string | null; mail_ordine_congedo_informale?: string | null

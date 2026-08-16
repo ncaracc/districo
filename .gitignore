@@ -42,3 +42,6 @@ next-env.d.ts
 
 # export dati reali (privacy) - vedi CLAUDE.md 2026-08-01
 docs/export-*.txt
+
+# storage allegati/avatar caricati (filesystem locale, volume montato in prod)
+/uploads
