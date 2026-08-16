@@ -31,6 +31,10 @@ export type DatiLavoroSatelliti = {
     descrizione: string | null
     stato: string
     cliente_id: string
+    // Aggiunta 2026-08-17 (vedi CLAUDE.md — "Scheda di lavoro" PDF): "Aperto:
+    // {data}" nell'header della prima pagina — nessun altro consumer prima
+    // d'ora, colonna già esistente a schema (mai letta da questo loader).
+    created_at: string
     accettato_at: string | null
     completato_at: string | null
     data_lavoro: string | null
@@ -110,7 +114,7 @@ export async function caricaDatiLavoroSatelliti(
   const { data: lavoro } = await supabase
     .from('lavoro')
     .select(
-      'id, titolo, descrizione, stato, cliente_id, accettato_at, completato_at, data_lavoro, indirizzo, civico, cap, citta, sigla_provincia, nazione',
+      'id, titolo, descrizione, stato, cliente_id, created_at, accettato_at, completato_at, data_lavoro, indirizzo, civico, cap, citta, sigla_provincia, nazione',
     )
     .eq('id', lavoroId)
     .maybeSingle()

@@ -83,7 +83,12 @@ type Gruppi = {
   chiusura: Satellite[]
 }
 
-function raggruppaSatelliti(satelliti: Satellite[]): Gruppi {
+// Esportata (2026-08-17, vedi CLAUDE.md — "Scheda di lavoro" PDF): riusata
+// anche da lib/lavori/scheda-lavoro-mapping.ts per costruire i blocchi del
+// PDF con lo stesso identico raggruppamento/numerazione già in uso per la
+// tabella attività — nessuna logica duplicata, nessun comportamento
+// cambiato per i chiamanti esistenti di questo file.
+export function raggruppaSatelliti(satelliti: Satellite[]): Gruppi {
   const perData = (a: Satellite, b: Satellite) => a.data_creazione.localeCompare(b.data_creazione)
   return {
     briefing: satelliti.filter((s) => s.tipo === 'appuntamento' && s.tipo_appuntamento === 'briefing').sort(perData),
@@ -106,7 +111,8 @@ function raggruppaSatelliti(satelliti: Satellite[]): Gruppi {
 // Nome numerato quando c'è più di un'istanza dello stesso tipo (es.
 // "Campionatura 2") — stesso pattern già in uso per Briefing/Acconto/
 // Campionatura/Costruzione/Noleggio/Verifica misure/Montaggio.
-function nomeNumerato(gruppo: Satellite[], satelliteId: string, base: string): string {
+// Esportata insieme a raggruppaSatelliti sopra, stesso motivo.
+export function nomeNumerato(gruppo: Satellite[], satelliteId: string, base: string): string {
   const indice = gruppo.findIndex((s) => s.id === satelliteId)
   return gruppo.length > 1 ? `${base} ${indice + 1}` : base
 }
@@ -126,7 +132,8 @@ function nomeNumerato(gruppo: Satellite[], satelliteId: string, base: string): s
 // chiamata solo per Acquisto in entrambi i punti dell'app — i suoi rami
 // per Appuntamento/Campione erano già codice morto, mai raggiunti, rimossi
 // insieme).
-function labelAcquisto(s: Satellite): string {
+// Esportata insieme a raggruppaSatelliti sopra, stesso motivo.
+export function labelAcquisto(s: Satellite): string {
   return s.acquisto_categoria ? `Acquisto ${s.acquisto_categoria}` : 'Acquisto'
 }
 

@@ -138,6 +138,18 @@ export const DOT_COLOR: Record<ColoreSemaforo, string> = {
   green: 'bg-green-500',
 }
 
+// Equivalenti esadecimali delle stesse classi Tailwind sopra (red-500/
+// yellow-500/green-500) — necessari per "Scheda di lavoro" PDF (2026-08-17,
+// vedi CLAUDE.md): @react-pdf/renderer usa un proprio StyleSheet, non
+// Tailwind, nessuna classe CSS applicabile lì. Unica fonte di verità per
+// questi valori (non duplicati altrove): se la palette Tailwind del
+// progetto cambia, aggiornare qui.
+export const DOT_COLOR_HEX: Record<ColoreSemaforo, string> = {
+  red: '#ef4444',
+  yellow: '#eab308',
+  green: '#22c55e',
+}
+
 // --- Preventivo ---
 // Modello a due flag booleani indipendenti (preventivo_accettato/
 // preventivo_rifiutato), non più il vecchio stato a 5 valori condiviso con

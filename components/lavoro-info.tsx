@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LavoroForm } from '@/components/lavoro-form'
 import { IconaMatita, IconaPin } from '@/components/icons'
+import { LavoroDocumentoBottone } from '@/components/lavoro-documento-bottone'
 import { PAESE_DEFAULT } from '@/lib/paesi'
 import { urlGoogleMaps } from '@/lib/indirizzo'
 import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
@@ -119,29 +120,39 @@ export function LavoroInfo({
           text-gray-500 troppo tenue accanto al titolo in grassetto. */}
       <div className="flex items-center justify-between gap-3">
         {clienteNome && <p className="text-sm font-medium text-gray-600">{clienteNome}</p>}
-        {isOwner && !modifica && (
-          concluso ? (
-            // Nessuna icona (il vecchio bottone "Riapri lavoro" non ne aveva
-            // una) — stesse classi/posizione del bottone Modifica per
-            // coerenza visiva, solo etichetta/azione diverse.
-            <button
-              type="button"
-              onClick={handleRiapri}
-              disabled={riapertura}
-              className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              {riapertura ? 'Salvataggio…' : 'Riapri lavoro'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setModifica(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              <IconaMatita className="h-4 w-4" />
-              Modifica
-            </button>
-          )
+        {!modifica && (
+          <div className="flex shrink-0 items-center gap-1">
+            {/* "Scheda di lavoro" PDF (2026-08-17, vedi CLAUDE.md): visibile
+                a chiunque possa vedere questo Lavoro (owner E ospite "a
+                quattro mani"), non solo isOwner come Modifica/Riapri
+                sotto — nessun dato economico nel PDF, nessuna azione di
+                scrittura, coerente con l'accesso già previsto al Lavoro
+                stesso. */}
+            <LavoroDocumentoBottone lavoroId={lavoroId} />
+            {isOwner &&
+              (concluso ? (
+                // Nessuna icona (il vecchio bottone "Riapri lavoro" non ne
+                // aveva una) — stesse classi/posizione del bottone Modifica
+                // per coerenza visiva, solo etichetta/azione diverse.
+                <button
+                  type="button"
+                  onClick={handleRiapri}
+                  disabled={riapertura}
+                  className="shrink-0 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {riapertura ? 'Salvataggio…' : 'Riapri lavoro'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setModifica(true)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <IconaMatita className="h-4 w-4" />
+                  Modifica
+                </button>
+              ))}
+          </div>
         )}
       </div>
 

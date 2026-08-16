@@ -165,7 +165,7 @@ export function LavoriListaFiltrata({
                     {l.ha_acconto_incassato && <sup className="text-red-500">*</sup>}
                   </span>
                   <div className="flex items-center gap-2">
-                    <LavoroDocumentoBottone grande />
+                    <LavoroDocumentoBottone lavoroId={l.id} grande />
                     <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} grande />
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export function LavoriListaFiltrata({
                     </td>
                     <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
                       <div className="flex items-center justify-end gap-1">
-                        <LavoroDocumentoBottone />
+                        <LavoroDocumentoBottone lavoroId={l.id} />
                         <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
                       </div>
                     </td>
