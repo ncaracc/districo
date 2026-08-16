@@ -6,31 +6,21 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { clearRememberCookies } from '@/lib/auth/remember'
 import { IconaChiudi } from '@/components/icons'
-import { ModalTest } from '@/components/test/modal-test'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { ORIGINE_INFO, leggiOrigineSezioneClient, type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
+// "Conclusi" rimossa (unificazione Dashboard/Conclusi in un'unica vista con
+// filtri, 2026-08-16, vedi CLAUDE.md) — /statistiche non esiste più, i
+// lavori conclusi/rifiutati si trovano ora dentro /lavori con un filtro.
+// "Dashboard" rinominata "Lavori": non rappresenta più solo la vista
+// "in corso" ma tutti i lavori con filtro — nome più diretto, coerente col
+// path (/lavori) e con l'etichetta già usata per la voce di menu
+// equivalente ("Lavori associati" su Cliente, ecc.). Scelta stilistica, non
+// vincolata dalla richiesta.
 const VOCI_ATTIVE = [
-  { href: '/lavori', label: 'Dashboard' },
+  { href: '/lavori', label: 'Lavori' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
-  { href: '/statistiche', label: 'Conclusi' },
 ]
-
-// Causa reale del bug di provenienza scoperto in questa sessione (vedi
-// CLAUDE.md e middleware.ts): /lavori e /statistiche sono voci SEMPRE
-// visibili nel menu, quindi Next.js le prefetcha automaticamente in
-// background non appena una pagina qualunque monta — ogni prefetch passa dal
-// middleware e sovrascrive silenziosamente il cookie "sezione di origine",
-// indipendentemente da dove l'utente sta realmente guardando. Impossibile
-// distinguere un prefetch da una navigazione reale DENTRO al middleware
-// (Next.js nasconde l'header che lo segnalerebbe, per design — vedi
-// middleware.ts). L'unico fix robusto è a monte: questi Link non vengono mai
-// prefetchati, quindi il middleware vede solo navigazioni reali per questi
-// due path. Applicato a ogni Link che punta esattamente a uno dei due (logo,
-// voci di menu desktop/mobile, link "← ..." in origine-link.tsx) — non alle
-// altre voci (Clienti/Fornitori/Profilo), che non toccano questo cookie.
-const PATH_SENSIBILI_PREFETCH = ['/lavori', '/statistiche']
 
 // Profilo/Impostazioni ha un trattamento a parte (icona ingranaggio invece di
 // testo su desktop, stesso principio già applicato a "Esci"): non fa parte
@@ -44,28 +34,14 @@ const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata',
 
 // Una voce è "attiva" sulla pagina esatta o su una sua sotto-pagina (es.
 // /lavori/[id], /clienti/nuovo) — non solo su un match esatto dell'href.
+// Prima dell'unificazione Dashboard/Conclusi (2026-08-16) questa funzione
+// veniva scavalcata su Cliente/Fornitore/Dettaglio Lavoro da una logica di
+// "provenienza" (inCatenaConOrigine, rimossa): esisteva solo per decidere
+// se evidenziare "Dashboard" o "Conclusi", due sezioni ora unificate in una
+// — senza quella distinzione, il match per prefisso qui sotto è già di per
+// sé corretto per ogni pagina di dettaglio (nessuna eccezione da gestire).
 function voceAttiva(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`)
-}
-
-// Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md): "ricorda da
-// dove sei partito (Dashboard o Conclusi) e torna sempre lì, ovunque tu sia
-// arrivato nella catena" — non un breadcrumb verso la pagina immediatamente
-// precedente. Si applica a OGNI pagina di dettaglio raggiungibile lungo la
-// catena Dashboard/Conclusi → Cliente/Fornitore → Lavori associati →
-// Dettaglio Lavoro, non solo all'ultimo hop: /lavori/[id] e le sue
-// sotto-pagine, ma anche /clienti/[id] e /fornitori/[id] — su queste ultime
-// l'evidenziazione "Clienti"/"Fornitori" lascia quindi il posto a
-// "Dashboard"/"Conclusi" secondo l'origine, esattamente come già avveniva
-// solo per il Dettaglio Lavoro prima di questa sessione. Le pagine di
-// ELENCO (/lavori, /clienti, /fornitori, /statistiche) e le pagine di
-// creazione (*/nuovo) restano fuori: sono destinazioni dirette, non hop di
-// una catena con un'origine da ricordare.
-function inCatenaConOrigine(pathname: string) {
-  const prefissi = ['/lavori/', '/clienti/', '/fornitori/']
-  const esclusiPrefissi = ['/lavori/nuovo', '/clienti/nuovo', '/fornitori/nuovo']
-  if (esclusiPrefissi.some((e) => pathname === e || pathname.startsWith(`${e}/`))) return false
-  return prefissi.some((p) => pathname.startsWith(p))
 }
 
 // Icona "power" (spegnimento/uscita): linee sottili, nessun riempimento,
@@ -115,51 +91,24 @@ function BadgeConteggio({ conteggio }: { conteggio: number }) {
 export function AppNav({
   isLoggedIn,
   appuntamentiScaduti = 0,
-  origineSezione,
 }: {
   isLoggedIn: boolean
   // Conteggio appuntamenti scaduti (data passata, mai conclusi) su tutti i
   // Lavori dell'artigiano — calcolato server-side in app/layout.tsx
   // (RPC appuntamenti_scaduti_count, migration 0027) e passato qui solo per
-  // il rendering. Il badge è agganciato alla voce "Dashboard": cliccarlo
-  // porta già lì, nessun elenco/dropdown dedicato in questo sprint.
+  // il rendering. Il badge è agganciato alla voce "Lavori": cliccarlo porta
+  // già lì, nessun elenco/dropdown dedicato in questo sprint. Resta un
+  // alert SLA indipendente dal filtro attivo su quella pagina — confermato
+  // esplicitamente con l'utente in sessione (2026-08-16, vedi CLAUDE.md) di
+  // NON farlo diventare "conteggio dei lavori nel filtro corrente": quel
+  // numero vive ora nel primo KPI della pagina /lavori stessa, il badge qui
+  // resta un alert, non un contatore.
   appuntamentiScaduti?: number
-  // Provenienza (vedi CLAUDE.md e lib/nav/origine-sezione.ts): letta
-  // server-side (cookie) nel root layout, passata qui SOLO come valore
-  // iniziale per l'hydration (deve combaciare con l'HTML server-renderizzato
-  // al primo paint, altrimenti React segnala un mismatch) — non più la
-  // fonte di verità dopo il mount. Bug scoperto in sessione successiva
-  // (2026-08-14, vedi CLAUDE.md): AppNav vive nel root layout, che Next.js
-  // non ri-esegue ad ogni navigazione client-side (le UI condivise
-  // persistono per design) — la prop restava quindi congelata al valore
-  // dell'ultimo hard reload, mai aggiornata dalle navigazioni successive.
-  origineSezione: SezioneOrigine
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  // Rilettura client-side ad ogni cambio pathname (leggiOrigineSezioneClient,
-  // vedi lib/nav/origine-sezione.ts): legge document.cookie direttamente,
-  // fuori da qualunque payload RSC cacheabile — l'unico modo verificato per
-  // riflettere sempre il valore corrente, sia per il problema del root
-  // layout sopra sia per lo staleness da prefetch dello stesso bug fix.
-  // "Adjusting state during rendering" (pattern ufficiale React), non un
-  // useEffect: il linting di questo progetto vieta setState sincrono dentro
-  // un effect (react-hooks/set-state-in-effect, compatibilità React
-  // Compiler) — stesso pattern usato in components/origine-link.tsx.
-  const [pathnamePrecedente, setPathnamePrecedente] = useState(pathname)
-  const [origineSezioneClient, setOrigineSezioneClient] = useState(origineSezione)
-  if (pathname !== pathnamePrecedente) {
-    setPathnamePrecedente(pathname)
-    setOrigineSezioneClient(leggiOrigineSezioneClient())
-  }
-  const inCatena = inCatenaConOrigine(pathname)
-  const hrefAttivoOrigine = ORIGINE_INFO[origineSezioneClient].href
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
-  // Ambiente di iterazione rapida sul design (vedi components/test/modal-test.tsx
-  // e CLAUDE.md quando aggiornato) — non un satellite reale, nessuna
-  // restrizione d'ambiente: visibile in produzione come le altre voci.
-  const [apertoTest, setApertoTest] = useState(false)
 
   // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
   // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
@@ -215,7 +164,7 @@ export function AppNav({
           usano CONTENITORE_LARGO sia per quelle più strette
           (CONTENITORE_STRETTO), tutte centrate allo stesso modo. */}
       <div className={`${CONTENITORE_LARGO} px-4 py-5 flex items-center justify-between md:grid md:grid-cols-3 md:items-center`}>
-        <Link href="/lavori" prefetch={false} className="flex items-center py-1">
+        <Link href="/lavori" className="flex items-center py-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/districo_logo.svg" alt="Districo" className="h-14 w-auto" />
         </Link>
@@ -227,12 +176,11 @@ export function AppNav({
             del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
           {VOCI_ATTIVE.map((voce) => {
-            const attiva = inCatena ? voce.href === hrefAttivoOrigine : voceAttiva(pathname, voce.href)
+            const attiva = voceAttiva(pathname, voce.href)
             return (
               <Link
                 key={voce.href}
                 href={voce.href}
-                prefetch={PATH_SENSIBILI_PREFETCH.includes(voce.href) ? false : undefined}
                 className={`border-b-2 pb-0.5 text-sm transition-colors ${
                   attiva
                     ? 'border-gray-900 font-medium text-gray-900'
@@ -244,17 +192,6 @@ export function AppNav({
               </Link>
             )
           })}
-          {/* Voce "Test": non è una pagina/route (nessun href), apre la
-              Modal di test invece di navigare — stesso trattamento visivo
-              delle altre voci (mai "attiva", non essendo legata a un
-              pathname). */}
-          <button
-            type="button"
-            onClick={() => setApertoTest(true)}
-            className="border-b-2 border-transparent pb-0.5 text-sm text-gray-700 transition-colors hover:border-gray-300 hover:text-gray-900"
-          >
-            Test
-          </button>
           {VOCI_IN_ARRIVO.map((label) => (
             <span key={label} className="border-b-2 border-transparent pb-0.5 text-sm text-gray-300 cursor-not-allowed">
               {label}
@@ -339,12 +276,11 @@ export function AppNav({
 
         <ul className="flex-1 overflow-y-auto px-4 py-4">
           {VOCI_ATTIVE.map((voce) => {
-            const attiva = inCatena ? voce.href === hrefAttivoOrigine : voceAttiva(pathname, voce.href)
+            const attiva = voceAttiva(pathname, voce.href)
             return (
               <li key={voce.href}>
                 <Link
                   href={voce.href}
-                  prefetch={PATH_SENSIBILI_PREFETCH.includes(voce.href) ? false : undefined}
                   onClick={() => setAperto(false)}
                   className={`block rounded-lg border-l-2 py-4 pl-3 pr-2 text-xl transition-colors hover:bg-gray-50 ${
                     attiva ? 'border-gray-900 font-medium text-gray-900' : 'border-transparent text-gray-600'
@@ -356,18 +292,6 @@ export function AppNav({
               </li>
             )
           })}
-          <li>
-            <button
-              type="button"
-              onClick={() => {
-                setApertoTest(true)
-                setAperto(false)
-              }}
-              className="block w-full rounded-lg border-l-2 border-transparent py-4 pl-3 pr-2 text-left text-xl text-gray-600 transition-colors hover:bg-gray-50"
-            >
-              Test
-            </button>
-          </li>
           {VOCI_IN_ARRIVO.map((label) => (
             <li key={label}>
               <span className="flex cursor-not-allowed items-center justify-between border-l-2 border-transparent py-4 pl-3 pr-2 text-xl text-gray-400">
@@ -400,7 +324,6 @@ export function AppNav({
         </ul>
       </nav>
     </header>
-    <ModalTest aperto={apertoTest} onChiudi={() => setApertoTest(false)} />
     </>
   )
 }

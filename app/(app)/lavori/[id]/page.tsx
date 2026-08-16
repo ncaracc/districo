@@ -4,7 +4,6 @@ import { LavoroDettaglioSezioni } from '@/components/lavoro-dettaglio-sezioni'
 import { caricaDatiLavoroSatelliti } from '@/lib/lavori/dettaglio-lavoro-data'
 import { costruisciVociAttivita } from '@/lib/lavori/satelliti-render'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { leggiOrigineSezione } from '@/lib/nav/origine-sezione.server'
 
 // Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md): questa
 // pagina non costruisce più il contenuto React di ciascun satellite (niente
@@ -31,10 +30,6 @@ export default async function LavoroDettaglioPage({
 
   const { lavoro } = dati
   const righeTabella = costruisciVociAttivita(dati)
-  // Provenienza (vedi CLAUDE.md e lib/nav/origine-sezione.ts): Dashboard o
-  // Conclusi, qualunque sia la catena di pagine intermedie attraversata per
-  // arrivare qui (es. Cliente → Lavori associati).
-  const origineSezione = await leggiOrigineSezione()
 
   return (
     // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
@@ -54,7 +49,6 @@ export default async function LavoroDettaglioPage({
           nessuno stato coinvolto) passa come children, invariato. */}
       <LavoroDettaglioSezioni
         lavoroId={lavoro.id}
-        origineSezione={origineSezione}
         isOwner={dati.isOwner}
         stato={lavoro.stato}
         accettatoAt={lavoro.accettato_at}

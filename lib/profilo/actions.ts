@@ -39,9 +39,11 @@ export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 
+  // /statistiche non esiste più (unificazione Dashboard/Conclusi, 2026-08-16,
+  // vedi CLAUDE.md) — i lavori conclusi/rifiutati vivono ora dentro /lavori
+  // con un filtro, stessa revalidatePath('/lavori') qui sotto li copre già.
   revalidatePath('/profilo/impostazioni')
   revalidatePath('/lavori')
-  revalidatePath('/statistiche')
   return { ok: true }
 }
 

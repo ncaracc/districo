@@ -1,6 +1,9 @@
 export type KpiDashboard = {
   lavori_in_corso: number
   importo_lavori_accettati: number
+  // Nuovo il 2026-08-16 (unificazione Dashboard/Conclusi, vedi CLAUDE.md):
+  // solo per il filtro "Conclusi" ("Valore totale generato").
+  valore_totale_completati: number
   tempo_preventivo_giorni: number | null
   tempo_preventivo_campione: number
   tempo_completamento_giorni: number | null

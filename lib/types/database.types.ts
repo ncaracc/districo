@@ -285,7 +285,12 @@ export type Database = {
       possiede_cliente_del_lavoro: { Args: { p_lavoro_id: string }; Returns: boolean }
       appuntamenti_scaduti_count: { Args: Record<string, never>; Returns: number }
       lavori_dashboard: {
-        Args: Record<string, never>
+        // p_filtro (2026-08-16, unificazione Dashboard/Conclusi, vedi
+        // CLAUDE.md): 'in_corso' (default) | 'conclusi' | 'rifiutati' |
+        // qualunque altro valore per "Tutti" — solo p_filtro?: string,
+        // non un literal union, per non dover tenere questo tipo
+        // sincronizzato ogni volta 1:1 col CASE lato SQL.
+        Args: { p_filtro?: string }
         Returns: {
           id: string; titolo: string
           stato: 'opportunita' | 'accettato' | 'rifiutato' | 'completato'
@@ -293,6 +298,7 @@ export type Database = {
           punteggio_urgenza: number
           satelliti_rossi: number; satelliti_gialli: number; satelliti_verdi: number
           valore_preventivo_accettato: number | null
+          data_decisione_preventivo: string | null
           ha_appuntamento_scaduto: boolean
           ha_acconto_incassato: boolean
         }[]
@@ -302,6 +308,7 @@ export type Database = {
         Returns: {
           lavori_in_corso: number
           importo_lavori_accettati: number
+          valore_totale_completati: number
           tempo_preventivo_giorni: number | null; tempo_preventivo_campione: number
           tempo_completamento_giorni: number | null; tempo_completamento_campione: number
         }[]

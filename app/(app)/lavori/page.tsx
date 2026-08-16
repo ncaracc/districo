@@ -1,55 +1,34 @@
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getNomeInvitante } from '@/lib/lavoro-artigiani/dettagli'
 import { KpiDashboardCards } from '@/components/kpi-dashboard'
-import { LavoroEliminaBottone } from '@/components/lavoro-elimina-bottone'
-import { LavoroDocumentoBottone } from '@/components/lavoro-documento-bottone'
 import { PillolaFlottante } from '@/components/pillola-flottante'
-import { IconaCalendario } from '@/components/icons'
-import { formattaValuta } from '@/lib/formato-valuta'
-import { STATO_LAVORO_LABEL, STATO_LAVORO_COLORE } from '@/lib/lavori/stato-lavoro'
+import { FiltroLavoriChip } from '@/components/filtro-lavori-chip'
+import { LavoriListaFiltrata } from '@/components/lavori-lista-filtrata'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import { InvitoPendingCard } from './invito-pending-card'
+import { parseFiltro, pFiltroSql, ordinaLavori } from '@/lib/lavori/lista-filtri'
 
-const DOT_COLOR = { rosso: 'bg-red-500', giallo: 'bg-yellow-500', verde: 'bg-green-500' } as const
-
-// Sprint E (2026-08-03): il numero va dentro il pallino, non più a fianco.
-// h-6 w-6 (era il pallino decorativo h-2 w-2) per restare leggibile anche
-// con due cifre — verificato visivamente in fase di test con un lavoro a
-// doppia cifra (vedi CLAUDE.md).
-function BadgeConteggio({ colore, valore }: { colore: keyof typeof DOT_COLOR; valore: number }) {
-  return (
-    <span
-      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium text-white ${DOT_COLOR[colore]}`}
-    >
-      {valore}
-    </span>
-  )
-}
-
-function RiepilogoSatelliti({
-  rossi,
-  gialli,
-  verdi,
+// Unificazione Dashboard + Conclusi (2026-08-16, vedi CLAUDE.md): questa
+// pagina sostituisce sia la vecchia /lavori (Dashboard, sempre e solo
+// stato in opportunita/accettato) sia /statistiche (Conclusi, rimossa —
+// vedi middleware.ts per il redirect dei vecchi bookmark). Un solo filtro
+// di stato alla volta via searchParams (`filtro`), passato a
+// lavori_dashboard(p_filtro) — RPC parametrizzata invece di due query
+// separate quasi identiche (verificato in fase di analisi preliminare:
+// era la vera duplicazione da consolidare). La ricerca cliente
+// (`cliente`) filtra la lista lato client (LavoriListaFiltrata) sul
+// risultato già caricato per questo filtro — non altera l'ordinamento né
+// i KPI, che restano scoped al solo filtro di stato come richiesto.
+export default async function LavoriPage({
+  searchParams,
 }: {
-  rossi: number
-  gialli: number
-  verdi: number
+  searchParams: Promise<{ filtro?: string; cliente?: string }>
 }) {
-  if (rossi + gialli + verdi === 0) {
-    return <span className="text-xs text-gray-400">Nessuna attività</span>
-  }
-  return (
-    <div className="flex items-center gap-2">
-      {rossi > 0 && <BadgeConteggio colore="rosso" valore={rossi} />}
-      {gialli > 0 && <BadgeConteggio colore="giallo" valore={gialli} />}
-      {verdi > 0 && <BadgeConteggio colore="verde" valore={verdi} />}
-    </div>
-  )
-}
+  const { filtro: filtroParam, cliente: clienteParam } = await searchParams
+  const filtro = parseFiltro(filtroParam)
+  const clienteQuery = clienteParam ?? ''
 
-export default async function LavoriPage() {
   const supabase = await createClient()
   const {
     data: { user },
@@ -73,31 +52,40 @@ export default async function LavoriPage() {
     }),
   )
 
-  const [{ data: lavori }, { data: kpiGrezzo }] = await Promise.all([
-    supabase.rpc('lavori_dashboard'),
+  const [{ data: lavoriGrezzi }, { data: kpiGrezzo }] = await Promise.all([
+    supabase.rpc('lavori_dashboard', { p_filtro: pFiltroSql(filtro) }),
     supabase.rpc('kpi_dashboard'),
   ])
   const kpi = kpiGrezzo?.[0] ?? null
+  const lavoriNonOrdinati = lavoriGrezzi ?? []
 
-  // Indicatore "* almeno un acconto incassato" sul Valore (vedi CLAUDE.md):
-  // ha_acconto_incassato arriva già calcolato da lavori_dashboard() (stesso
-  // join laterale usato per i conteggi rosso/giallo/verde, nessuna query
-  // aggiuntiva per riga) — qui solo la condizione per mostrare la nota
-  // sotto la tabella/le card, solo se almeno una riga visibile la richiede.
-  const mostraNotaAccontoIncassato = (lavori ?? []).some((l) => l.ha_acconto_incassato)
+  // Ordinamento — dipende dal filtro attivo (deciso con l'utente in
+  // sessione, vedi CLAUDE.md e lib/lavori/lista-filtri.ts). Il filtro
+  // "conclusi" richiede chiusura_data (vive su lavoro_satellite, non su
+  // una colonna diretta di lavoro) — stessa query mirata già in uso nella
+  // vecchia pagina Conclusi, eseguita solo quando serve davvero.
+  let chiusuraDataPerLavoroId = new Map<string, string | null>()
+  if (filtro === 'conclusi') {
+    const lavoroIds = lavoriNonOrdinati.map((l) => l.id)
+    const { data: chiusure } =
+      lavoroIds.length > 0
+        ? await supabase.from('lavoro_satellite').select('lavoro_id, chiusura_data').eq('tipo', 'chiusura').in('lavoro_id', lavoroIds)
+        : { data: [] }
+    chiusuraDataPerLavoroId = new Map((chiusure ?? []).map((c) => [c.lavoro_id, c.chiusura_data]))
+  }
+  const lavori = ordinaLavori(lavoriNonOrdinati, filtro, chiusuraDataPerLavoroId)
 
-  const clienteIds = [...new Set((lavori ?? []).map((l) => l.cliente_id))]
-
+  const clienteIds = [...new Set(lavori.map((l) => l.cliente_id))]
   const { data: clienti } =
     clienteIds.length > 0
       ? await supabase.from('cliente').select('id, nome').in('id', clienteIds)
       : { data: [] }
-  const nomeClientePerId = new Map((clienti ?? []).map((c) => [c.id, c.nome]))
+  const nomeClientePerId: Record<string, string> = {}
+  for (const c of clienti ?? []) nomeClientePerId[c.id] = c.nome
 
   return (
     // Contenitore largo (sessione "coerenza layout desktop", 2026-08-10 —
-    // vedi CLAUDE.md e lib/layout-container.ts), stesso usato ora da tutte
-    // le pagine principali (Clienti, Fornitori, dettaglio Lavoro, Conclusi).
+    // vedi CLAUDE.md e lib/layout-container.ts).
     <div className={CONTENITORE_LARGO}>
       {/* pb-24: spazio riservato in fondo alla pagina perché la pillola
           "Nuovo lavoro" (fixed, sempre visibile) non copra mai l'ultima
@@ -111,142 +99,20 @@ export default async function LavoriPage() {
           </div>
         )}
 
-        <h1 className="mb-6 text-2xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900">Lavori</h1>
 
-        {/* Bottone flottante (sessione affinamento UI 2026-08-08, vedi
-            CLAUDE.md): sostituisce il vecchio Link inline in testata,
-            stesso pattern "pillola" del bottone Salva validato nei modali
-            satellite — sempre visibile durante lo scroll della lista. */}
         <PillolaFlottante href="/lavori/nuovo">Nuovo lavoro</PillolaFlottante>
 
-        <KpiDashboardCards kpi={kpi} />
+        <FiltroLavoriChip filtro={filtro} cliente={clienteQuery} />
 
-        {!lavori || lavori.length === 0 ? (
-          <p className="text-sm text-gray-500">Non hai ancora nessun lavoro aperto.</p>
-        ) : (
-          <>
-            {/* Sprint E (2026-08-03): card impilate su mobile, stesse 6 info
-                della tabella desktop (Cliente/Descrizione/Stato/Avanzamento/
-                Valore/Azioni) senza scroll interno/orizzontale — sostituisce
-                lo scroll nascosto del contenitore overflow-x-auto sotto md,
-                dove la tabella a 6 colonne non ci sta comunque. Il bottone
-                elimina resta fuori dal Link (come già in tabella) per non
-                annidare un <button> dentro un <a>. */}
-            <div className="space-y-3 md:hidden">
-              {lavori.map((l) => (
-                <div key={l.id} className="rounded-lg border border-gray-200 p-4">
-                  <Link href={`/lavori/${l.id}`} className="block">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs text-gray-500">{nomeClientePerId.get(l.cliente_id)}</p>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${STATO_LAVORO_COLORE[l.stato] ?? 'bg-gray-100 text-gray-600'}`}
-                      >
-                        {STATO_LAVORO_LABEL[l.stato] ?? l.stato}
-                      </span>
-                    </div>
-                    <p className="mt-1 flex items-center gap-1.5 text-sm font-medium text-gray-900">
-                      {l.titolo}
-                      {l.ha_appuntamento_scaduto && (
-                        <span title="Appuntamento scaduto" aria-label="Appuntamento scaduto" className="shrink-0">
-                          <IconaCalendario className="h-4 w-4 text-red-500" />
-                        </span>
-                      )}
-                    </p>
-                    <div className="mt-3">
-                      <RiepilogoSatelliti rossi={l.satelliti_rossi} gialli={l.satelliti_gialli} verdi={l.satelliti_verdi} />
-                    </div>
-                  </Link>
-                  <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-3">
-                    <span className="text-base font-bold text-gray-900">
-                      {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
-                      {l.ha_acconto_incassato && <sup className="text-red-500">*</sup>}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <LavoroDocumentoBottone grande />
-                      <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} grande />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <KpiDashboardCards kpi={kpi} filtro={filtro} conteggio={lavori.length} />
 
-            <div className="hidden overflow-x-auto rounded-lg border border-gray-200 md:block">
-              <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-500">
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3">Descrizione</th>
-                  <th className="px-4 py-3">Stato</th>
-                  <th className="px-4 py-3">Avanzamento</th>
-                  <th className="px-4 py-3 text-right">Valore</th>
-                  <th className="px-4 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {lavori.map((l) => (
-                  <tr key={l.id} className="group">
-                    <td className="p-0">
-                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-gray-500 transition-colors group-hover:bg-gray-50">
-                        {nomeClientePerId.get(l.cliente_id)}
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link
-                        href={`/lavori/${l.id}`}
-                        className="flex items-center gap-1.5 px-4 py-3 font-medium text-gray-900 transition-colors group-hover:bg-gray-50"
-                      >
-                        {l.titolo}
-                        {l.ha_appuntamento_scaduto && (
-                          <span title="Appuntamento scaduto" aria-label="Appuntamento scaduto" className="shrink-0">
-                            <IconaCalendario className="h-4 w-4 text-red-500" />
-                          </span>
-                        )}
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 transition-colors group-hover:bg-gray-50">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATO_LAVORO_COLORE[l.stato] ?? 'bg-gray-100 text-gray-600'}`}
-                        >
-                          {STATO_LAVORO_LABEL[l.stato] ?? l.stato}
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 transition-colors group-hover:bg-gray-50">
-                        <RiepilogoSatelliti
-                          rossi={l.satelliti_rossi}
-                          gialli={l.satelliti_gialli}
-                          verdi={l.satelliti_verdi}
-                        />
-                      </Link>
-                    </td>
-                    <td className="p-0">
-                      <Link href={`/lavori/${l.id}`} className="block px-4 py-3 text-right text-gray-700 transition-colors group-hover:bg-gray-50">
-                        {l.valore_preventivo_accettato != null ? formattaValuta(l.valore_preventivo_accettato) : '—'}
-                        {l.ha_acconto_incassato && <sup className="text-red-500">*</sup>}
-                      </Link>
-                    </td>
-                    <td className="px-2 py-3 text-right transition-colors group-hover:bg-gray-50">
-                      <div className="flex items-center justify-end gap-1">
-                        <LavoroDocumentoBottone />
-                        <LavoroEliminaBottone lavoroId={l.id} titolo={l.titolo} />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-
-            {/* Nota fuori dal bordo/contenitore di card e tabella (non una
-                riga aggiuntiva) — condivisa tra le due viste, visibile solo
-                se almeno una riga mostra l'asterisco. */}
-            {mostraNotaAccontoIncassato && (
-              <p className="mt-2 text-xs text-gray-500">* Il lavoro ha almeno un acconto incassato.</p>
-            )}
-          </>
-        )}
+        <LavoriListaFiltrata
+          lavori={lavori}
+          nomeClientePerId={nomeClientePerId}
+          filtro={filtro}
+          clienteQueryIniziale={clienteQuery}
+        />
       </div>
     </div>
   )

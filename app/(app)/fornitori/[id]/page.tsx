@@ -1,10 +1,9 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { FornitoreForm } from '@/components/fornitore-form'
 import { FornitoreSedi } from '@/components/fornitore-sedi'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { OrigineLink } from '@/components/origine-link'
-import { leggiOrigineSezione } from '@/lib/nav/origine-sezione.server'
 
 export default async function FornitoreDettaglioPage({
   params,
@@ -21,15 +20,6 @@ export default async function FornitoreDettaglioPage({
     .maybeSingle()
 
   if (!fornitore) notFound()
-
-  // Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
-  // lib/nav/origine-sezione.ts): stesso trattamento di Cliente, per
-  // coerenza/simmetria tra le due sezioni anagrafiche — nessuna catena reale
-  // verso un Lavoro esiste oggi da Fornitore (nessun elenco "Lavori
-  // associati" qui), il link riflette comunque la sezione di origine invece
-  // di non esistere affatto. Letto qui solo come valore iniziale per
-  // l'hydration di OrigineLink (Client Component, vedi CLAUDE.md 2026-08-14).
-  const origineIniziale = await leggiOrigineSezione()
 
   const { data: sedi } = await supabase
     .from('fornitore_sede')
@@ -64,7 +54,9 @@ export default async function FornitoreDettaglioPage({
     // le pagine principali (Dashboard, Clienti, dettaglio Lavoro, Conclusi).
     <div className={CONTENITORE_LARGO}>
       <div className="mb-2">
-        <OrigineLink origineIniziale={origineIniziale} />
+        <Link href="/fornitori" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          ← Fornitori
+        </Link>
       </div>
 
       <div className="mb-8">

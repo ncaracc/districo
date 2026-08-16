@@ -1,10 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { LavoroInfo, type LavoroInfoFields } from '@/components/lavoro-info'
 import { LavoroSatelliteTabella, type RigaSatellite } from '@/components/lavoro-satelliti-tabella'
-import { OrigineLink } from '@/components/origine-link'
-import { type SezioneOrigine } from '@/lib/nav/origine-sezione'
 
 // Wrapper client (sessione rifinitura 2026-08-08, vedi CLAUDE.md): Sezione 2
 // (LavoroInfo) e Sezioni 3/4 (LavoroSatelliteTabella) erano sibling dentro
@@ -27,20 +26,15 @@ import { type SezioneOrigine } from '@/lib/nav/origine-sezione'
 // (sarebbe rimasto dead code, dato che l'intero componente ora non monta
 // proprio in quel caso).
 //
-// Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
-// lib/nav/origine-sezione.ts): il link "← Dashboard" era hardcoded — ora
-// "← {label della sezione di origine}" (Dashboard o Conclusi), dal cookie
-// che ricorda l'ultima visita reale a una delle due, indipendentemente da
-// quante pagine intermedie (Cliente, Fornitore...) sono state attraversate
-// per arrivare qui. Reso client-side (OrigineLink, 2026-08-14, vedi
-// CLAUDE.md) dopo la scoperta di un bug di staleness: il valore calcolato
-// server-side qui restava "congelato" al cookie del momento in cui Next.js
-// aveva prefetchato questa pagina (Client Router Cache), anche dopo che il
-// cookie era cambiato — origineSezione ricevuto come prop resta quindi solo
-// il valore iniziale per l'hydration, non più la fonte di verità.
+// Link "← Lavori" (semplificato il 2026-08-16, unificazione Dashboard/
+// Conclusi, vedi CLAUDE.md): prima era "← {sezione di origine}"
+// (Dashboard o Conclusi, da un cookie dedicato — vedi CLAUDE-ARCHIVIO.md
+// per il meccanismo, rimosso in questa stessa sessione) perché esistevano
+// due sezioni distinte da cui si poteva arrivare qui; ora ce n'è una sola,
+// quindi il link torna un semplice Link server-renderizzato hardcoded,
+// nessuno stato/cookie/Client Component dedicato necessario.
 export function LavoroDettaglioSezioni({
   lavoroId,
-  origineSezione,
   isOwner,
   stato,
   accettatoAt,
@@ -57,7 +51,6 @@ export function LavoroDettaglioSezioni({
   children,
 }: {
   lavoroId: string
-  origineSezione: SezioneOrigine
   isOwner: boolean
   stato: string
   accettatoAt: string | null
@@ -79,7 +72,9 @@ export function LavoroDettaglioSezioni({
     <>
       {!modificaLavoro && (
         <div className="mb-2">
-          <OrigineLink origineIniziale={origineSezione} />
+          <Link href="/lavori" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            ← Lavori
+          </Link>
         </div>
       )}
 

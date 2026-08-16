@@ -3,8 +3,6 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ClienteForm } from '@/components/cliente-form'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { OrigineLink } from '@/components/origine-link'
-import { leggiOrigineSezione } from '@/lib/nav/origine-sezione.server'
 
 const STATO_LABEL: Record<string, string> = {
   opportunita: 'Opportunità',
@@ -29,17 +27,6 @@ export default async function ClienteDettaglioPage({
 
   if (!cliente) notFound()
 
-  // Provenienza (sessione correzione 2026-08-13, vedi CLAUDE.md e
-  // lib/nav/origine-sezione.ts): Cliente è una tappa intermedia della catena
-  // Dashboard/Conclusi → Cliente → Lavori associati → Dettaglio Lavoro — il
-  // link "← ..." qui deve riflettere la sezione di origine, non un generico
-  // "← Clienti" (l'evidenziazione della voce "Clienti" nel menu resta
-  // invece invariata: qui la sezione non è mai ambigua). Letto qui solo come
-  // valore iniziale per l'hydration di OrigineLink (Client Component, vedi
-  // CLAUDE.md 2026-08-14): un bug di staleness della Client Router Cache
-  // impedisce di fidarsi di questo valore server-side dopo il primo paint.
-  const origineIniziale = await leggiOrigineSezione()
-
   const { data: lavori } = await supabase
     .from('lavoro')
     .select('id, titolo, stato')
@@ -52,7 +39,9 @@ export default async function ClienteDettaglioPage({
     // le pagine principali (Dashboard, Fornitori, dettaglio Lavoro, Conclusi).
     <div className={CONTENITORE_LARGO}>
       <div className="mb-2">
-        <OrigineLink origineIniziale={origineIniziale} />
+        <Link href="/clienti" className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
+          ← Clienti
+        </Link>
       </div>
 
       <div className="mb-6 flex items-center justify-between gap-4">
