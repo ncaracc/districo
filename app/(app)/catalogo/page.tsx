@@ -27,8 +27,10 @@ export default async function CatalogoPage() {
     // disponibili in un nuovo Acquisto — stesso comportamento percepito di
     // un'eliminazione vera, pur restando a schema.
     user
-      ? supabase.from('referenza').select('id, categoria_id, descrizione, colore_finitura, ultimo_prezzo').eq('attiva', true).order('descrizione')
-      : Promise.resolve({ data: [] as { id: string; categoria_id: string; descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null }[] }),
+      ? supabase.from('referenza').select('id, categoria_id, descrizione, colore_finitura, ultimo_prezzo, codice').eq('attiva', true).order('descrizione')
+      : Promise.resolve({
+          data: [] as { id: string; categoria_id: string; descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null; codice: string | null }[],
+        }),
   ])
 
   const referenze = (referenzeGrezze ?? []).map((r) => ({
@@ -37,6 +39,7 @@ export default async function CatalogoPage() {
     descrizione: r.descrizione,
     coloreFinitura: r.colore_finitura,
     ultimoPrezzo: r.ultimo_prezzo,
+    codice: r.codice,
   }))
 
   return (

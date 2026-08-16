@@ -43,10 +43,17 @@ type RigaBozza = {
   coloreFinitura: string
   prezzo: string
   quantita: string
+  // Codice (2026-08-19, vedi CLAUDE.md — migration 0052): SOLA
+  // visualizzazione, mai inviato al server (vedi RigaOrdinePayload sotto —
+  // non ne fa parte) — è una proprietà del Catalogo, letta live da lì
+  // (r.referenza?.codice, embed lato dettaglio-lavoro-data.ts) o dalla
+  // ricerca Combobox al momento della scelta (opt.codice), non un dato
+  // dell'Acquisto da persistere riga per riga come descrizione/colore.
+  codice: string | null
 }
 
 function rigaVuota(): RigaBozza {
-  return { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1' }
+  return { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', codice: null }
 }
 
 function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
@@ -56,6 +63,7 @@ function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
     coloreFinitura: r.colore_finitura ?? '',
     prezzo: r.prezzo_unitario != null ? String(r.prezzo_unitario) : '',
     quantita: String(r.quantita),
+    codice: r.referenza?.codice ?? null,
   }
 }
 
@@ -229,11 +237,12 @@ export function SatelliteOrdine({
       descrizione: opt.descrizione,
       coloreFinitura: opt.coloreFinitura ?? '',
       prezzo: opt.ultimoPrezzo != null ? String(opt.ultimoPrezzo) : '',
+      codice: opt.codice,
     })
   }
 
   function svincolaRiga(i: number) {
-    aggiornaRiga(i, { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1' })
+    aggiornaRiga(i, { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', codice: null })
   }
 
   // Ricerca scoped alla categoria corrente (non al fornitore, vedi CLAUDE.md
@@ -489,7 +498,15 @@ export function SatelliteOrdine({
                       // reale se lo si desidera.
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="truncate text-sm text-gray-900">{riga.descrizione}</p>
+                          <p className="truncate text-sm text-gray-900">
+                            {riga.descrizione}
+                            {/* Codice (2026-08-19, vedi CLAUDE.md — migration
+                                0052): sola lettura, accanto alla Referenza
+                                selezionata come richiesto — assente per una
+                                riga storica senza Codice/senza Referenza
+                                collegata. */}
+                            {riga.codice && <span className="text-gray-400"> · Cod. {riga.codice}</span>}
+                          </p>
                           {riga.coloreFinitura && <p className="text-xs text-gray-500">{riga.coloreFinitura}</p>}
                         </div>
                         <button
@@ -536,12 +553,28 @@ export function SatelliteOrdine({
                               di incremento/decremento nativo — permettevano
                               variazioni non intenzionali (2026-08-15, vedi
                               CLAUDE.md). filtraQuantita() ammette al più
-                              un decimale, virgola o punto indifferentemente. */}
+                              un decimale, virgola o punto indifferentemente,
+                              normalizzando internamente sempre a punto
+                              (coerente con Number()). **Bug corretto
+                              2026-08-19** (vedi CLAUDE.md, "decimali mai
+                              implementati"): il `value` mostrava lo stato
+                              interno grezzo (a punto) invece di riformattarlo
+                              a virgola per la sola visualizzazione — digitare
+                              "1,5" faceva quindi apparire "1.5" nel campo
+                              (il valore era comunque corretto, ma sembrava
+                              che la virgola "non venisse accettata"). Stessa
+                              conversione già usata nella vista di sola
+                              lettura sotto (`r.quantita.replace('.', ',')`),
+                              ora applicata anche qui in modifica — nessun
+                              riposizionamento del cursore necessario (a
+                              differenza di InputValuta): sostituzione di un
+                              carattere con un altro, la lunghezza della
+                              stringa non cambia. */}
                           <input
                             id={`ordine-quantita-${i}`}
                             type="text"
                             inputMode="decimal"
-                            value={riga.quantita}
+                            value={riga.quantita.replace('.', ',')}
                             onChange={(e) => aggiornaRiga(i, { quantita: filtraQuantita(e.target.value) })}
                             className={inputClass()}
                           />
@@ -604,6 +637,7 @@ export function SatelliteOrdine({
                       <span>
                         {r.descrizione}
                         {r.coloreFinitura && ` — ${r.coloreFinitura}`}
+                        {r.codice && <span className="text-gray-400"> · Cod. {r.codice}</span>}
                         {' '}
                         {/* Virgola per la sola visualizzazione (lo stato
                             interno resta a punto, coerente con Number()) —
@@ -620,64 +654,82 @@ export function SatelliteOrdine({
           </>
         )}
 
-        {satellite.data_invio_ordine && (
-          <p className="mb-2 text-xs text-gray-500">
-            Ordine inviato il {new Date(satellite.data_invio_ordine).toLocaleDateString('it-IT')}
-          </p>
-        )}
+        {/* Sotto: checkbox+Allegati wrappati in un unico `space-y-3`
+            (allineamento allo standard, correzione 2026-08-19 — vedi
+            CLAUDE.md, "sovrapposizione visiva riga Allegati/Flag"): prima
+            questi blocchi erano fratelli indipendenti fuori da qualunque
+            `space-y-*` condiviso, ciascuno con un `mb-2` per conto proprio
+            — al netto del margin collapsing tra due div vuoti/senza
+            padding, il distacco reale finiva sotto la soglia percepita
+            come "riga separata", diversamente da ogni altro satellite
+            (Acconto, Campione, Costruzione, Montaggio, Noleggio, Preventivo,
+            Progetto, SpesaNonPreventivata — unica verifica sistematica
+            richiesta esplicitamente, TUTTI già corretti: checkbox e
+            Allegati sono da sempre figli diretti dello stesso `space-y-3`
+            che avvolge l'intero form, mai casi a parte). Ordine dei due
+            blocchi invertito (checkbox PRIMA di Allegati) per la stessa
+            ragione — Acquisto era l'unico con l'ordine opposto, nessun
+            'altro satellite lo giustificava. */}
+        <div className="space-y-3">
+          {isOwner && !satellite.data_invio_ordine && (
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={ordinato}
+                  disabled={loading || (!ordinato && (!sede || campiCorrenti().righe.length === 0))}
+                  onChange={(e) => setOrdinato(e.target.checked)}
+                  className="accent-primary"
+                />
+                Contrassegna l&apos;acquisto come effettuato.
+              </label>
+              {/* "Invia ordine" resta legato al valore PERSISTITO
+                  (satellite.ordinato), non alla bozza locale: invia
+                  un'email reale e irreversibile, non deve mai comparire
+                  prima che il flag sia stato davvero salvato. */}
+              {satellite.ordinato && !invioAperto && (
+                <button
+                  type="button"
+                  onClick={apriInvio}
+                  disabled={loading}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
+                >
+                  Invia ordine
+                </button>
+              )}
+            </div>
+          )}
 
-        {isOwner && (
-          <div className="mb-2 flex items-center gap-2">
-            <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
-            <span className="text-sm text-gray-700">{LABEL_ALLEGATI}</span>
+          {satellite.data_invio_ordine && (
+            <p className="text-xs text-gray-500">
+              Ordine inviato il {new Date(satellite.data_invio_ordine).toLocaleDateString('it-IT')}
+            </p>
+          )}
+
+          {erroreInvio && (
+            <p className="text-xs text-red-600">
+              {erroreInvio}
+              {richiedeConfigurazione && (
+                <>
+                  {' '}
+                  <Link href="/profilo/impostazioni" className="underline underline-offset-2">
+                    Vai a Profilo/Impostazioni
+                  </Link>
+                </>
+              )}
+            </p>
+          )}
+
+          <div>
+            {isOwner && (
+              <div className="mb-2 flex items-center gap-2">
+                <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
+                <span className="text-sm text-gray-700">{LABEL_ALLEGATI}</span>
+              </div>
+            )}
+            <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
           </div>
-        )}
-        <div className="mb-2">
-          <AllegatoLista allegati={allegati} lavoroId={lavoroId} isOwner={isOwner} />
         </div>
-
-        {erroreInvio && (
-          <p className="mb-2 text-xs text-red-600">
-            {erroreInvio}
-            {richiedeConfigurazione && (
-              <>
-                {' '}
-                <Link href="/profilo/impostazioni" className="underline underline-offset-2">
-                  Vai a Profilo/Impostazioni
-                </Link>
-              </>
-            )}
-          </p>
-        )}
-
-        {isOwner && !satellite.data_invio_ordine && (
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={ordinato}
-                disabled={loading || (!ordinato && (!sede || campiCorrenti().righe.length === 0))}
-                onChange={(e) => setOrdinato(e.target.checked)}
-                className="accent-primary"
-              />
-              Contrassegna l&apos;acquisto come effettuato.
-            </label>
-            {/* "Invia ordine" resta legato al valore PERSISTITO
-                (satellite.ordinato), non alla bozza locale: invia
-                un'email reale e irreversibile, non deve mai comparire
-                prima che il flag sia stato davvero salvato. */}
-            {satellite.ordinato && !invioAperto && (
-              <button
-                type="button"
-                onClick={apriInvio}
-                disabled={loading}
-                className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90 transition-colors disabled:opacity-50"
-              >
-                Invia ordine
-              </button>
-            )}
-          </div>
-        )}
 
         {invioAperto && (
           <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">

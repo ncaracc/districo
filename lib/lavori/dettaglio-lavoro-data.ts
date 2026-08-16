@@ -126,7 +126,28 @@ export async function caricaDatiLavoroSatelliti(
     ;(allegatiById[a.satellite_id] ??= []).push(a)
   }
 
-  const righe: SatelliteArticolo[] = righeGrezze ?? []
+  // Codice (2026-08-19, vedi CLAUDE.md — migration 0052): query separata
+  // per gli id di Referenza usati dalle righe caricate sopra, non un embed
+  // PostgREST (`select('*, referenza(codice)')`) — stesso principio già in
+  // uso in tutto questo file (query parallele, unite lato JS): il progetto
+  // non ha mai avuto un embed di relazione in nessun punto, e
+  // `database.types.ts` è mantenuto a mano senza gli array `Relationships`
+  // che la tipizzazione di un embed richiederebbe per restare corretta.
+  // Nessun filtro `attiva`: una riga già collegata a una Referenza nel
+  // frattempo disattivata deve continuare a mostrare il suo Codice storico
+  // (stesso principio già seguito per descrizione/colore_finitura, mai
+  // "persi" da un soft delete successivo).
+  const referenzaIds = [...new Set((righeGrezze ?? []).map((r) => r.referenza_id).filter((id): id is string => id !== null))]
+  const { data: referenzeCodici } =
+    referenzaIds.length > 0
+      ? await supabase.from('referenza').select('id, codice').in('id', referenzaIds)
+      : { data: [] as { id: string; codice: string | null }[] }
+  const codicePerReferenzaId = new Map((referenzeCodici ?? []).map((r) => [r.id, r.codice]))
+
+  const righe: SatelliteArticolo[] = (righeGrezze ?? []).map((r) => ({
+    ...r,
+    referenza: r.referenza_id !== null ? { codice: codicePerReferenzaId.get(r.referenza_id) ?? null } : null,
+  }))
   const righePerSatellite: Record<string, SatelliteArticolo[]> = {}
   for (const r of righe) {
     ;(righePerSatellite[r.satellite_id] ??= []).push(r)

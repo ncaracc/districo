@@ -28,6 +28,15 @@
 // interno (modale Acquisto, per Spese complessive/Margine), non da
 // comunicare al fornitore nell'ordine — CORREGGE la decisione della
 // sessione precedente che le aveva introdotte.
+//
+// Revisione 2026-08-19 (vedi CLAUDE.md — sessione "correzione, nuovo campo
+// Referenza"): colonna Codice aggiunta alla tabella (prima di Descrizione —
+// convenzione comune per un elenco d'ordine, il fornitore cerca prima il
+// codice), letta live dal Catalogo (lib/lavori/ordini-email.ts) — cella
+// vuota (nessun trattino, a differenza del prezzo mancante nella revisione
+// precedente: qui l'assenza è normale/attesa, non un dato storico mancante
+// da segnalare) quando la Referenza non ha un Codice compilato o la riga è
+// storica senza Referenza collegata.
 import { siteUrl } from '@/lib/email/templates'
 import { testoConABr } from '@/lib/lavori/mail-ordine-testo'
 
@@ -39,6 +48,7 @@ export type RigaEmail = {
   descrizione: string
   coloreFinitura: string | null
   quantita: number
+  codice: string | null
 }
 
 // Banner cliccabile in fondo alla mail — swap responsivo invariato (due
@@ -69,18 +79,20 @@ function bannerHtml(): string {
   `
 }
 
-// Colonne: solo descrizione e quantità (2026-08-18, vedi commento in testa
-// al file — il prezzo non è più mostrato al fornitore).
+// Colonne: Codice, Descrizione, Quantità (2026-08-19: Codice aggiunto,
+// vedi commento in testa al file — il prezzo resta fuori, invariato).
 function tabellaReferenzeHtml(righe: RigaEmail[]): string {
   const th = 'padding:8px 6px; border-bottom:2px solid #111827; font-size:11px; text-transform:uppercase; letter-spacing:0.03em; color:#6b7280; font-weight:600;'
   const td = 'padding:8px 6px; border-bottom:1px solid #e5e7eb; font-size:13px; color:#111827;'
 
   const righeHtml = righe
     .map((r) => {
+      const codice = r.codice ? escapeHtml(r.codice) : ''
       const descrizione = escapeHtml(r.descrizione) + (r.coloreFinitura ? ` — ${escapeHtml(r.coloreFinitura)}` : '')
       const quantitaTesto = String(r.quantita).replace('.', ',')
       return `
         <tr>
+          <td style="${td}">${codice}</td>
           <td style="${td}">${descrizione}</td>
           <td align="right" style="${td}">${quantitaTesto}</td>
         </tr>
@@ -92,6 +104,7 @@ function tabellaReferenzeHtml(righe: RigaEmail[]): string {
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse; font-family:Arial,sans-serif; margin-top:4px;">
       <thead>
         <tr>
+          <th align="left" style="${th}">Codice</th>
           <th align="left" style="${th}">Descrizione</th>
           <th align="right" style="${th}">Quantità</th>
         </tr>

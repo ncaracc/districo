@@ -23,12 +23,35 @@ type Fields = { apertura: string; congedo: string }
 // effettivamente inviata (che legge solo il contenuto attuale dei due
 // campi, vedi ordini-email.ts). Nessuna conferma prima di sovrascrivere:
 // azione leggera, reversibile con un altro click o riscrivendo a mano.
+//
+// **Visibilità migliorata 2026-08-19** (vedi CLAUDE.md — segnalato come
+// "non è chiaro come si sceglie tra Formale e Informale", verificato nella
+// sessione precedente: non era un bug funzionale, un problema di
+// chiarezza): didascalia "Applica un tono predefinito:" aggiunta sopra i
+// due bottoni (proposta nella sessione precedente, ora implementata) +
+// stato "attivo" visibile, stesso pattern bg-gray-900/text-white già in
+// uso da FiltroLavoriChip per il chip selezionato. `tonoAttivo` è
+// DERIVATO da `fields` ad ogni render (non un flag separato salvato a
+// parte): risulta "formale"/"informale" solo quando Apertura+Congedo
+// corrispondono ESATTAMENTE al preset corrispondente — si accende subito
+// dopo un click (che scrive esattamente quel preset), ma si spegne da solo
+// se l'utente poi modifica manualmente il testo, evitando un'indicazione
+// visiva rimasta "appesa" e non più corrispondente al contenuto reale dei
+// campi (rischio concreto con uno stato booleano indipendente impostato
+// solo al click, mai più riconciliato).
+function tonoDaValori(v: Fields): 'formale' | 'informale' | null {
+  if (v.apertura === DEFAULT_APERTURA_FORMALE && v.congedo === DEFAULT_CONGEDO_FORMALE) return 'formale'
+  if (v.apertura === DEFAULT_APERTURA_INFORMALE && v.congedo === DEFAULT_CONGEDO_INFORMALE) return 'informale'
+  return null
+}
+
 export function ProfiloTestoMailForm({ initialValues }: { initialValues: Fields }) {
   const router = useRouter()
   const [fields, setFields] = useState<Fields>(initialValues)
   const [errore, setErrore] = useState<string | null>(null)
   const [salvato, setSalvato] = useState(false)
   const [loading, setLoading] = useState(false)
+  const tonoAttivo = tonoDaValori(fields)
 
   function applicaTono(tono: 'formale' | 'informale') {
     setFields(
@@ -58,21 +81,30 @@ export function ProfiloTestoMailForm({ initialValues }: { initialValues: Fields 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => applicaTono('formale')}
-          className="rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200"
-        >
-          Formale
-        </button>
-        <button
-          type="button"
-          onClick={() => applicaTono('informale')}
-          className="rounded-full bg-gray-100 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-200"
-        >
-          Informale
-        </button>
+      <div>
+        <p className="mb-1 text-xs text-gray-500">Applica un tono predefinito:</p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => applicaTono('formale')}
+            aria-pressed={tonoAttivo === 'formale'}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              tonoAttivo === 'formale' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Formale
+          </button>
+          <button
+            type="button"
+            onClick={() => applicaTono('informale')}
+            aria-pressed={tonoAttivo === 'informale'}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+              tonoAttivo === 'informale' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            Informale
+          </button>
+        </div>
       </div>
 
       <div>

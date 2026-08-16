@@ -75,7 +75,7 @@ export async function inviaOrdineSatellite(
   const [{ data: righe }, { data: contatto }, { data: lavoro }] = await Promise.all([
     supabase
       .from('lavoro_satellite_articolo')
-      .select('descrizione, colore_finitura, quantita')
+      .select('descrizione, colore_finitura, quantita, referenza_id')
       .eq('satellite_id', satelliteId),
     supabase
       .from('fornitore_sede_contatto')
@@ -88,6 +88,17 @@ export async function inviaOrdineSatellite(
   if (!contatto || !contatto.email) {
     return { ok: false, error: 'Il contatto selezionato non ha un indirizzo email' }
   }
+
+  // Codice (2026-08-19, vedi CLAUDE.md — migration 0052): query separata
+  // per gli id di Referenza usati dalle righe, stesso principio di
+  // dettaglio-lavoro-data.ts (nessun embed PostgREST, mai usato altrove nel
+  // progetto — vedi commento lì). Nessun filtro `attiva`, stesso motivo.
+  const referenzaIds = [...new Set((righe ?? []).map((r) => r.referenza_id).filter((id): id is string => id !== null))]
+  const { data: referenzeCodici } =
+    referenzaIds.length > 0
+      ? await supabase.from('referenza').select('id, codice').in('id', referenzaIds)
+      : { data: [] as { id: string; codice: string | null }[] }
+  const codicePerReferenzaId = new Map((referenzeCodici ?? []).map((r) => [r.id, r.codice]))
 
   const { data: cliente } = lavoro
     ? await supabase.from('cliente').select('nome').eq('id', lavoro.cliente_id).maybeSingle()
@@ -131,7 +142,9 @@ export async function inviaOrdineSatellite(
   // CORREGGE la decisione della sessione precedente (che lo aveva invece
   // reintrodotto) — il prezzo resta un dato interno (usato nella modale
   // Acquisto per Spese complessive/Margine), non da comunicare al
-  // fornitore nell'ordine.
+  // fornitore nell'ordine. Colonna Codice (2026-08-19, migration 0052):
+  // letta live dal Catalogo (codicePerReferenzaId sopra), assente/vuota
+  // per righe storiche senza referenza_id.
   const html = corpoMailOrdine({
     apertura,
     congedo,
@@ -139,6 +152,7 @@ export async function inviaOrdineSatellite(
       descrizione: r.descrizione,
       coloreFinitura: r.colore_finitura,
       quantita: r.quantita,
+      codice: r.referenza_id !== null ? (codicePerReferenzaId.get(r.referenza_id) ?? null) : null,
     })),
   })
 

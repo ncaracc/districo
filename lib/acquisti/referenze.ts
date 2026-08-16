@@ -23,6 +23,7 @@ export type ReferenzaOption = {
   descrizione: string
   coloreFinitura: string | null
   ultimoPrezzo: number | null
+  codice: string | null
 }
 
 // Scoped per categoria (non per fornitore, vedi CLAUDE.md — modello
@@ -43,7 +44,7 @@ export async function cercaReferenze(categoriaId: string, query: string): Promis
 
   const { data } = await supabase
     .from('referenza')
-    .select('id, descrizione, colore_finitura, ultimo_prezzo')
+    .select('id, descrizione, colore_finitura, ultimo_prezzo, codice')
     .eq('categoria_id', categoriaId)
     .eq('attiva', true)
     .order('descrizione')
@@ -55,6 +56,7 @@ export async function cercaReferenze(categoriaId: string, query: string): Promis
       descrizione: r.descrizione,
       coloreFinitura: r.colore_finitura,
       ultimoPrezzo: r.ultimo_prezzo,
+      codice: r.codice,
     }))
     .filter((r) => !q || r.label.toLowerCase().includes(q))
     .slice(0, 20)
@@ -65,6 +67,7 @@ type CampiReferenza = {
   descrizione: string
   coloreFinitura: string | null
   ultimoPrezzo: number | null
+  codice: string | null
 }
 
 export async function creaReferenzaCatalogo(fields: CampiReferenza): Promise<AzioneResult> {
@@ -84,6 +87,7 @@ export async function creaReferenzaCatalogo(fields: CampiReferenza): Promise<Azi
     descrizione: descrizionePulita,
     colore_finitura: fields.coloreFinitura,
     ultimo_prezzo: fields.ultimoPrezzo,
+    codice: fields.codice,
   })
 
   if (error) {
@@ -115,6 +119,7 @@ export async function aggiornaReferenzaCatalogo(id: string, fields: CampiReferen
       descrizione: descrizionePulita,
       colore_finitura: fields.coloreFinitura,
       ultimo_prezzo: fields.ultimoPrezzo,
+      codice: fields.codice,
     })
     .eq('id', id)
 

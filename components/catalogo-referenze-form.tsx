@@ -13,11 +13,12 @@ type Referenza = {
   descrizione: string
   coloreFinitura: string | null
   ultimoPrezzo: number | null
+  codice: string | null
 }
 type Categoria = { id: string; nome: string }
 
-type CampiForm = { categoriaId: string; descrizione: string; coloreFinitura: string; prezzo: string }
-const CAMPI_VUOTI: CampiForm = { categoriaId: '', descrizione: '', coloreFinitura: '', prezzo: '' }
+type CampiForm = { categoriaId: string; descrizione: string; coloreFinitura: string; prezzo: string; codice: string }
+const CAMPI_VUOTI: CampiForm = { categoriaId: '', descrizione: '', coloreFinitura: '', prezzo: '', codice: '' }
 
 // Gestione standalone del catalogo Referenze — nata in Profilo/Impostazioni
 // il 2026-08-14, spostata nella sua sezione di menu dedicata "Catalogo" il
@@ -34,6 +35,13 @@ const CAMPI_VUOTI: CampiForm = { categoriaId: '', descrizione: '', coloreFinitur
 // a schema — gli Acquisti passati che la usano restano collegati alla
 // referenza originale (non solo a una copia congelata di descrizione/
 // colore), non solo "invariati" come con il vecchio hard delete.
+//
+// Campo Codice (2026-08-19, vedi CLAUDE.md — migration 0052): testo libero
+// opzionale, non un codice per-fornitore (Districo non li traccia, vedi
+// CLAUDE.md 14/8). Sola proprietà del Catalogo — la modale Acquisto lo
+// mostra in sola lettura accanto alla Referenza scelta (letto in tempo
+// reale dal catalogo via join, non copiato riga per riga come descrizione/
+// colore_finitura), la mail d'ordine lo espone come colonna a sé.
 export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Referenza[]; categorie: Categoria[] }) {
   const router = useRouter()
 
@@ -60,6 +68,7 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
       descrizione: nuova.descrizione,
       coloreFinitura: nuova.coloreFinitura.trim() || null,
       ultimoPrezzo: nuova.prezzo ? Number(nuova.prezzo) : null,
+      codice: nuova.codice.trim() || null,
     })
     setLoading(false)
     if (!result.ok) {
@@ -77,6 +86,7 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
       descrizione: r.descrizione,
       coloreFinitura: r.coloreFinitura ?? '',
       prezzo: r.ultimoPrezzo != null ? String(r.ultimoPrezzo) : '',
+      codice: r.codice ?? '',
     })
     setErroreModifica(null)
   }
@@ -90,6 +100,7 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
       descrizione: modificaCampi.descrizione,
       coloreFinitura: modificaCampi.coloreFinitura.trim() || null,
       ultimoPrezzo: modificaCampi.prezzo ? Number(modificaCampi.prezzo) : null,
+      codice: modificaCampi.codice.trim() || null,
     })
     setLoading(false)
     if (!result.ok) {
@@ -145,6 +156,12 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
                       placeholder="Colore / finitura (opz.)"
                       className={inputClass()}
                     />
+                    <input
+                      value={modificaCampi.codice}
+                      onChange={(e) => setModificaCampi((c) => ({ ...c, codice: e.target.value }))}
+                      placeholder="Codice (opz.)"
+                      className={inputClass()}
+                    />
                     <InputValuta
                       value={modificaCampi.prezzo}
                       onChange={(v) => setModificaCampi((c) => ({ ...c, prezzo: v }))}
@@ -177,6 +194,7 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
                     <div className="min-w-0">
                       <span>{r.descrizione}</span>
                       {r.coloreFinitura && <span className="text-gray-500"> — {r.coloreFinitura}</span>}
+                      {r.codice && <span className="ml-2 text-xs text-gray-400">Cod. {r.codice}</span>}
                       {r.ultimoPrezzo != null && <span className="ml-2 text-xs text-gray-500">{formattaValuta(r.ultimoPrezzo, 1)}</span>}
                     </div>
                     <div className="flex shrink-0 gap-3">
@@ -221,6 +239,12 @@ export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Ref
             value={nuova.coloreFinitura}
             onChange={(e) => setNuova((n) => ({ ...n, coloreFinitura: e.target.value }))}
             placeholder="Colore / finitura (opz.)"
+            className={inputClass()}
+          />
+          <input
+            value={nuova.codice}
+            onChange={(e) => setNuova((n) => ({ ...n, codice: e.target.value }))}
+            placeholder="Codice (opz.)"
             className={inputClass()}
           />
           <InputValuta

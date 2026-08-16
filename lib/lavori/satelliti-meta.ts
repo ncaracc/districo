@@ -96,6 +96,16 @@ export type SatelliteArticolo = {
   colore_finitura: string | null
   quantita: number
   prezzo_unitario: number | null
+  // Codice (2026-08-19, vedi CLAUDE.md — migration 0052): NON una colonna
+  // di lavoro_satellite_articolo, un embed live da referenza(codice) — a
+  // differenza di descrizione/colore_finitura (copiati riga per riga al
+  // momento del salvataggio, vedi salvaRigheOrdine in satelliti.ts), il
+  // Codice è un'proprietà del Catalogo mostrata sempre aggiornata, mai
+  // congelata. Opzionale sul tipo: solo le query che lo richiedono
+  // esplicitamente (select con embed `referenza(codice)`) lo popolano —
+  // assente (undefined) per righe storiche senza referenza_id, null se la
+  // Referenza collegata non ha ancora un codice compilato.
+  referenza?: { codice: string | null } | null
 }
 
 export type SatelliteAllegato = {

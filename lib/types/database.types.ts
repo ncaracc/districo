@@ -112,12 +112,14 @@ export type Database = {
         Row: {
           id: string; artigiano_id: string; categoria_id: string
           descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null
+          codice: string | null
           attiva: boolean
           created_at: string
         }
         Insert: {
           id?: string; artigiano_id: string; categoria_id: string
           descrizione: string; colore_finitura?: string | null; ultimo_prezzo?: number | null
+          codice?: string | null
           attiva?: boolean
           created_at?: string
         }
