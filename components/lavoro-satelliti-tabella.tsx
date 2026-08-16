@@ -21,6 +21,7 @@ import {
 } from '@/lib/lavori/satelliti'
 import { DOT_COLOR } from '@/lib/lavori/satelliti-meta'
 import { LABEL_ATTIVITA, ORDINE_ATTIVITA, RIPETIBILE_ATTIVITA, type ChiaveAttivita } from '@/lib/lavori/attivita-ordine'
+import { ICONA_ATTIVITA } from '@/components/icone-attivita'
 import type { VoceAttivita } from '@/lib/lavori/satelliti-render'
 
 // Refactor route parallele/intercettate (2026-08-12, vedi CLAUDE.md): stesso
@@ -326,19 +327,43 @@ export function LavoroSatelliteTabella({
       )}
 
       <Modal aperto={mostraAggiungi} onChiudi={chiudiAggiungi} titolo="Aggiungi attività">
-        <div className="space-y-1">
-          {erroreAggiungi && <p className="mb-2 text-xs text-red-600">{erroreAggiungi}</p>}
-          {opzioni.map((chiave) => (
-            <button
-              key={chiave}
-              type="button"
-              onClick={() => handleSeleziona(chiave)}
-              disabled={creandoChiave !== null}
-              className="block w-full rounded-lg px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              {creandoChiave === chiave ? 'Creazione…' : LABEL_ATTIVITA[chiave]}
-            </button>
-          ))}
+        <div>
+          {erroreAggiungi && <p className="mb-3 text-xs text-red-600">{erroreAggiungi}</p>}
+          {/* Griglia di icone (restyling 2026-08-19, vedi CLAUDE.md):
+              sostituisce il vecchio elenco testuale — stile "selettore
+              app-launcher", un'icona rappresentativa per tipo con
+              etichetta sotto, più veloce da scansionare di una lista di
+              solo testo su mobile. 3 colonne di default (verificato che
+              4 sulla larghezza reale della Modal su mobile — content area
+              ≈288px a 360px di viewport, inset-5+px-4 — rende le celle
+              troppo strette, <65px, per icona+etichetta a due righe), 4
+              colonne da `sm:` (640px, stesso breakpoint della Modal
+              stessa, che lì passa a max-w-[640px] — ampio spazio per una
+              quarta colonna). Stesso comportamento/logica di prima, solo
+              la presentazione cambia: click = stessa azione, stesse
+              regole di visibilità/ripetibilità (`opzioni`, invariato).
+              Nessun colore acceso sulle icone — stroke `currentColor`,
+              stesso grigio neutro del testo (palette dell'app). */}
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
+            {opzioni.map((chiave) => {
+              const Icona = ICONA_ATTIVITA[chiave]
+              const creando = creandoChiave === chiave
+              return (
+                <button
+                  key={chiave}
+                  type="button"
+                  onClick={() => handleSeleziona(chiave)}
+                  disabled={creandoChiave !== null}
+                  className="flex flex-col items-center gap-2 rounded-xl px-2 py-3 text-center text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <Icona className="h-6 w-6 shrink-0 text-gray-500" />
+                  <span className="text-xs font-medium leading-tight text-gray-900">
+                    {creando ? 'Creazione…' : LABEL_ATTIVITA[chiave]}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
         </div>
       </Modal>
     </div>
