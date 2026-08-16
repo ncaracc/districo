@@ -64,7 +64,7 @@ export async function inviaOrdineSatellite(
 
   const { data: satellite } = await supabase
     .from('lavoro_satellite')
-    .select('id, tipo, acquisto_categoria, fornitore_sede_id, valore_complessivo')
+    .select('id, tipo, acquisto_categoria, fornitore_sede_id')
     .eq('id', satelliteId)
     .maybeSingle()
 
@@ -75,7 +75,7 @@ export async function inviaOrdineSatellite(
   const [{ data: righe }, { data: contatto }, { data: lavoro }] = await Promise.all([
     supabase
       .from('lavoro_satellite_articolo')
-      .select('descrizione, colore_finitura, quantita, prezzo_unitario')
+      .select('descrizione, colore_finitura, quantita')
       .eq('satellite_id', satelliteId),
     supabase
       .from('fornitore_sede_contatto')
@@ -126,14 +126,12 @@ export async function inviaOrdineSatellite(
   )
 
   // Corpo HTML completo (2026-08-17, vedi CLAUDE.md — "mail d'ordine ai
-  // fornitori in HTML con banner responsive"): CORREGGE la decisione del
-  // 14/8 ("il prezzo resta fuori dall'email") — la tabella include ora
-  // prezzo unitario e totale per riga più il totale complessivo,
-  // esplicitamente richiesto in questa sessione (una mail d'ordine è a
-  // tutti gli effetti un ordine d'acquisto, il prezzo ci va). Totale
-  // complessivo dal campo persistito `valore_complessivo` (già calcolato
-  // server-side da salvaRigheOrdine/valoreComplessivoRighe), non
-  // ricalcolato qui — stessa fonte mostrata ovunque nell'app.
+  // fornitori in HTML con banner responsive"). Tabella senza prezzo
+  // (2026-08-18, vedi CLAUDE.md — sessione "allineamento allo standard"):
+  // CORREGGE la decisione della sessione precedente (che lo aveva invece
+  // reintrodotto) — il prezzo resta un dato interno (usato nella modale
+  // Acquisto per Spese complessive/Margine), non da comunicare al
+  // fornitore nell'ordine.
   const html = corpoMailOrdine({
     apertura,
     congedo,
@@ -141,9 +139,7 @@ export async function inviaOrdineSatellite(
       descrizione: r.descrizione,
       coloreFinitura: r.colore_finitura,
       quantita: r.quantita,
-      prezzoUnitario: r.prezzo_unitario,
     })),
-    totaleComplessivo: satellite.valore_complessivo ?? 0,
   })
 
   try {

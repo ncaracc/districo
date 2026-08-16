@@ -739,10 +739,18 @@ export async function creaOrdine(
 // reale a DB, non un valore passato dal client. Righe sostituite per intero
 // (delete + insert), stesso pattern già in uso per la creazione — più
 // semplice che calcolare un diff, e il volume per Acquisto è sempre piccolo.
+//
+// `dataCreazione` aggiunta il 2026-08-18 (vedi CLAUDE.md — sessione
+// "allineamento allo standard"): Acquisto era rimasto l'unico satellite con
+// la Data di sola lettura ("Creato il...", mai passata a un update) — colonna
+// condivisa `data_creazione` (NOT NULL a schema), stesso pattern già in uso
+// da Preventivo/Progetto (validazione "non vuota" lato client nel
+// componente, qui ci si fida del chiamante come per quei due).
 export async function aggiornaOrdine(
   satelliteId: string,
   lavoroId: string,
   fields: {
+    dataCreazione: string
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
     righe: RigaOrdineInput[]
@@ -766,6 +774,7 @@ export async function aggiornaOrdine(
   const { error } = await supabase
     .from('lavoro_satellite')
     .update({
+      data_creazione: fields.dataCreazione,
       fornitore_sede_id: fields.fornitoreSedeId,
       acquisto_categoria: fields.acquistoCategoria,
       valore_complessivo: righe.length > 0 ? valoreComplessivoRighe(righe) : null,

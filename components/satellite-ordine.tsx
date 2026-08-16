@@ -13,10 +13,16 @@ import { Combobox } from '@/components/combobox'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
+import { aDateLocal } from '@/lib/date-utils'
 import { useDirtyForm } from '@/lib/use-dirty-form'
 import { useProteggiChiusuraModal } from '@/components/modal'
 import { PilloleSalvaAnnulla } from '@/components/pillole-salva-annulla'
 import { DialogConferma } from '@/components/dialog-conferma'
+
+// Standard allegati (stesso testo/pattern di ogni altro satellite, es.
+// Acconto) — mancava qui, aggiunto il 2026-08-18 (vedi CLAUDE.md, sessione
+// "allineamento allo standard").
+const LABEL_ALLEGATI = "Puoi allegare foto e documenti inerenti all'ordine (file di immagine e PDF)."
 
 type SedeSelezionata = { id: string; label: string }
 
@@ -170,6 +176,12 @@ export function SatelliteOrdine({
   const [loading, setLoading] = useState(false)
   const [errore, setErrore] = useState<string | null>(null)
 
+  // Data — allineamento allo standard (2026-08-18, vedi CLAUDE.md): era
+  // l'unico satellite con la Data di sola lettura ("Creato il..."), mai
+  // passata a un update. NOT NULL a schema, stesso pattern di Preventivo/
+  // Progetto (validazione client "non vuota" in handleSalva sotto).
+  const [dataCreazione, setDataCreazione] = useState(aDateLocal(satellite.data_creazione))
+
   const [sede, setSede] = useState<SedeSelezionata | null>(
     satellite.fornitore_sede_id && fornitoreSedeLabel ? { id: satellite.fornitore_sede_id, label: fornitoreSedeLabel } : null,
   )
@@ -255,7 +267,7 @@ export function SatelliteOrdine({
     }
   }
 
-  const { dirty, segnaSalvato } = useDirtyForm({ ...campiCorrenti(), ordinato })
+  const { dirty, segnaSalvato } = useDirtyForm({ ...campiCorrenti(), ordinato, dataCreazione })
   const [confermaUscitaAperta, setConfermaUscitaAperta] = useState(false)
   const chiudiReale = useProteggiChiusuraModal(dirty, () => setConfermaUscitaAperta(true))
 
@@ -268,6 +280,13 @@ export function SatelliteOrdine({
   // del DB passo-passo dentro la stessa chiamata (parte da satellite.ordinato,
   // il valore noto all'apertura).
   async function handleSalva() {
+    // Data NOT NULL a schema (vedi commento sopra useState(dataCreazione)) —
+    // stesso pattern di Preventivo/Progetto: blocca il salvataggio lato
+    // client invece di inviare una stringa vuota al DB.
+    if (!dataCreazione) {
+      setErrore('La data è obbligatoria')
+      return false
+    }
     setLoading(true)
     setErrore(null)
 
@@ -299,6 +318,7 @@ export function SatelliteOrdine({
 
     if (!ordinatoDb) {
       const salvatoCampi = await aggiornaOrdine(satellite.id, lavoroId, {
+        dataCreazione,
         fornitoreSedeId: campi.fornitoreSedeId,
         acquistoCategoria: campi.acquistoCategoria,
         righe: campi.righe.map((r) =>
@@ -330,7 +350,7 @@ export function SatelliteOrdine({
     }
 
     setLoading(false)
-    segnaSalvato({ ...campi, ordinato })
+    segnaSalvato({ ...campi, ordinato, dataCreazione })
     router.refresh()
     return true
   }
@@ -383,13 +403,30 @@ export function SatelliteOrdine({
   return (
     // Frammento, non un unico div: PilloleSalvaAnnulla sibling del div a
     // bordo, non annidato dentro — stesso motivo già documentato negli altri
-    // satelliti restylati sul template Briefing.
+    // satelliti restylati sul template Briefing. `pb-24` quando dirty
+    // (allineamento allo standard, 2026-08-18, vedi CLAUDE.md): mancava,
+    // stesso motivo già documentato per Acconto — senza, le PilloleSalvaAnnulla
+    // (fixed) possono coprire l'ultima riga di contenuto.
     <>
+      <div className={dirty ? 'pb-24' : ''}>
       <div className="rounded-lg border border-gray-200 p-4">
-        <p className="mb-2 text-xs text-gray-500">Creato il {new Date(satellite.data_creazione).toLocaleDateString('it-IT')}</p>
-
         {editabile ? (
           <div className="mb-3 space-y-3">
+            {/* Riga 1 — Data: NOT NULL a schema, vedi commento sopra
+                useState(dataCreazione). */}
+            <div>
+              <label htmlFor="ordine-data" className="mb-1 block text-sm font-medium text-gray-700">
+                Data <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="ordine-data"
+                type="date"
+                value={dataCreazione}
+                onChange={(e) => setDataCreazione(e.target.value)}
+                className={inputClass()}
+              />
+            </div>
+
             <div>
               <label htmlFor="ordine-fornitore" className="mb-1 block text-sm font-medium text-gray-700">
                 Fornitore
@@ -553,6 +590,7 @@ export function SatelliteOrdine({
                 esplicito — se l'owner ha modificato dei campi e spuntato
                 "Ordinato" nella stessa sessione senza ancora salvare, questa
                 vista deve riflettere la bozza corrente. */}
+            <p className="mb-1 text-xs text-gray-500">{new Date(`${dataCreazione}T00:00:00`).toLocaleDateString('it-IT')}</p>
             <p className="mb-1 text-sm text-gray-700">{sede?.label ?? 'Nessun fornitore'}</p>
             {categoriaId && (
               <p className="mb-1 text-xs text-gray-500">{categorie.find((c) => c.id === categoriaId)?.nome}</p>
@@ -589,8 +627,9 @@ export function SatelliteOrdine({
         )}
 
         {isOwner && (
-          <div className="mb-2">
+          <div className="mb-2 flex items-center gap-2">
             <AllegatoTrigger satelliteId={satellite.id} lavoroId={lavoroId} isOwner={isOwner} />
+            <span className="text-sm text-gray-700">{LABEL_ALLEGATI}</span>
           </div>
         )}
         <div className="mb-2">
@@ -621,7 +660,7 @@ export function SatelliteOrdine({
                 onChange={(e) => setOrdinato(e.target.checked)}
                 className="accent-primary"
               />
-              Ordinato
+              Contrassegna l&apos;acquisto come effettuato.
             </label>
             {/* "Invia ordine" resta legato al valore PERSISTITO
                 (satellite.ordinato), non alla bozza locale: invia
@@ -682,6 +721,7 @@ export function SatelliteOrdine({
             )}
           </div>
         )}
+      </div>
       </div>
 
       {/* isOwner, non `editabile`: quest'ultimo dipende ora dallo stato
