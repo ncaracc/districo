@@ -27,7 +27,7 @@ export async function creaCategoriaAcquisto(nome: string): Promise<AzioneResult>
     return { ok: false, error: 'Errore nella creazione, riprova' }
   }
 
-  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/catalogo')
   return { ok: true }
 }
 
@@ -43,6 +43,6 @@ export async function eliminaCategoriaAcquisto(id: string): Promise<AzioneResult
     return { ok: false, error: "Errore nell'eliminazione, riprova" }
   }
 
-  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/catalogo')
   return { ok: true }
 }

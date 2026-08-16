@@ -1,45 +1,27 @@
 import { createClient } from '@/lib/supabase/server'
 import { ProfiloSmtpForm } from '@/components/profilo-smtp-form'
 import { ProfiloObiettiviForm } from '@/components/profilo-obiettivi-form'
-import { ProfiloCategorieAcquistoForm } from '@/components/profilo-categorie-acquisto-form'
-import { ProfiloReferenzeForm } from '@/components/profilo-referenze-form'
+import { ProfiloTestoMailForm } from '@/components/profilo-testo-mail-form'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 
+// Categorie acquisto/Referenze spostate nella nuova sezione di menu
+// "Catalogo" (2026-08-17, vedi CLAUDE.md) — non erano preferenze personali
+// come SMTP/Obiettivi/testo mail, ma dati operativi del flusso Acquisto.
 export default async function ProfiloImpostazioniPage() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data: artigiano }, { data: categorieAcquisto }, { data: referenzeGrezze }] = await Promise.all([
-    user
-      ? supabase
-          .from('artigiano')
-          .select(
-            'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi',
-          )
-          .eq('id', user.id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    user
-      ? supabase.from('categoria_acquisto').select('id, nome').order('nome')
-      : Promise.resolve({ data: [] as { id: string; nome: string }[] }),
-    // Referenze (2026-08-14, vedi CLAUDE.md): stesso fetch diretto in
-    // page.tsx già in uso per categorieAcquisto sopra, per coerenza — nessun
-    // filtro esplicito per artigiano necessario, RLS "solo proprietario"
-    // (migration 0048) lo applica già.
-    user
-      ? supabase.from('referenza').select('id, categoria_id, descrizione, colore_finitura, ultimo_prezzo').order('descrizione')
-      : Promise.resolve({ data: [] as { id: string; categoria_id: string; descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null }[] }),
-  ])
-
-  const referenze = (referenzeGrezze ?? []).map((r) => ({
-    id: r.id,
-    categoriaId: r.categoria_id,
-    descrizione: r.descrizione,
-    coloreFinitura: r.colore_finitura,
-    ultimoPrezzo: r.ultimo_prezzo,
-  }))
+  const { data: artigiano } = user
+    ? await supabase
+        .from('artigiano')
+        .select(
+          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi, mail_ordine_apertura, mail_ordine_congedo',
+        )
+        .eq('id', user.id)
+        .maybeSingle()
+    : { data: null }
 
   return (
     // Contenitore stretto (sessione "coerenza layout desktop", 2026-08-10 —
@@ -66,6 +48,20 @@ export default async function ProfiloImpostazioniPage() {
       />
 
       <div className="mt-10 border-t border-gray-200 pt-8">
+        <h2 className="mb-1 text-lg font-semibold text-gray-900">Testo mail ordine</h2>
+        <p className="mb-4 text-sm text-gray-500">
+          Apertura e congedo della mail inviata ai fornitori quando confermi un ordine — il resto del testo (elenco
+          referenze, firma) resta invariato.
+        </p>
+        <ProfiloTestoMailForm
+          initialValues={{
+            apertura: artigiano?.mail_ordine_apertura ?? '',
+            congedo: artigiano?.mail_ordine_congedo ?? '',
+          }}
+        />
+      </div>
+
+      <div className="mt-10 border-t border-gray-200 pt-8">
         <h2 className="mb-4 text-lg font-semibold text-gray-900">Obiettivi</h2>
         <ProfiloObiettiviForm
           initialValues={{
@@ -76,23 +72,6 @@ export default async function ProfiloImpostazioniPage() {
             kpiFinestraMesi: String(artigiano?.kpi_finestra_mesi ?? 12),
           }}
         />
-      </div>
-
-      <div className="mt-10 border-t border-gray-200 pt-8">
-        <h2 className="mb-1 text-lg font-semibold text-gray-900">Categorie acquisto</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Etichette libere da scegliere quando crei un ordine Acquisti (es. Materiale, Ferramenta, Lavorazioni esterne).
-        </p>
-        <ProfiloCategorieAcquistoForm categorie={categorieAcquisto ?? []} />
-      </div>
-
-      <div className="mt-10 border-t border-gray-200 pt-8">
-        <h2 className="mb-1 text-lg font-semibold text-gray-900">Referenze</h2>
-        <p className="mb-4 text-sm text-gray-500">
-          Catalogo personale di materiali/prodotti, raggruppato per categoria, con un prezzo indicativo
-          riusato come proposta quando li scegli in un Acquisto.
-        </p>
-        <ProfiloReferenzeForm referenze={referenze} categorie={categorieAcquisto ?? []} />
       </div>
     </div>
   )

@@ -569,13 +569,35 @@ export async function aggiornaCampione(
 // principio "leggi poi scrivi" già in uso altrove nell'app per campi
 // derivati che restano comunque persistiti (consumati da "Spese
 // complessive" di Chiusura Lavoro e dai KPI, invariati).
-type RigaOrdineInput = {
-  referenzaId: string | null
-  descrizione: string
-  coloreFinitura: string | null
-  prezzoUnitario: number
-  quantita: number
-  salvaComeReferenza: boolean
+//
+// Revisione 2026-08-17 (vedi CLAUDE.md — "Catalogo Referenze standalone +
+// revisione modale Acquisto"): CORREGGE due decisioni della sessione del
+// 14/8 — non è più possibile creare una nuova riga "ad hoc" (la modale
+// Acquisto permette solo la SCELTA di una Referenza già esistente nel
+// Catalogo, mai la creazione al volo — `salvaComeReferenza` rimosso) e il
+// prezzo di un Acquisto non aggiorna più `ultimo_prezzo` sulla Referenza
+// (resta modificabile solo dalla schermata Catalogo, vedi
+// lib/acquisti/referenze.ts). Union, non `referenzaId` sempre obbligatorio:
+// verificato su Supabase Cloud PRIMA di restringere il tipo che esistono 6
+// righe reali storiche con `referenza_id null` (Acquisti creati prima di
+// questa revisione, con descrizione/colore_finitura liberi) — un tipo che
+// escludesse quel caso le avrebbe rese impossibili da preservare al
+// prossimo Salva (silenziosamente perse dal delete+insert di
+// aggiornaOrdine). Solo righe NUOVE sono vincolate a passare da
+// `referenzaId`, mai lato server: lato client `campiCorrenti()` non
+// costruisce mai più una riga `{referenzaId:null, descrizione:...}` a
+// partire da un input libero, solo da una riga storica già così a DB.
+type RigaOrdineInput =
+  | { referenzaId: string; prezzoUnitario: number; quantita: number }
+  | { referenzaId: null; descrizione: string; coloreFinitura: string | null; prezzoUnitario: number; quantita: number }
+
+// Una riga "conta" se ha una Referenza scelta, o se è un dato storico con
+// descrizione già valorizzata (vedi il commento su RigaOrdineInput) — non
+// semplicemente `r.referenzaId` da solo, che scarterebbe silenziosamente
+// proprio le righe storiche da preservare.
+function rigaHaContenuto(r: RigaOrdineInput): boolean {
+  if (r.referenzaId !== null) return true
+  return r.descrizione.trim() !== ''
 }
 
 // Arrotondato a 2 decimali (2026-08-15, vedi CLAUDE.md): stessa cautela già
@@ -588,56 +610,63 @@ function valoreComplessivoRighe(righe: RigaOrdineInput[]): number {
   return Math.round(somma * 100) / 100
 }
 
-// Risolve ogni riga verso una referenza (nuova, esistente aggiornata, o
-// nessuna) e inserisce le righe vere e proprie in lavoro_satellite_articolo.
-// Condiviso da creaOrdine/aggiornaOrdine per non duplicare la logica di
-// creazione/aggiornamento del catalogo Referenze in due punti.
+// Inserisce le righe vere e proprie in lavoro_satellite_articolo.
+// Condiviso da creaOrdine/aggiornaOrdine per non duplicare la logica in due
+// punti. Per una riga con `referenzaId`, descrizione/colore_finitura NON
+// arrivano dal client (revisione 2026-08-17): letti qui direttamente dalla
+// Referenza a DB (un solo round-trip per tutte le righe di questo tipo),
+// non fidandosi di un valore che il client potrebbe inviare disallineato
+// dal catalogo reale — impossibile comunque dalla UI attuale (che mostra
+// questi campi in sola lettura), ma più corretto lato server a
+// prescindere. `attiva=true` nella stessa query: impedisce di selezionare
+// (bypassando il client) una Referenza già archiviata per una riga NUOVA.
+// Per una riga senza `referenzaId` (dato storico, mai più creabile da qui —
+// vedi il commento su RigaOrdineInput), descrizione/colore_finitura
+// arrivano invece dal client così come già erano: nessuna Referenza da cui
+// leggerli.
 async function salvaRigheOrdine(
   supabase: Awaited<ReturnType<typeof createClient>>,
   satelliteId: string,
-  artigianoId: string,
-  categoriaId: string | null,
   righe: RigaOrdineInput[],
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  for (const r of righe) {
-    let referenzaId = r.referenzaId
+  const referenzaIds = [...new Set(righe.map((r) => r.referenzaId).filter((id): id is string => id !== null))]
+  const referenzaPerId = new Map<string, { id: string; descrizione: string; colore_finitura: string | null }>()
 
-    if (referenzaId) {
-      // Referenza esistente: il prezzo di questo Acquisto diventa il nuovo
-      // "ultimo prezzo" indicativo per la prossima volta (RLS "solo
-      // proprietario" applicata comunque, un id non posseduto non
-      // aggiornerebbe nulla anziché sollevare un errore — coerente col
-      // comportamento già accettato altrove per gli update scoped da RLS).
-      const { error } = await supabase.from('referenza').update({ ultimo_prezzo: r.prezzoUnitario }).eq('id', referenzaId)
-      if (error) {
-        console.error('salvaRigheOrdine: aggiornamento ultimo_prezzo fallito', error)
-        return { ok: false, error: 'Errore nel salvataggio delle referenze, riprova' }
+  if (referenzaIds.length > 0) {
+    const { data: referenze, error: refErr } = await supabase
+      .from('referenza')
+      .select('id, descrizione, colore_finitura')
+      .in('id', referenzaIds)
+      .eq('attiva', true)
+
+    if (refErr) {
+      console.error('salvaRigheOrdine: lettura referenze fallita', refErr)
+      return { ok: false, error: 'Errore nel salvataggio delle righe, riprova' }
+    }
+    for (const r of referenze ?? []) referenzaPerId.set(r.id, r)
+  }
+
+  for (const r of righe) {
+    let descrizione: string
+    let coloreFinitura: string | null
+
+    if (r.referenzaId !== null) {
+      const referenza = referenzaPerId.get(r.referenzaId)
+      if (!referenza) {
+        return { ok: false, error: 'Una delle referenze scelte non è più disponibile nel Catalogo, aggiorna e riprova' }
       }
-    } else if (r.salvaComeReferenza) {
-      if (!categoriaId) return { ok: false, error: 'Seleziona una categoria prima di salvare una referenza riutilizzabile' }
-      const { data: nuova, error } = await supabase
-        .from('referenza')
-        .insert({
-          artigiano_id: artigianoId,
-          categoria_id: categoriaId,
-          descrizione: r.descrizione,
-          colore_finitura: r.coloreFinitura,
-          ultimo_prezzo: r.prezzoUnitario,
-        })
-        .select('id')
-        .single()
-      if (error || !nuova) {
-        console.error('salvaRigheOrdine: creazione referenza fallita', error)
-        return { ok: false, error: 'Errore nella creazione della referenza, riprova' }
-      }
-      referenzaId = nuova.id
+      descrizione = referenza.descrizione
+      coloreFinitura = referenza.colore_finitura
+    } else {
+      descrizione = r.descrizione
+      coloreFinitura = r.coloreFinitura
     }
 
     const { error: rigaErr } = await supabase.from('lavoro_satellite_articolo').insert({
       satellite_id: satelliteId,
-      referenza_id: referenzaId,
-      descrizione: r.descrizione,
-      colore_finitura: r.coloreFinitura,
+      referenza_id: r.referenzaId,
+      descrizione,
+      colore_finitura: coloreFinitura,
       quantita: r.quantita,
       prezzo_unitario: r.prezzoUnitario,
     })
@@ -655,7 +684,6 @@ export async function creaOrdine(
   fields: {
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
-    categoriaId: string | null
     righe: RigaOrdineInput[]
   },
 ): Promise<CreazioneResult> {
@@ -669,7 +697,7 @@ export async function creaOrdine(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'Non autenticato' }
 
-  const righe = fields.righe.filter((r) => r.descrizione.trim())
+  const righe = fields.righe.filter(rigaHaContenuto)
 
   const { data, error } = await supabase
     .from('lavoro_satellite')
@@ -689,7 +717,7 @@ export async function creaOrdine(
   }
 
   if (righe.length > 0) {
-    const risultato = await salvaRigheOrdine(supabase, data.id, user.id, fields.categoriaId, righe)
+    const risultato = await salvaRigheOrdine(supabase, data.id, righe)
     if (!risultato.ok) {
       await supabase.from('lavoro_satellite').delete().eq('id', data.id)
       return risultato
@@ -717,7 +745,6 @@ export async function aggiornaOrdine(
   fields: {
     fornitoreSedeId: string | null
     acquistoCategoria: string | null
-    categoriaId: string | null
     righe: RigaOrdineInput[]
   },
 ): Promise<AzioneResult> {
@@ -734,7 +761,7 @@ export async function aggiornaOrdine(
   const { data: satellite } = await supabase.from('lavoro_satellite').select('ordinato').eq('id', satelliteId).maybeSingle()
   if (satellite?.ordinato) return { ok: false, error: 'Acquisto ordinato: disattiva il flag "ordinato" prima di modificare' }
 
-  const righe = fields.righe.filter((r) => r.descrizione.trim())
+  const righe = fields.righe.filter(rigaHaContenuto)
 
   const { error } = await supabase
     .from('lavoro_satellite')
@@ -757,7 +784,7 @@ export async function aggiornaOrdine(
   }
 
   if (righe.length > 0) {
-    const risultato = await salvaRigheOrdine(supabase, satelliteId, user.id, fields.categoriaId, righe)
+    const risultato = await salvaRigheOrdine(supabase, satelliteId, righe)
     if (!risultato.ok) return risultato
   }
 

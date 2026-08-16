@@ -16,10 +16,16 @@ import { CONTENITORE_LARGO } from '@/lib/layout-container'
 // path (/lavori) e con l'etichetta già usata per la voce di menu
 // equivalente ("Lavori associati" su Cliente, ecc.). Scelta stilistica, non
 // vincolata dalla richiesta.
+// "Catalogo" aggiunta il 2026-08-17 (vedi CLAUDE.md — "Catalogo Referenze
+// standalone + revisione modale Acquisto"): sezione dedicata a Categorie/
+// Referenze, spostate da Profilo/Impostazioni — non dentro Impostazioni né
+// dentro Fornitori (le Referenze sono legate a una Categoria personale, non
+// a un Fornitore — vedi CLAUDE.md 14/8), come richiesto esplicitamente.
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Lavori' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
+  { href: '/catalogo', label: 'Catalogo' },
 ]
 
 // Profilo/Impostazioni ha un trattamento a parte (icona ingranaggio invece di

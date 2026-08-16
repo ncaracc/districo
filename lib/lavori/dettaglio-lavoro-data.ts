@@ -159,9 +159,9 @@ export async function caricaDatiLavoroSatelliti(
     fornitoreSedeIds.length > 0
       ? supabase.from('fornitore_sede').select('id, fornitore_id, nome, citta').in('id', fornitoreSedeIds)
       : Promise.resolve({ data: [] as { id: string; fornitore_id: string; nome: string; citta: string | null }[] }),
-    // Categorie acquisto libere dell'artigiano (Profilo/Impostazioni), per
-    // il form "Acquisto" nel modale "Aggiungi attività" e per la vista
-    // Acquisto.
+    // Categorie acquisto libere dell'artigiano (sezione "Catalogo", vedi
+    // CLAUDE.md 2026-08-17 — prima in Profilo/Impostazioni), per il form
+    // "Acquisto" nel modale "Aggiungi attività" e per la vista Acquisto.
     isOwner
       ? supabase.from('categoria_acquisto').select('id, nome').order('nome')
       : Promise.resolve({ data: [] as { id: string; nome: string }[] }),

@@ -47,6 +47,46 @@ export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<
   return { ok: true }
 }
 
+// Testo mail ordine — Apertura/Congedo personalizzabili (2026-08-17, vedi
+// CLAUDE.md): entrambi opzionali (null = usa il default applicativo, vedi
+// lib/lavori/ordini-email.ts) — stringa vuota (o di soli spazi) trattata
+// come "non impostato" (null), stesso principio già in uso per gli altri
+// campi opzionali dei form di questo file (es. coloreFinitura in
+// referenze.ts). Il valore SALVATO quando non è vuoto resta però quello
+// originale, non `.trim()`-ato: i default (DEFAULT_APERTURA_*/CONGEDO_*,
+// lib/lavori/mail-ordine-testo.ts) terminano deliberatamente con un `\n`
+// (riga vuota prima dell'elenco referenze) — un `.trim()` incondizionato
+// lo avrebbe silenziosamente perso ad ogni salvataggio, bug riprodotto e
+// corretto durante il testing di questa sessione.
+type TestoMailFields = {
+  apertura: string
+  congedo: string
+}
+
+export async function aggiornaTestoMail(fields: TestoMailFields): Promise<AzioneResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'Non autenticato' }
+
+  const { error } = await supabase
+    .from('artigiano')
+    .update({
+      mail_ordine_apertura: fields.apertura.trim() ? fields.apertura : null,
+      mail_ordine_congedo: fields.congedo.trim() ? fields.congedo : null,
+    })
+    .eq('id', user.id)
+
+  if (error) {
+    console.error('aggiornaTestoMail: update fallito', error)
+    return { ok: false, error: 'Errore nel salvataggio, riprova' }
+  }
+
+  revalidatePath('/profilo/impostazioni')
+  return { ok: true }
+}
+
 type CredenzialiSmtpFields = {
   host: string
   porta: number

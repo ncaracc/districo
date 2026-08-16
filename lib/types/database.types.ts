@@ -25,6 +25,7 @@ export type Database = {
           target_preventivo_giorni: number; target_progetto_giorni: number
           target_produzione_giorni: number; target_montaggio_giorni: number
           kpi_finestra_mesi: number
+          mail_ordine_apertura: string | null; mail_ordine_congedo: string | null
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -40,6 +41,7 @@ export type Database = {
           target_preventivo_giorni?: number; target_progetto_giorni?: number
           target_produzione_giorni?: number; target_montaggio_giorni?: number
           kpi_finestra_mesi?: number
+          mail_ordine_apertura?: string | null; mail_ordine_congedo?: string | null
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -110,11 +112,13 @@ export type Database = {
         Row: {
           id: string; artigiano_id: string; categoria_id: string
           descrizione: string; colore_finitura: string | null; ultimo_prezzo: number | null
+          attiva: boolean
           created_at: string
         }
         Insert: {
           id?: string; artigiano_id: string; categoria_id: string
           descrizione: string; colore_finitura?: string | null; ultimo_prezzo?: number | null
+          attiva?: boolean
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['referenza']['Insert']>

@@ -10,7 +10,6 @@ import { contattiPerInvio, inviaOrdineSatellite } from '@/lib/lavori/ordini-emai
 import { formattaValuta } from '@/lib/formato-valuta'
 import { InputValuta } from '@/components/input-valuta'
 import { Combobox } from '@/components/combobox'
-import { ComboboxCreabile } from '@/components/combobox-creabile'
 import { AllegatoLista, AllegatoTrigger } from '@/components/satellite-allegati'
 import type { Satellite, SatelliteAllegato, SatelliteArticolo } from '@/lib/lavori/satelliti-meta'
 import { inputClass } from '@/lib/input-class'
@@ -21,24 +20,27 @@ import { DialogConferma } from '@/components/dialog-conferma'
 
 type SedeSelezionata = { id: string; label: string }
 
-// Riga di Acquisto: può essere collegata al catalogo Referenze personale
-// dell'artigiano (referenzaId valorizzato) o "ad hoc" (referenzaId null,
-// mai salvata nel catalogo) — restyling 2026-08-14, vedi CLAUDE.md.
+// Riga di Acquisto: SOLO selezione da catalogo (revisione 2026-08-17, vedi
+// CLAUDE.md — "Catalogo Referenze standalone + revisione modale Acquisto",
+// CORREGGE la decisione del 14/8 che permetteva anche righe "ad hoc" create
+// al volo). `referenzaId` null finché non si sceglie una Referenza dal
+// Combobox; descrizione/coloreFinitura sono sola lettura, copiate dalla
+// Referenza scelta (mai editabili qui — modificarle non aggiornerebbe il
+// catalogo, l'unico posto dove farlo è /catalogo). Righe storiche prive di
+// referenza (create prima di questa revisione, o il cui collegamento è
+// stato perso da un vecchio hard delete pre-migration 0051) restano
+// visualizzabili identicamente, sola lettura, "Cambia" le porta comunque
+// alla ricerca per agganciarle a una Referenza reale.
 type RigaBozza = {
   referenzaId: string | null
   descrizione: string
   coloreFinitura: string
   prezzo: string
   quantita: string
-  // Rilevante solo quando referenzaId è null: se true, al salvataggio viene
-  // creata una nuova Referenza nel catalogo personale (categoria scelta
-  // sopra). Irrilevante per una riga già collegata a una referenza
-  // esistente (il prezzo aggiorna comunque `ultimo_prezzo` di quella).
-  salvaComeReferenza: boolean
 }
 
 function rigaVuota(): RigaBozza {
-  return { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', salvaComeReferenza: true }
+  return { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1' }
 }
 
 function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
@@ -48,8 +50,35 @@ function rigaDaArticolo(r: SatelliteArticolo): RigaBozza {
     coloreFinitura: r.colore_finitura ?? '',
     prezzo: r.prezzo_unitario != null ? String(r.prezzo_unitario) : '',
     quantita: String(r.quantita),
-    salvaComeReferenza: false,
   }
+}
+
+// Payload di una riga verso aggiornaOrdine/creaOrdine — stessa union di
+// RigaOrdineInput lato server (lib/lavori/satelliti.ts), qui con
+// prezzo/quantita ancora stringhe (valori grezzi dei campi form, convertiti
+// a Number solo al momento dell'invio in handleSalva). Righe con una
+// Referenza scelta inviano solo referenzaId; righe storiche "ad hoc" (mai
+// più creabili da qui, solo preservabili — vedi rigaDaArticolo/verifica su
+// dati reali di produzione, 2026-08-17) inviano anche descrizione/colore
+// così come già erano. `null` se la riga è vuota (mai iniziata).
+type RigaOrdinePayload =
+  | { referenzaId: string; prezzo: string; quantita: string }
+  | { referenzaId: null; descrizione: string; coloreFinitura: string | null; prezzo: string; quantita: string }
+
+function rigaBozzaAPayload(r: RigaBozza): RigaOrdinePayload | null {
+  if (r.referenzaId !== null) {
+    return { referenzaId: r.referenzaId, prezzo: r.prezzo, quantita: r.quantita }
+  }
+  if (r.descrizione.trim()) {
+    return {
+      referenzaId: null,
+      descrizione: r.descrizione.trim(),
+      coloreFinitura: r.coloreFinitura.trim() || null,
+      prezzo: r.prezzo,
+      quantita: r.quantita,
+    }
+  }
+  return null
 }
 
 // Somma prezzo×quantità, arrotondata a 2 decimali (2026-08-15, vedi
@@ -97,15 +126,29 @@ function filtraQuantita(testo: string): string {
 // Restyling 2026-08-14 (vedi CLAUDE.md — catalogo Referenze): SOSTITUISCE
 // il vecchio Valore complessivo a inserimento manuale e le righe a solo
 // testo libero. Ogni riga è ora una Referenza (dal catalogo personale
-// dell'artigiano, legata a una Categoria — non a un Fornitore — o creata al
-// volo) con prezzo e quantità propri; il Valore complessivo diventa un
-// campo calcolato, sola lettura, somma di prezzo×quantità. Il Fornitore
-// resta un passo di navigazione indipendente (non filtra le Referenze) ma
-// è bloccato ("Cambia" nascosto) non appena una Categoria è stata scelta,
-// per evitare lo scenario segnalato dall'utente — cambiare fornitore dopo
-// aver già scelto categoria/referenze rischierebbe di scegliere un
-// fornitore che non vende quella categoria: il blocco previene l'errore
-// invece di richiedere solo una conferma testuale (opzione scartata).
+// dell'artigiano, legata a una Categoria — non a un Fornitore) con prezzo e
+// quantità propri; il Valore complessivo diventa un campo calcolato, sola
+// lettura, somma di prezzo×quantità. Il Fornitore resta un passo di
+// navigazione indipendente (non filtra le Referenze) ma è bloccato
+// ("Cambia" nascosto) non appena una Categoria è stata scelta, per evitare
+// lo scenario segnalato dall'utente — cambiare fornitore dopo aver già
+// scelto categoria/referenze rischierebbe di scegliere un fornitore che
+// non vende quella categoria: il blocco previene l'errore invece di
+// richiedere solo una conferma testuale (opzione scartata).
+//
+// Revisione 2026-08-17 (vedi CLAUDE.md — "Catalogo Referenze standalone +
+// revisione modale Acquisto"): CORREGGE due punti della sessione del 14/8
+// — (1) non è più possibile creare una Referenza "al volo" da qui, solo
+// SCEGLIERLA da quelle già nel Catalogo (la gestione CRUD completa vive
+// ora nella sua sezione di menu dedicata, /catalogo); (2) il prezzo di
+// questo Acquisto non aggiorna più `ultimo_prezzo` sulla Referenza — resta
+// solo una proposta di default, liberamente editabile per il singolo
+// Acquisto, `ultimo_prezzo` si tocca solo da /catalogo. Righe storiche
+// prive di una Referenza collegata (create prima di questa revisione)
+// restano visualizzabili/preservabili sola lettura — verificato che
+// esistono davvero in produzione prima di scrivere questo commento, non
+// solo un caso teorico — "Cambia" resta l'unico modo per agganciarle a una
+// Referenza reale.
 export function SatelliteOrdine({
   satellite,
   righe,
@@ -164,22 +207,21 @@ export function SatelliteOrdine({
     setRigheBozza((r) => r.map((riga, idx) => (idx === i ? { ...riga, ...patch } : riga)))
   }
 
+  // Prezzo precompilato da ultimo_prezzo della Referenza (proposta di
+  // default), ma resta liberamente editabile subito sotto — modificarlo
+  // NON aggiorna più la Referenza (revisione 2026-08-17, vedi CLAUDE.md:
+  // ultimo_prezzo si tocca solo dalla schermata Catalogo).
   function selezionaReferenzaEsistente(i: number, opt: ReferenzaOption) {
     aggiornaRiga(i, {
       referenzaId: opt.id,
       descrizione: opt.descrizione,
       coloreFinitura: opt.coloreFinitura ?? '',
       prezzo: opt.ultimoPrezzo != null ? String(opt.ultimoPrezzo) : '',
-      salvaComeReferenza: false,
     })
   }
 
-  function creaReferenzaAlVolo(i: number, testo: string) {
-    aggiornaRiga(i, { referenzaId: null, descrizione: testo, coloreFinitura: '', salvaComeReferenza: true })
-  }
-
   function svincolaRiga(i: number) {
-    aggiornaRiga(i, { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1', salvaComeReferenza: true })
+    aggiornaRiga(i, { referenzaId: null, descrizione: '', coloreFinitura: '', prezzo: '', quantita: '1' })
   }
 
   // Ricerca scoped alla categoria corrente (non al fornitore, vedi CLAUDE.md
@@ -207,17 +249,9 @@ export function SatelliteOrdine({
     return {
       fornitoreSedeId: sede?.id ?? null,
       acquistoCategoria: categorie.find((c) => c.id === categoriaId)?.nome ?? null,
-      categoriaId: categoriaId || null,
-      righe: righeBozza
-        .filter((r) => r.descrizione.trim())
-        .map((r) => ({
-          referenzaId: r.referenzaId,
-          descrizione: r.descrizione.trim(),
-          coloreFinitura: r.coloreFinitura.trim() || null,
-          prezzo: r.prezzo,
-          quantita: r.quantita,
-          salvaComeReferenza: r.salvaComeReferenza,
-        })),
+      // rigaBozzaAPayload esclude le righe vuote e distingue riga con
+      // Referenza / riga storica "ad hoc" (vedi il commento lì).
+      righe: righeBozza.map(rigaBozzaAPayload).filter((r): r is RigaOrdinePayload => r !== null),
     }
   }
 
@@ -267,15 +301,17 @@ export function SatelliteOrdine({
       const salvatoCampi = await aggiornaOrdine(satellite.id, lavoroId, {
         fornitoreSedeId: campi.fornitoreSedeId,
         acquistoCategoria: campi.acquistoCategoria,
-        categoriaId: campi.categoriaId,
-        righe: campi.righe.map((r) => ({
-          referenzaId: r.referenzaId,
-          descrizione: r.descrizione,
-          coloreFinitura: r.coloreFinitura,
-          prezzoUnitario: Number(r.prezzo),
-          quantita: Number(r.quantita),
-          salvaComeReferenza: r.salvaComeReferenza,
-        })),
+        righe: campi.righe.map((r) =>
+          r.referenzaId !== null
+            ? { referenzaId: r.referenzaId, prezzoUnitario: Number(r.prezzo), quantita: Number(r.quantita) }
+            : {
+                referenzaId: null,
+                descrizione: r.descrizione,
+                coloreFinitura: r.coloreFinitura,
+                prezzoUnitario: Number(r.prezzo),
+                quantita: Number(r.quantita),
+              },
+        ),
       })
       if (!salvatoCampi.ok) {
         setLoading(false)
@@ -404,11 +440,16 @@ export function SatelliteOrdine({
               <div className="space-y-3">
                 {righeBozza.map((riga, i) => (
                   <div key={i} className="space-y-2 rounded-lg bg-gray-50 p-3">
-                    {riga.referenzaId ? (
-                      // Referenza già a catalogo: descrizione/colore di
-                      // sola lettura (modificarli qui non aggiornerebbe il
-                      // catalogo, solo il prezzo lo fa — vedi
-                      // salvaRigheOrdine) — "Cambia" torna alla ricerca.
+                    {riga.referenzaId || riga.descrizione.trim() ? (
+                      // Referenza già a catalogo, o riga storica "ad hoc"
+                      // precedente a questa revisione (referenzaId assente
+                      // ma descrizione già valorizzata — vedi
+                      // rigaDaArticolo): in entrambi i casi sola lettura,
+                      // modificare qui non aggiornerebbe comunque il
+                      // catalogo (solo /catalogo può, vedi CLAUDE.md
+                      // 2026-08-17) — "Cambia" torna alla ricerca, per
+                      // agganciare anche una riga storica a una Referenza
+                      // reale se lo si desidera.
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="truncate text-sm text-gray-900">{riga.descrizione}</p>
@@ -422,51 +463,18 @@ export function SatelliteOrdine({
                           Cambia
                         </button>
                       </div>
-                    ) : riga.descrizione.trim() ? (
-                      // Referenza "ad hoc" (creata al volo in questa sessione
-                      // o già così a DB): descrizione/colore restano
-                      // editabili, nessun catalogo a cui restare coerenti.
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <input
-                            value={riga.descrizione}
-                            onChange={(e) => aggiornaRiga(i, { descrizione: e.target.value })}
-                            placeholder="Descrizione referenza"
-                            className={`${inputClass()} min-w-0 flex-1`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => svincolaRiga(i)}
-                            className="shrink-0 text-xs font-medium text-gray-600 underline"
-                          >
-                            Svuota
-                          </button>
-                        </div>
-                        <input
-                          value={riga.coloreFinitura}
-                          onChange={(e) => aggiornaRiga(i, { coloreFinitura: e.target.value })}
-                          placeholder="Colore / finitura (opz.)"
-                          className={inputClass()}
-                        />
-                        <label className="flex items-center gap-2 text-xs text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={riga.salvaComeReferenza}
-                            onChange={(e) => aggiornaRiga(i, { salvaComeReferenza: e.target.checked })}
-                            className="accent-primary"
-                          />
-                          Salva come referenza riutilizzabile
-                        </label>
-                      </>
                     ) : categoriaId ? (
-                      <ComboboxCreabile
-                        placeholder="Cerca o crea una referenza..."
+                      // Selezione-only (revisione 2026-08-17, vedi
+                      // CLAUDE.md): Combobox generico, non più
+                      // ComboboxCreabile — nessuna affordance di creazione,
+                      // solo scelta di una Referenza già nel Catalogo.
+                      <Combobox
+                        placeholder="Cerca una referenza..."
                         fetchOptions={fetchReferenze}
                         onSelect={(opt) => selezionaReferenzaEsistente(i, opt)}
-                        onCrea={(testo) => creaReferenzaAlVolo(i, testo)}
                       />
                     ) : (
-                      <p className="text-xs text-gray-500">Scegli prima una categoria per selezionare o creare una referenza.</p>
+                      <p className="text-xs text-gray-500">Scegli prima una categoria per selezionare una referenza.</p>
                     )}
 
                     {riga.descrizione.trim() && (

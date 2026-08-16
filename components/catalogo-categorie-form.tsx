@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation'
 import { creaCategoriaAcquisto, eliminaCategoriaAcquisto } from '@/lib/acquisti/categorie'
 import { inputClass } from '@/lib/input-class'
 
-export function ProfiloCategorieAcquistoForm({ categorie }: { categorie: { id: string; nome: string }[] }) {
+// Spostato da Profilo/Impostazioni alla nuova sezione di menu "Catalogo"
+// (2026-08-17, vedi CLAUDE.md) — nessun cambio di comportamento, solo la
+// sua collocazione (e il file/nome che riflette la nuova sede).
+export function CatalogoCategorieForm({ categorie }: { categorie: { id: string; nome: string }[] }) {
   const router = useRouter()
   const [nome, setNome] = useState('')
   const [loading, setLoading] = useState(false)

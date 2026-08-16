@@ -187,7 +187,7 @@ export function LavoroSatelliteTabella({
         // pienamente editabile) — stesso pattern "crea vuoto e naviga in
         // modifica" di tutti gli altri tipi, nessuna eccezione residua.
         case 'acquisto':
-          return () => creaOrdine(lavoroId, { fornitoreSedeId: null, acquistoCategoria: null, categoriaId: null, righe: [] })
+          return () => creaOrdine(lavoroId, { fornitoreSedeId: null, acquistoCategoria: null, righe: [] })
         case 'costruzione':
           return () => creaCostruzione(lavoroId)
         case 'montaggio':

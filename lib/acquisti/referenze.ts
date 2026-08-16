@@ -2,12 +2,16 @@
 
 // Catalogo Referenze per artigiano (2026-08-14, vedi CLAUDE.md).
 // `cercaReferenze()` (sotto) è nata insieme al restyling di Acquisto per la
-// creazione al volo dentro la modale. Le azioni CRUD sotto sono per la
-// gestione standalone in Profilo/Impostazioni (stessa sessione, seconda
-// parte) — stesso principio di lib/acquisti/categorie.ts. RLS "referenza:
-// solo proprietario" (migration 0048) filtra già per artigiano_id, nessun
-// filtro esplicito necessario in select/update/delete — stesso motivo per
-// cui eliminaCategoriaAcquisto() non lo fa.
+// creazione al volo dentro la modale — quella possibilità è stata RIMOSSA
+// il 2026-08-17 (vedi CLAUDE.md, sessione "Catalogo Referenze standalone +
+// revisione modale Acquisto"): la modale Acquisto permette ora solo la
+// SCELTA di una Referenza già esistente, mai la creazione. Le azioni CRUD
+// sotto sono per la gestione standalone nella nuova sezione di menu
+// "Catalogo" (prima erano in Profilo/Impostazioni, stessa sessione le ha
+// spostate) — stesso principio di lib/acquisti/categorie.ts. RLS
+// "referenza: solo proprietario" (migration 0048) filtra già per
+// artigiano_id, nessun filtro esplicito necessario in select/update —
+// stesso motivo per cui eliminaCategoriaAcquisto() non lo fa.
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
@@ -25,6 +29,12 @@ export type ReferenzaOption = {
 // corretto): una Referenza appartiene a una Categoria personale, il
 // Fornitore nel flusso di Acquisto resta un passo di navigazione
 // indipendente che non filtra né vincola le Referenze disponibili.
+//
+// `attiva=true` (2026-08-17, soft delete, vedi CLAUDE.md): una Referenza
+// eliminata dal Catalogo non deve più comparire tra le scelte disponibili
+// per un nuovo Acquisto — resta comunque a schema, referenziata dagli
+// Acquisti passati che la usano già (mai toccati da questo filtro, che
+// riguarda solo la ricerca per una riga NUOVA).
 export async function cercaReferenze(categoriaId: string, query: string): Promise<ReferenzaOption[]> {
   if (!categoriaId) return []
 
@@ -35,6 +45,7 @@ export async function cercaReferenze(categoriaId: string, query: string): Promis
     .from('referenza')
     .select('id, descrizione, colore_finitura, ultimo_prezzo')
     .eq('categoria_id', categoriaId)
+    .eq('attiva', true)
     .order('descrizione')
 
   return (data ?? [])
@@ -80,13 +91,16 @@ export async function creaReferenzaCatalogo(fields: CampiReferenza): Promise<Azi
     return { ok: false, error: 'Errore nella creazione, riprova' }
   }
 
-  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/catalogo')
   return { ok: true }
 }
 
 // Modifica piena (categoria inclusa, non solo descrizione/colore/prezzo) —
 // nessun vincolo a mantenere la categoria d'origine, `referenza_id` sulle
-// righe Acquisto che la usano resta lo stesso id, invariate.
+// righe Acquisto che la usano resta lo stesso id, invariate. `ultimo_prezzo`
+// si modifica SOLO da qui (2026-08-17, vedi CLAUDE.md): un Acquisto può
+// proporlo come default ma non lo scrive mai più indietro sul catalogo
+// (vedi lib/lavori/satelliti.ts, salvaRigheOrdine).
 export async function aggiornaReferenzaCatalogo(id: string, fields: CampiReferenza): Promise<AzioneResult> {
   const supabase = await createClient()
 
@@ -109,22 +123,28 @@ export async function aggiornaReferenzaCatalogo(id: string, fields: CampiReferen
     return { ok: false, error: 'Errore nel salvataggio, riprova' }
   }
 
-  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/catalogo')
   return { ok: true }
 }
 
-// `referenza_id` su lavoro_satellite_articolo è `on delete set null`
-// (migration 0048): le righe Acquisto che usano questa referenza restano
-// invariate, perdono solo il collegamento al catalogo (tornano "ad hoc").
+// Soft delete (2026-08-17, vedi CLAUDE.md — SOSTITUISCE l'hard delete
+// precedente): `attiva=false` invece di un `delete()`. Le righe Acquisto
+// che già usano questa referenza (referenza_id) restano invariate E
+// collegate — a differenza del comportamento precedente (on delete set
+// null, mai più raggiunto ora che la riga non viene più eliminata
+// davvero), lo storico resta pienamente tracciabile fino alla referenza
+// originale. L'unico effetto è sparire da cercaReferenze() (nuovi
+// Acquisti) e dalla lista in Catalogo (stesso filtro, vedi
+// app/(app)/catalogo/page.tsx).
 export async function eliminaReferenzaCatalogo(id: string): Promise<AzioneResult> {
   const supabase = await createClient()
-  const { error } = await supabase.from('referenza').delete().eq('id', id)
+  const { error } = await supabase.from('referenza').update({ attiva: false }).eq('id', id)
 
   if (error) {
-    console.error('eliminaReferenzaCatalogo: delete fallito', error)
+    console.error('eliminaReferenzaCatalogo: aggiornamento (soft delete) fallito', error)
     return { ok: false, error: "Errore nell'eliminazione, riprova" }
   }
 
-  revalidatePath('/profilo/impostazioni')
+  revalidatePath('/catalogo')
   return { ok: true }
 }

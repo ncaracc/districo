@@ -19,15 +19,22 @@ type Categoria = { id: string; nome: string }
 type CampiForm = { categoriaId: string; descrizione: string; coloreFinitura: string; prezzo: string }
 const CAMPI_VUOTI: CampiForm = { categoriaId: '', descrizione: '', coloreFinitura: '', prezzo: '' }
 
-// Gestione standalone del catalogo Referenze (2026-08-14, vedi CLAUDE.md) —
-// seconda parte della sessione di restyling Acquisto: lì la creazione
-// avviene solo al volo, qui si può creare/correggere/eliminare senza passare
-// da un Acquisto. Stesso pattern di ProfiloCategorieAcquistoForm (lista +
-// form di creazione), ma con modifica inline in più — una Referenza ha 3
-// campi oltre alla categoria, elimina+ricrea per correggere un typo
-// spezzerebbe anche il collegamento (referenza_id) delle righe Acquisto
-// esistenti che la usano, a differenza del nome libero di una Categoria.
-export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Referenza[]; categorie: Categoria[] }) {
+// Gestione standalone del catalogo Referenze — nata in Profilo/Impostazioni
+// il 2026-08-14, spostata nella sua sezione di menu dedicata "Catalogo" il
+// 2026-08-17 (vedi CLAUDE.md), stesso giorno in cui la modale Acquisto ha
+// perso la possibilità di creare una Referenza al volo: questa resta quindi
+// l'UNICO punto dell'app in cui si può creare/correggere/eliminare una
+// Referenza. Stesso pattern di CatalogoCategorieForm (lista + form di
+// creazione), ma con modifica inline in più — una Referenza ha 3 campi
+// oltre alla categoria, elimina+ricrea per correggere un typo spezzerebbe
+// anche il collegamento (referenza_id) delle righe Acquisto esistenti che
+// la usano, a differenza del nome libero di una Categoria. "Elimina" è un
+// soft delete (colonna `attiva`, migration 0051): la Referenza sparisce da
+// questa lista e dalle scelte disponibili per un nuovo Acquisto, ma resta
+// a schema — gli Acquisti passati che la usano restano collegati alla
+// referenza originale (non solo a una copia congelata di descrizione/
+// colore), non solo "invariati" come con il vecchio hard delete.
+export function CatalogoReferenzeForm({ referenze, categorie }: { referenze: Referenza[]; categorie: Categoria[] }) {
   const router = useRouter()
 
   const [nuova, setNuova] = useState<CampiForm>(CAMPI_VUOTI)
@@ -94,7 +101,7 @@ export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Refe
   }
 
   async function handleElimina(id: string) {
-    if (!confirm('Eliminare questa referenza? Le righe Acquisto che la usano restano invariate ma perdono il collegamento al catalogo.')) return
+    if (!confirm('Eliminare questa referenza? Non sarà più selezionabile per nuovi Acquisti, ma resta collegata agli Acquisti che la usano già.')) return
     const result = await eliminaReferenzaCatalogo(id)
     if (!result.ok) {
       alert(result.error)
@@ -106,9 +113,7 @@ export function ProfiloReferenzeForm({ referenze, categorie }: { referenze: Refe
   return (
     <div>
       {gruppi.length === 0 ? (
-        <p className="mb-3 text-sm text-gray-500">
-          Nessuna referenza salvata. Si creano qui, oppure al volo durante la compilazione di un Acquisto.
-        </p>
+        <p className="mb-3 text-sm text-gray-500">Nessuna referenza salvata. Aggiungine una dal modulo qui sotto.</p>
       ) : (
         gruppi.map(({ categoria, righe }) => (
           <div key={categoria.id} className="mb-4">
