@@ -1,4 +1,9 @@
-function siteUrl() {
+// Esportata (2026-08-17, vedi CLAUDE.md — mail ordine in HTML con banner):
+// riusata anche da lib/lavori/ordini-email.ts per il link cliccabile del
+// banner e per l'URL assoluto dei PNG del banner — le email HTML non
+// possono riferire asset con un percorso relativo, serve sempre un dominio
+// completo, stesso principio già in uso qui per i link di conferma email.
+export function siteUrl() {
   return process.env.NEXT_PUBLIC_SITE_URL || 'https://www.districo.it'
 }
 

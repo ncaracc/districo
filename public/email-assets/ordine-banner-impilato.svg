@@ -1,0 +1,10 @@
+<!-- Banner mail ordine (impilato, per schermi stretti), 2026-08-17 — vedi
+     CLAUDE.md. Stesso principio del frame orizzontale: logo composto a
+     parte via sharp, non ridisegnato come testo qui. -->
+<svg width="680" height="200" viewBox="0 0 680 200" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="680" height="200" fill="#ffffff"/>
+<line x1="305" y1="122" x2="375" y2="122" stroke="#d1d5db" stroke-width="1.5"/>
+<text x="340" y="146" font-family="Arial, sans-serif" font-weight="800" font-size="22" fill="#111827" text-anchor="middle">Districo <tspan fill="#e63946">ti aiuta.</tspan></text>
+<text x="340" y="168" font-family="Arial, sans-serif" font-size="13" fill="#6b7280" text-anchor="middle">Questo ordine è stato generato in automatico.</text>
+<text x="340" y="187" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af" text-anchor="middle">districo.it</text>
+</svg>

@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmailPersonale } from '@/lib/email/send-email-personale'
 import { decifraPassword } from '@/lib/crypto/credenziali-smtp'
-import { DEFAULT_APERTURA_INFORMALE, DEFAULT_CONGEDO_INFORMALE, sostituisciPlaceholder, testoConABr } from '@/lib/lavori/mail-ordine-testo'
+import { DEFAULT_APERTURA_INFORMALE, DEFAULT_CONGEDO_INFORMALE, sostituisciPlaceholder } from '@/lib/lavori/mail-ordine-testo'
+import { corpoMailOrdine } from '@/lib/lavori/ordine-mail-html'
 
 // richiedeConfigurazione: distingue il caso "credenziali SMTP personali assenti"
 // dagli altri errori, così la UI può mostrare un link diretto a Profilo/Impostazioni
@@ -63,7 +64,7 @@ export async function inviaOrdineSatellite(
 
   const { data: satellite } = await supabase
     .from('lavoro_satellite')
-    .select('id, tipo, acquisto_categoria, fornitore_sede_id')
+    .select('id, tipo, acquisto_categoria, fornitore_sede_id, valore_complessivo')
     .eq('id', satelliteId)
     .maybeSingle()
 
@@ -74,7 +75,7 @@ export async function inviaOrdineSatellite(
   const [{ data: righe }, { data: contatto }, { data: lavoro }] = await Promise.all([
     supabase
       .from('lavoro_satellite_articolo')
-      .select('descrizione, colore_finitura, quantita')
+      .select('descrizione, colore_finitura, quantita, prezzo_unitario')
       .eq('satellite_id', satelliteId),
     supabase
       .from('fornitore_sede_contatto')
@@ -95,16 +96,6 @@ export async function inviaOrdineSatellite(
   const oggettoTipo = satellite.acquisto_categoria ? satellite.acquisto_categoria.toLowerCase() : 'acquisti'
 
   const subject = `Ordine ${oggettoTipo} rif. ${cliente?.nome ?? 'lavoro'}`
-
-  // Restyling 2026-08-14 (vedi CLAUDE.md — catalogo Referenze): "×
-  // quantità" torna nel testo, questa volta con un significato reale — ogni
-  // riga ha ora una quantità raccolta davvero in UI (non più il vecchio
-  // `quantita: 1` fisso senza significato residuo, rimosso lo stesso
-  // giorno). Il prezzo resta fuori dall'email: è il costo per l'artigiano,
-  // non un dato da comunicare al fornitore che lo sta preventivando.
-  const righeTesto = (righe ?? []).map(
-    (r) => `${r.descrizione}${r.colore_finitura ? ` — ${r.colore_finitura}` : ''} × ${r.quantita}`,
-  )
 
   // Apertura/Congedo personalizzabili (2026-08-17, vedi CLAUDE.md): SOSTITUISCONO
   // il vecchio saluto/congedo fissi — Apertura include già il lead-in
@@ -134,11 +125,26 @@ export async function inviaOrdineSatellite(
     placeholder,
   )
 
-  const html = `
-    <p>${testoConABr(apertura)}</p>
-    <p>${righeTesto.join('<br>')}</p>
-    <p>${testoConABr(congedo)}</p>
-  `
+  // Corpo HTML completo (2026-08-17, vedi CLAUDE.md — "mail d'ordine ai
+  // fornitori in HTML con banner responsive"): CORREGGE la decisione del
+  // 14/8 ("il prezzo resta fuori dall'email") — la tabella include ora
+  // prezzo unitario e totale per riga più il totale complessivo,
+  // esplicitamente richiesto in questa sessione (una mail d'ordine è a
+  // tutti gli effetti un ordine d'acquisto, il prezzo ci va). Totale
+  // complessivo dal campo persistito `valore_complessivo` (già calcolato
+  // server-side da salvaRigheOrdine/valoreComplessivoRighe), non
+  // ricalcolato qui — stessa fonte mostrata ovunque nell'app.
+  const html = corpoMailOrdine({
+    apertura,
+    congedo,
+    righe: (righe ?? []).map((r) => ({
+      descrizione: r.descrizione,
+      coloreFinitura: r.colore_finitura,
+      quantita: r.quantita,
+      prezzoUnitario: r.prezzo_unitario,
+    })),
+    totaleComplessivo: satellite.valore_complessivo ?? 0,
+  })
 
   try {
     await sendEmailPersonale({

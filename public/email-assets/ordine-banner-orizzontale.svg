@@ -1,0 +1,17 @@
+<!-- Banner mail ordine (orizzontale/fallback), 2026-08-17 — vedi CLAUDE.md.
+     Il marchio "distrìco" NON è ridisegnato qui: il testo grave+combining
+     accent su "ı" non compone in modo affidabile coi font fallback
+     (Georgia/Arial, assenti su questo host) — riprodotto un cerchio rotto
+     al posto dell'accento in un primo tentativo. Il PNG finale compone
+     questo frame con il logo vettoriale reale (public/districo_logo_payoff.svg,
+     già usato per districo-logo-payoff.png) via sharp .composite(), non SVG
+     nested/<image> (librsvg non risolve in modo affidabile riferimenti a
+     file esterni). Vedi script di generazione (non versionato, one-off) —
+     stesso principio già in uso per districo-logo-payoff.png. -->
+<svg width="680" height="150" viewBox="0 0 680 150" xmlns="http://www.w3.org/2000/svg">
+<rect x="0" y="0" width="680" height="150" fill="#ffffff"/>
+<line x1="200" y1="25" x2="200" y2="125" stroke="#d1d5db" stroke-width="1.5"/>
+<text x="224" y="58" font-family="Arial, sans-serif" font-weight="800" font-size="24" fill="#111827">Districo <tspan fill="#e63946">ti aiuta.</tspan></text>
+<text x="224" y="84" font-family="Arial, sans-serif" font-size="13.5" fill="#6b7280">Questo ordine è stato generato in automatico.</text>
+<text x="224" y="106" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">districo.it</text>
+</svg>
