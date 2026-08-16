@@ -17,7 +17,7 @@ export default async function ProfiloImpostazioniPage() {
     ? await supabase
         .from('artigiano')
         .select(
-          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi, mail_ordine_apertura, mail_ordine_congedo',
+          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, target_preventivo_giorni, target_progetto_giorni, target_produzione_giorni, target_montaggio_giorni, kpi_finestra_mesi, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale',
         )
         .eq('id', user.id)
         .maybeSingle()
@@ -51,12 +51,15 @@ export default async function ProfiloImpostazioniPage() {
         <h2 className="mb-1 text-lg font-semibold text-gray-900">Testo mail ordine</h2>
         <p className="mb-4 text-sm text-gray-500">
           Apertura e congedo della mail inviata ai fornitori quando confermi un ordine — il resto del testo (elenco
-          referenze, firma) resta invariato.
+          referenze, firma) resta invariato. Il tono (Formale/Informale) si sceglie ogni volta al momento
+          dell&apos;invio, in base al fornitore.
         </p>
         <ProfiloTestoMailForm
           initialValues={{
-            apertura: artigiano?.mail_ordine_apertura ?? '',
-            congedo: artigiano?.mail_ordine_congedo ?? '',
+            aperturaFormale: artigiano?.mail_ordine_apertura_formale ?? '',
+            congedoFormale: artigiano?.mail_ordine_congedo_formale ?? '',
+            aperturaInformale: artigiano?.mail_ordine_apertura_informale ?? '',
+            congedoInformale: artigiano?.mail_ordine_congedo_informale ?? '',
           }}
         />
       </div>

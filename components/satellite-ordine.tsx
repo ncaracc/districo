@@ -216,6 +216,13 @@ export function SatelliteOrdine({
   const [invioAperto, setInvioAperto] = useState(false)
   const [contatti, setContatti] = useState<{ id: string; label: string }[] | null>(null)
   const [contattoScelto, setContattoScelto] = useState('')
+  // Tono (2026-08-19, vedi CLAUDE.md — CORREGGE il design del 17/8): scelto
+  // qui, al momento dell'invio, non più un default fisso in Impostazioni —
+  // dipende dal fornitore a cui si sta scrivendo. Preselezionato
+  // "informale" (stesso comportamento di fallback già in uso prima di
+  // questa sessione quando nulla era personalizzato), sempre cambiabile
+  // prima di confermare.
+  const [tonoScelto, setTonoScelto] = useState<'formale' | 'informale'>('informale')
   const [richiedeConfigurazione, setRichiedeConfigurazione] = useState(false)
   // Errore dell'invio ordine (email), distinto da `errore` (flusso Salva,
   // mostrato solo dentro PilloleSalvaAnnulla — che appare solo a `dirty`):
@@ -395,7 +402,7 @@ export function SatelliteOrdine({
     setLoading(true)
     setErroreInvio(null)
     setRichiedeConfigurazione(false)
-    const result = await inviaOrdineSatellite(satellite.id, lavoroId, contattoScelto)
+    const result = await inviaOrdineSatellite(satellite.id, lavoroId, contattoScelto, tonoScelto)
     setLoading(false)
     if (!result.ok) {
       setErroreInvio(result.error)
@@ -751,6 +758,34 @@ export function SatelliteOrdine({
                     </option>
                   ))}
                 </select>
+                {/* Tono (2026-08-19, vedi CLAUDE.md): scelto qui per QUESTO
+                    invio, in base al fornitore — non più un default fisso
+                    in Impostazioni. Preselezionato "Informale". */}
+                <div>
+                  <span className="mb-1 block text-xs font-medium text-gray-700">Tono</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTonoScelto('formale')}
+                      aria-pressed={tonoScelto === 'formale'}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        tonoScelto === 'formale' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Formale
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTonoScelto('informale')}
+                      aria-pressed={tonoScelto === 'informale'}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                        tonoScelto === 'informale' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      Informale
+                    </button>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <button
                     type="button"

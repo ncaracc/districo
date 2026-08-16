@@ -4,7 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { sendEmailPersonale } from '@/lib/email/send-email-personale'
 import { decifraPassword } from '@/lib/crypto/credenziali-smtp'
-import { DEFAULT_APERTURA_INFORMALE, DEFAULT_CONGEDO_INFORMALE, sostituisciPlaceholder } from '@/lib/lavori/mail-ordine-testo'
+import {
+  DEFAULT_APERTURA_FORMALE,
+  DEFAULT_CONGEDO_FORMALE,
+  DEFAULT_APERTURA_INFORMALE,
+  DEFAULT_CONGEDO_INFORMALE,
+  sostituisciPlaceholder,
+} from '@/lib/lavori/mail-ordine-testo'
 import { corpoMailOrdine } from '@/lib/lavori/ordine-mail-html'
 
 // richiedeConfigurazione: distingue il caso "credenziali SMTP personali assenti"
@@ -27,10 +33,17 @@ export async function contattiPerInvio(
   return (data ?? []).map((c) => ({ id: c.id, label: `${c.nome} ${c.cognome ?? ''} — ${c.email}`.trim() }))
 }
 
+// `tono` (2026-08-19, vedi CLAUDE.md — CORREGGE il design del 17/8):
+// scelto dall'artigiano al momento dell'invio, non più un default fisso —
+// dipende dal fornitore a cui si sta scrivendo, non è una preferenza
+// stabile. Determina quale delle due coppie Apertura/Congedo personalizzate
+// (o il preset applicativo corrispondente, se non personalizzata) viene
+// usata in QUESTA mail — vedi sotto.
 export async function inviaOrdineSatellite(
   satelliteId: string,
   lavoroId: string,
   contattoId: string,
+  tono: 'formale' | 'informale',
 ): Promise<AzioneResult> {
   const supabase = await createClient()
   const {
@@ -43,7 +56,9 @@ export async function inviaOrdineSatellite(
   // mani". Se mancano anche solo in parte, non si tenta l'invio.
   const { data: artigiano } = await supabase
     .from('artigiano')
-    .select('nome, cognome, smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, mail_ordine_apertura, mail_ordine_congedo')
+    .select(
+      'nome, cognome, smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale',
+    )
     .eq('id', user.id)
     .maybeSingle()
 
@@ -108,33 +123,44 @@ export async function inviaOrdineSatellite(
 
   const subject = `Ordine ${oggettoTipo} rif. ${cliente?.nome ?? 'lavoro'}`
 
-  // Apertura/Congedo personalizzabili (2026-08-17, vedi CLAUDE.md): SOSTITUISCONO
-  // il vecchio saluto/congedo fissi — Apertura include già il lead-in
-  // all'elenco ("Avrei bisogno di:" o equivalente), Congedo include anche la
-  // firma dell'artigiano (decisione presa con l'utente, non un blocco a
-  // parte come prima). Nessuna personalizzazione mai salvata -> fallback al
-  // preset Informale, stesso tono del testo fisso preesistente (nessun
-  // cambio di comportamento percepito finché l'utente non tocca
-  // Impostazioni). Placeholder sostituiti con gli stessi dati già letti
-  // sopra per contatto/artigiano, nessun fetch aggiuntivo.
+  // Apertura/Congedo personalizzabili PER TONO (2026-08-17, esteso 2026-08-19
+  // — vedi CLAUDE.md): SOSTITUISCONO il vecchio saluto/congedo fissi —
+  // Apertura include già il lead-in all'elenco ("Avrei bisogno di:" o
+  // equivalente), Congedo include anche la firma dell'artigiano. Il `tono`
+  // passato dal chiamante (scelto al momento dell'invio, vedi commento sopra
+  // la funzione) seleziona quale delle due coppie usare; nessuna
+  // personalizzazione mai salvata per quella coppia -> fallback al preset
+  // applicativo dello stesso tono (nessun default "informale" fisso più).
+  // Placeholder sostituiti con gli stessi dati già letti sopra per
+  // contatto/artigiano, nessun fetch aggiuntivo.
   const placeholder = {
     nomeContatto: contatto.nome,
     nomeArtigiano: artigiano.nome,
     nomeCognomeArtigiano: `${artigiano.nome} ${artigiano.cognome}`,
   }
+  const aperturaGrezza =
+    tono === 'formale'
+      ? artigiano.mail_ordine_apertura_formale?.trim()
+        ? artigiano.mail_ordine_apertura_formale
+        : DEFAULT_APERTURA_FORMALE
+      : artigiano.mail_ordine_apertura_informale?.trim()
+        ? artigiano.mail_ordine_apertura_informale
+        : DEFAULT_APERTURA_INFORMALE
+  const congedoGrezzo =
+    tono === 'formale'
+      ? artigiano.mail_ordine_congedo_formale?.trim()
+        ? artigiano.mail_ordine_congedo_formale
+        : DEFAULT_CONGEDO_FORMALE
+      : artigiano.mail_ordine_congedo_informale?.trim()
+        ? artigiano.mail_ordine_congedo_informale
+        : DEFAULT_CONGEDO_INFORMALE
   // `.trim()` solo per decidere se il campo è "vuoto" (fallback al default) —
   // il valore sostituito resta quello originale, non troncato: i default
   // stessi terminano deliberatamente con un `\n` (riga vuota prima
   // dell'elenco), un `.trim()` sul valore effettivo lo perderebbe (bug
   // gemello di quello corretto in aggiornaTestoMail, vedi CLAUDE.md).
-  const apertura = sostituisciPlaceholder(
-    artigiano.mail_ordine_apertura?.trim() ? artigiano.mail_ordine_apertura : DEFAULT_APERTURA_INFORMALE,
-    placeholder,
-  )
-  const congedo = sostituisciPlaceholder(
-    artigiano.mail_ordine_congedo?.trim() ? artigiano.mail_ordine_congedo : DEFAULT_CONGEDO_INFORMALE,
-    placeholder,
-  )
+  const apertura = sostituisciPlaceholder(aperturaGrezza, placeholder)
+  const congedo = sostituisciPlaceholder(congedoGrezzo, placeholder)
 
   // Corpo HTML completo (2026-08-17, vedi CLAUDE.md — "mail d'ordine ai
   // fornitori in HTML con banner responsive"). Tabella senza prezzo

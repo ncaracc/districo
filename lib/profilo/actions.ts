@@ -47,20 +47,27 @@ export async function aggiornaObiettiviKpi(fields: ObiettiviKpiFields): Promise<
   return { ok: true }
 }
 
-// Testo mail ordine — Apertura/Congedo personalizzabili (2026-08-17, vedi
-// CLAUDE.md): entrambi opzionali (null = usa il default applicativo, vedi
-// lib/lavori/ordini-email.ts) — stringa vuota (o di soli spazi) trattata
-// come "non impostato" (null), stesso principio già in uso per gli altri
-// campi opzionali dei form di questo file (es. coloreFinitura in
-// referenze.ts). Il valore SALVATO quando non è vuoto resta però quello
-// originale, non `.trim()`-ato: i default (DEFAULT_APERTURA_*/CONGEDO_*,
-// lib/lavori/mail-ordine-testo.ts) terminano deliberatamente con un `\n`
-// (riga vuota prima dell'elenco referenze) — un `.trim()` incondizionato
-// lo avrebbe silenziosamente perso ad ogni salvataggio, bug riprodotto e
-// corretto durante il testing di questa sessione.
+// Testo mail ordine — Apertura/Congedo personalizzabili PER TONO
+// (2026-08-19, vedi CLAUDE.md — CORREGGE il design del 17/8, una singola
+// coppia): il tono si sceglie ora al momento dell'invio (vedi
+// components/satellite-ordine.tsx/lib/lavori/ordini-email.ts), perché
+// dipende dal fornitore a cui si scrive, non è una preferenza fissa
+// dell'artigiano — servono quindi due coppie indipendenti, entrambe
+// opzionali (null = usa il default applicativo di quel tono). Stringa
+// vuota (o di soli spazi) trattata come "non impostato" (null), stesso
+// principio già in uso per gli altri campi opzionali dei form di questo
+// file (es. coloreFinitura in referenze.ts). Il valore SALVATO quando non
+// è vuoto resta però quello originale, non `.trim()`-ato: i default
+// (DEFAULT_APERTURA_*/CONGEDO_*, lib/lavori/mail-ordine-testo.ts)
+// terminano deliberatamente con un `\n` (riga vuota prima dell'elenco
+// referenze) — un `.trim()` incondizionato lo avrebbe silenziosamente
+// perso ad ogni salvataggio, bug riprodotto e corretto nella sessione del
+// 17/8, stessa cautela mantenuta qui.
 type TestoMailFields = {
-  apertura: string
-  congedo: string
+  aperturaFormale: string
+  congedoFormale: string
+  aperturaInformale: string
+  congedoInformale: string
 }
 
 export async function aggiornaTestoMail(fields: TestoMailFields): Promise<AzioneResult> {
@@ -73,8 +80,10 @@ export async function aggiornaTestoMail(fields: TestoMailFields): Promise<Azione
   const { error } = await supabase
     .from('artigiano')
     .update({
-      mail_ordine_apertura: fields.apertura.trim() ? fields.apertura : null,
-      mail_ordine_congedo: fields.congedo.trim() ? fields.congedo : null,
+      mail_ordine_apertura_formale: fields.aperturaFormale.trim() ? fields.aperturaFormale : null,
+      mail_ordine_congedo_formale: fields.congedoFormale.trim() ? fields.congedoFormale : null,
+      mail_ordine_apertura_informale: fields.aperturaInformale.trim() ? fields.aperturaInformale : null,
+      mail_ordine_congedo_informale: fields.congedoInformale.trim() ? fields.congedoInformale : null,
     })
     .eq('id', user.id)
 
