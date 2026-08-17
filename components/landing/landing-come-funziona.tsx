@@ -1,38 +1,44 @@
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { ScreenshotPlaceholder } from './screenshot-placeholder'
 import { DOT_COLOR } from '@/lib/lavori/satelliti-meta'
 
 // Sezione 4 — "Come funziona" (2026-08-19, vedi CLAUDE.md): 4 passi che
 // ricalcano il percorso reale di un Lavoro nell'app (Cliente+Lavoro ->
 // trattativa via Attività libere -> esecuzione via Fasi -> Chiusura Lavoro
 // con i calcoli automatici), non un flusso generico inventato per il
-// marketing. Ogni passo ha un riquadro segnaposto per lo screenshot reale
-// (non ancora disponibile) con un'etichetta che descrive esattamente cosa
-// dovrà mostrare — vedi screenshot-placeholder.tsx.
+// marketing. Screenshot reali sostituiti ai 4 placeholder tratteggiati
+// (2026-08-19, stesso giorno — `public/landing/screenshots/`,
+// `screenshot-placeholder.tsx` eliminato: zero altri chiamanti dopo questa
+// sostituzione). Ogni immagine verificata contro il testo/didascalia già
+// scritti prima di sostituire (nessuna riscrittura del copy): tutte e 4
+// coerenti, nessuna richiesta di conferma necessaria.
 const PASSI = [
   {
     numero: '1',
     titolo: 'Apri il Lavoro, collega il Cliente',
     testo: 'Un Lavoro nasce sempre legato a un Cliente esistente o nuovo — tutto lo storico resta a portata di mano da entrambe le parti.',
-    screenshot: 'Screenshot: form "Nuovo lavoro" con selezione del Cliente',
+    immagine: '/landing/screenshots/nuovo_lavoro.png',
+    alt: 'Form "Nuovo lavoro" con selezione del Cliente',
   },
   {
     numero: '2',
     titolo: 'Segui la trattativa passo per passo',
     testo: 'Briefing, Progetto, Preventivo, Acconto: le Attività di trattativa si aprono quando servono, ciascuna con un semaforo che dice a che punto è.',
-    screenshot: 'Screenshot: Dettaglio Lavoro con elenco Attività e semafori rosso/giallo/verde',
+    immagine: '/landing/screenshots/elenco_attivita.png',
+    alt: 'Dettaglio Lavoro con elenco Attività e semafori rosso/giallo/verde',
   },
   {
     numero: '3',
     titolo: "Passa all'esecuzione",
     testo: 'Campionatura, Verifica misure, Acquisto, Costruzione, Noleggio, Montaggio: le stesse regole, ora applicate al cantiere o al laboratorio.',
-    screenshot: 'Screenshot: satellite Costruzione con le sessioni di lavoro registrate',
+    immagine: '/landing/screenshots/costruzione.png',
+    alt: 'Satellite Costruzione con le sessioni di lavoro registrate',
   },
   {
     numero: '4',
     titolo: 'Chiudi solo quando è davvero pronto',
     testo: 'Il Lavoro si chiude quando ogni Attività è verde — Districo calcola da solo valore, spese e margine finali.',
-    screenshot: 'Screenshot: modale "Chiusura Lavoro" con Valore complessivo, Spese, Margine',
+    immagine: '/landing/screenshots/chiusura.png',
+    alt: 'Modale "Chiusura Lavoro" con Valore complessivo, Spese, Margine',
   },
 ]
 
@@ -58,7 +64,19 @@ export function LandingComeFunziona() {
                 <h3 className="mt-4 text-xl font-semibold text-gray-900">{p.titolo}</h3>
                 <p className="mt-2 text-gray-600">{p.testo}</p>
               </div>
-              <ScreenshotPlaceholder label={p.screenshot} />
+              {/* rounded-xl/overflow-hidden: stessa cornice delle card
+                  Personaggi (shadow-sm); border aggiunto (assente lì) —
+                  quelle foto riempiono il riquadro edge-to-edge, questi
+                  screenshot hanno margini bianchi propri e senza un bordo
+                  si confonderebbero con lo sfondo bg-gray-50 della
+                  sezione. Nessun aspect ratio forzato/object-cover: sono
+                  screenshot di UI, non foto — ritagliarli per riempire un
+                  riquadro fisso rischierebbe di tagliare pulsanti/testo,
+                  mostrati quindi alla loro proporzione naturale. */}
+              <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.immagine} alt={p.alt} className="h-auto w-full" />
+              </div>
             </div>
           ))}
         </div>
