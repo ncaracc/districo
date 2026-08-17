@@ -42,7 +42,11 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p))
+  // Landing page pubblica (2026-08-19, vedi CLAUDE.md): '/' è pubblica ma
+  // va confrontata per uguaglianza esatta, MAI aggiunta a PUBLIC_PATHS
+  // sopra — quell'array usa startsWith, e '/' è prefisso di ogni altro
+  // pathname dell'app (avrebbe reso pubblico l'intero sito).
+  const isPublic = pathname === '/' || PUBLIC_PATHS.some((p) => pathname.startsWith(p))
 
   // "Rimani connesso" deselezionato: al login è stato scritto un cookie di
   // sessione (SESSION_ALIVE, senza maxAge) accanto al marker persistente

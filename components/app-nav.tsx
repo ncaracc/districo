@@ -42,8 +42,13 @@ const VOCE_IMPOSTAZIONI = { href: '/profilo/impostazioni', label: 'Impostazioni'
 
 const VOCI_IN_ARRIVO: string[] = []
 
-// Pagine pubbliche raggiungibili anche da chi non è loggato.
-const PAGINE_PUBBLICHE = ['/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password', '/registrazione']
+// Pagine pubbliche raggiungibili anche da chi non è loggato. '/' aggiunta
+// per la landing page (2026-08-19, vedi CLAUDE.md): confronto per
+// uguaglianza esatta (Array.includes, non un prefisso) quindi nessun
+// rischio di nascondere l'header su altre pagine — la landing ha un proprio
+// header pubblico (components/landing/landing-header.tsx), l'AppNav interno
+// (pensato per un utente già loggato) non deve comparire sopra di esso.
+const PAGINE_PUBBLICHE = ['/', '/privacy', '/cookie-policy', '/password-dimenticata', '/reimposta-password', '/registrazione']
 
 // Una voce è "attiva" sulla pagina esatta o su una sua sotto-pagina (es.
 // /lavori/[id], /clienti/nuovo) — non solo su un match esatto dell'href.
