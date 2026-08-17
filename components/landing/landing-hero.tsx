@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import { MESTIERI } from '@/lib/landing/mestieri'
+import { CTA_LANDING_CLASSI } from '@/lib/landing/cta'
 
 // Sezione 1 — Hero (2026-08-19, vedi CLAUDE.md). Solo testo + CTA, nessuna
 // immagine: le illustrazioni fornite (caos/filo logico/personaggi) hanno
@@ -24,7 +25,7 @@ export function LandingHero() {
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link
             href="/registrazione"
-            className="w-full rounded-lg bg-primary px-6 py-3 text-base font-medium text-white transition-colors hover:bg-primary/90 sm:w-auto"
+            className={`w-full rounded-lg px-6 py-3 text-base font-semibold sm:w-auto ${CTA_LANDING_CLASSI}`}
           >
             Inizia la prova gratuita di 60 giorni
           </Link>

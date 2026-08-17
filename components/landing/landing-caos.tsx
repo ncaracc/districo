@@ -1,5 +1,8 @@
+'use client'
+
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
 import { MESTIERI } from '@/lib/landing/mestieri'
+import { useMestiere } from './mestiere-context'
 
 // Sezione 2 — "Il caos": 5 scene, una per mestiere (2026-08-19, vedi
 // CLAUDE.md). Sfondo scuro deliberato (unico punto della pagina, sezioni 1/
@@ -8,7 +11,17 @@ import { MESTIERI } from '@/lib/landing/mestieri'
 // mostri il "dopo" ordinato — contrasto narrativo, non una nuova palette
 // permanente (i colori restano neutri, nessun colore "a LED" introdotto
 // qui).
+//
+// Personalizzazione per mestiere (2026-08-19, vedi CLAUDE.md — sessione
+// "selettore che artigiano sei"): con un mestiere selezionato nel
+// MestiereContext condiviso, mostra solo quella scena (griglia a 1 colonna,
+// più stretta) invece delle 5 — stato di default (nessuna selezione)
+// invariato, identico a prima. Client Component per lo stesso motivo di
+// landing-funzioni-fase.tsx: legge lo stato condiviso via useMestiere().
 export function LandingCaos() {
+  const { mestiere, setMestiere } = useMestiere()
+  const mestieriDaMostrare = mestiere ? MESTIERI.filter((m) => m.slug === mestiere) : MESTIERI
+
   return (
     <section className="bg-gray-900 py-16 sm:py-24">
       <div className={`${CONTENITORE_LARGO} px-4`}>
@@ -18,10 +31,23 @@ export function LandingCaos() {
             Misure su un post-it, preventivi a memoria, appuntamenti segnati ovunque tranne che in un posto solo.
             Ogni mestiere ha il suo disordine — Districo li conosce tutti.
           </p>
+          {mestiere && (
+            <button
+              type="button"
+              onClick={() => setMestiere(null)}
+              className="mt-3 text-xs text-gray-400 underline underline-offset-2 hover:text-gray-200"
+            >
+              vedi anche gli altri mestieri
+            </button>
+          )}
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          {MESTIERI.map((m) => (
+        <div
+          className={`mt-12 grid grid-cols-1 gap-6 ${
+            mestiere ? 'mx-auto max-w-sm' : 'sm:grid-cols-2 lg:grid-cols-5'
+          }`}
+        >
+          {mestieriDaMostrare.map((m) => (
             <div key={m.slug} className="overflow-hidden rounded-xl bg-gray-800">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={m.immagineCaos} alt={`Il caos quotidiano di un ${m.label.toLowerCase()}`} className="aspect-[9/16] w-full object-cover" />

@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user: utenteGrezzo } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
   // Landing page pubblica (2026-08-19, vedi CLAUDE.md): '/' è pubblica ma
@@ -55,15 +55,29 @@ export async function middleware(request: NextRequest) {
   // sopravvive: qui lo trattiamo come sessione scaduta.
   const rememberChoice = request.cookies.get(REMEMBER_CHOICE_COOKIE)?.value
   const sessionAlive = request.cookies.get(SESSION_ALIVE_COOKIE)?.value
-  const sessioneNonRicordataScaduta = !!user && rememberChoice === '0' && !sessionAlive
+  const sessioneNonRicordataScaduta = !!utenteGrezzo && rememberChoice === '0' && !sessionAlive
 
-  if ((!user && !isPublic) || sessioneNonRicordataScaduta) {
-    if (sessioneNonRicordataScaduta) {
-      // Invalida anche lato Supabase (scope globale di default), non solo il
-      // marker applicativo: il signOut aggiorna i cookie su supabaseResponse
-      // tramite il callback setAll sopra, quindi vanno riportati sul redirect.
-      await supabase.auth.signOut()
-    }
+  // Correzione 2026-08-19 (vedi CLAUDE.md — "routing landing/logout"): prima
+  // di questa sessione `sessioneNonRicordataScaduta` forzava SEMPRE un
+  // redirect a /login, anche su un path pubblico come '/' — un visitatore
+  // con un vecchio cookie Supabase ancora presente ma "scaduto per policy"
+  // (browser riaperto senza aver spuntato "Rimani connesso") veniva quindi
+  // rimbalzato sulla pagina di login invece di vedere la landing, pur
+  // essendo '/' nominalmente pubblica. Fix: il signOut scatta comunque
+  // (pulizia cookie, invariato), ma da qui in poi `user` è trattato come
+  // null in questo caso — ogni controllo sotto (gate di autenticazione,
+  // redirect '/'/'/login' → /lavori) ragiona quindi in modo coerente su
+  // un utente "effettivamente" autenticato, non sul solo cookie grezzo.
+  if (sessioneNonRicordataScaduta) {
+    // Invalida anche lato Supabase (scope globale di default), non solo il
+    // marker applicativo: il signOut aggiorna i cookie su supabaseResponse
+    // tramite il callback setAll sopra, riportati su qualunque risposta si
+    // finisca per restituire (redirect o meno) più sotto.
+    await supabase.auth.signOut()
+  }
+  const user = sessioneNonRicordataScaduta ? null : utenteGrezzo
+
+  if (!user && !isPublic) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     const redirectResponse = NextResponse.redirect(url)

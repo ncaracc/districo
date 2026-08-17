@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
+import { CTA_LANDING_CLASSI } from '@/lib/landing/cta'
 
 // Sezione 7 — "Beta testing" (2026-08-19, vedi CLAUDE.md). Nessun form di
 // candidatura dedicato (nessun backend per raccoglierlo in questa sessione)
@@ -33,7 +34,7 @@ export function LandingBeta() {
 
         <a
           href="mailto:info@districo.it?subject=Voglio%20essere%20beta%20tester%20di%20Districo"
-          className="mt-8 inline-block rounded-lg bg-primary px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+          className={`mt-8 inline-block rounded-lg px-6 py-3 text-sm font-semibold ${CTA_LANDING_CLASSI}`}
         >
           Candidati come beta tester
         </a>

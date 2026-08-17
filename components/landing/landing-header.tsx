@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
+import { CTA_LANDING_CLASSI } from '@/lib/landing/cta'
 
 // Header pubblico della landing (2026-08-19, vedi CLAUDE.md) — sostituisce
 // l'AppNav interno (pensato per un utente già loggato, nascosto su '/' per
@@ -41,7 +42,7 @@ export function LandingHeader() {
           </Link>
           <Link
             href="/registrazione"
-            className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-primary/90 sm:px-4"
+            className={`rounded-lg px-3 py-2 text-sm font-semibold sm:px-4 ${CTA_LANDING_CLASSI}`}
           >
             Prova gratis
           </Link>

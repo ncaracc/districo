@@ -172,11 +172,17 @@ export function AppNav({
       await supabase.auth.signOut()
       clearRememberCookies()
       setAperto(false)
-      router.push('/login')
+      // Post-logout va sempre alla landing pubblica ('/'), non più a
+      // '/login' (2026-08-19, vedi CLAUDE.md — "routing landing/logout"):
+      // chi esce dall'app deve rivedere la pagina pubblica, non un form di
+      // accesso — se vuole rientrare trova comunque "Accedi" nell'header
+      // della landing.
+      router.push('/')
       router.refresh()
     } finally {
-      // Il componente non si smonta quando si naviga su /login (ritorna solo null),
-      // quindi lo stato persiste: senza questo reset "uscendo" resterebbe true per
+      // Il componente non si smonta quando si naviga su '/' da anonimo
+      // (ritorna solo null, essendo '/' in PAGINE_PUBBLICHE sotto), quindi
+      // lo stato persiste: senza questo reset "uscendo" resterebbe true per
       // sempre alla sessione successiva, mostrando "Uscita in corso…" a riposo.
       setUscendo(false)
     }

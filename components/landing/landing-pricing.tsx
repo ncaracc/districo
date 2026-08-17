@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
+import { CTA_LANDING_CLASSI } from '@/lib/landing/cta'
 
 // Sezione 8 — "Pricing" (2026-08-19, vedi CLAUDE.md): trial 60 giorni, poi
 // €5/mese o €48/anno; beta tester 6 mesi gratis + funzionalità segnalate
@@ -56,7 +57,7 @@ export function LandingPricing() {
               <p className="mt-1 text-xs text-gray-400">{p.nota}</p>
               <Link
                 href="/registrazione"
-                className="mt-6 block w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+                className={`mt-6 block w-full rounded-lg px-4 py-2.5 text-sm font-semibold ${CTA_LANDING_CLASSI}`}
               >
                 Inizia la prova gratuita
               </Link>
