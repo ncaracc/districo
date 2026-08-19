@@ -12,6 +12,8 @@ import { LandingPricing } from '@/components/landing/landing-pricing'
 import { LandingFaq } from '@/components/landing/landing-faq'
 import { LandingCtaFinale } from '@/components/landing/landing-cta-finale'
 import { MestiereProvider } from '@/components/landing/mestiere-context'
+import { LandingComingSoon } from '@/components/landing/landing-coming-soon'
+import { LANDING_COMING_SOON } from '@/lib/landing/coming-soon'
 
 // Landing page pubblica (2026-08-19, vedi CLAUDE.md) — sostituisce il
 // redirect incondizionato a /lavori che occupava questa route (nessuna home
@@ -35,6 +37,16 @@ export const metadata: Metadata = {
 }
 
 export default function LandingPage() {
+  // Modalità "coming soon" (2026-08-19 sera, vedi CLAUDE.md e
+  // lib/landing/coming-soon.ts): sostituisce temporaneamente l'intera
+  // landing con la sola sezione ridotta. Tutte le sezioni definitive
+  // restano sotto, semplicemente non renderizzate finché il flag resta
+  // `true` — pronte da riattivare rimettendolo a `false`, nessuna
+  // riscrittura necessaria.
+  if (LANDING_COMING_SOON) {
+    return <LandingComingSoon />
+  }
+
   return (
     <>
       <LandingHeader />
