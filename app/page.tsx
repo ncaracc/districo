@@ -1,78 +1,45 @@
 import type { Metadata } from 'next'
-import { LandingHeader } from '@/components/landing/landing-header'
 import { LandingHero } from '@/components/landing/landing-hero'
-import { LandingSelettoreMestiere } from '@/components/landing/landing-selettore-mestiere'
-import { LandingCaos } from '@/components/landing/landing-caos'
-import { LandingFiloLogico } from '@/components/landing/landing-filo-logico'
-import { LandingComeFunziona } from '@/components/landing/landing-come-funziona'
-import { LandingFunzioniFase } from '@/components/landing/landing-funzioni-fase'
-import { LandingPersonaggi } from '@/components/landing/landing-personaggi'
-import { LandingBeta } from '@/components/landing/landing-beta'
-import { LandingPricing } from '@/components/landing/landing-pricing'
-import { LandingFaq } from '@/components/landing/landing-faq'
-import { LandingCtaFinale } from '@/components/landing/landing-cta-finale'
-import { MestiereProvider } from '@/components/landing/mestiere-context'
-import { LandingComingSoon } from '@/components/landing/landing-coming-soon'
-import { LANDING_COMING_SOON } from '@/lib/landing/coming-soon'
+import { LandingProblem } from '@/components/landing/landing-problem'
+import { LandingAgitation } from '@/components/landing/landing-agitation'
+import { LandingSolution } from '@/components/landing/landing-solution'
+import { LandingTecnicoComeFunziona } from '@/components/landing/landing-tecnico-come-funziona'
+import { LandingTecnicoFunzioniFase } from '@/components/landing/landing-tecnico-funzioni-fase'
 
-// Landing page pubblica (2026-08-19, vedi CLAUDE.md) — sostituisce il
-// redirect incondizionato a /lavori che occupava questa route (nessuna home
-// pubblica esisteva prima d'ora, l'utente anonimo che visitava '/' veniva
-// comunque intercettato prima da middleware.ts e rimbalzato su /login).
-// Un utente già loggato non raggiunge mai questo componente: il middleware
-// lo reindirizza a /lavori PRIMA che la pagina venga renderizzata (stesso
-// redirect di sempre, invariato) — nessun controllo di sessione ripetuto
-// qui.
+// Landing page pubblica (2026-08-19, vedi CLAUDE.md) — route '/'. Un utente
+// già loggato non raggiunge mai questo componente: il middleware lo
+// reindirizza a /lavori PRIMA che la pagina venga renderizzata.
 //
-// Header pubblico dedicato (LandingHeader) al posto dell'AppNav interno:
-// l'AppNav si nasconde da solo su '/' per un anonimo (vedi PAGINE_PUBBLICHE
-// in components/app-nav.tsx). Il Footer non ha invece bisogno di un
-// componente dedicato ("Footer", sezione 11 del brief): SiteFooter è già
-// renderizzato incondizionatamente da app/layout.tsx in fondo a ogni
-// pagina, landing compresa — riusarlo qui sarebbe una duplicazione.
+// Landing definitiva (2026-08-21, sostituisce la modalità "coming soon"
+// temporanea del 19/8 — vedi CLAUDE.md): 6 sezioni secondo il nuovo
+// framework Problem/Agitation/Solution seguito da due sezioni tecniche.
+// Le sezioni successive del brief (Pratico, Commerciale, FAQ, Recensioni,
+// Footer) non sono ancora pronte — struttura volutamente un componente per
+// sezione, così aggiungerle in futuro significa importare un nuovo
+// componente qui sotto, non toccare quelli già scritti. Nessun header
+// sticky separato: l'header (logo + "Accedi") vive dentro LandingHero
+// stessa, overlay trasparente sull'immagine — vedi il commento di testa di
+// quel componente. Nessun selettore "che artigiano sei" (piano abbandonato,
+// vedi CLAUDE.md): il messaggio è universale, non differenziato per
+// mestiere — nessuno stato/contesto condiviso tra sezioni necessario.
+// SiteFooter (app/layout.tsx) resta il footer di questa pagina come di ogni
+// altra, invariato: la sezione "Footer" del brief, quando pronta, sarà
+// valutata a parte.
 export const metadata: Metadata = {
   title: "Districo — l'assistente per l'artigiano",
   description:
-    'Districo segue ogni lavoro artigianale dalla trattativa al montaggio: preventivi, misure, acquisti, cantiere, sempre chiaro cosa manca. Prova gratuita di 60 giorni.',
+    'Districo segue ogni lavoro artigianale dal primo contatto alla consegna: sai sempre cosa manca, cosa è in ritardo, cosa devi ancora dire a ciascun cliente.',
 }
 
 export default function LandingPage() {
-  // Modalità "coming soon" (2026-08-19 sera, vedi CLAUDE.md e
-  // lib/landing/coming-soon.ts): sostituisce temporaneamente l'intera
-  // landing con la sola sezione ridotta. Tutte le sezioni definitive
-  // restano sotto, semplicemente non renderizzate finché il flag resta
-  // `true` — pronte da riattivare rimettendolo a `false`, nessuna
-  // riscrittura necessaria.
-  if (LANDING_COMING_SOON) {
-    return <LandingComingSoon />
-  }
-
   return (
-    <>
-      <LandingHeader />
-      <main>
-        <LandingHero />
-        {/* MestiereProvider (2026-08-19, vedi CLAUDE.md — sessione
-            "selettore che artigiano sei"): stato condiviso tra il
-            selettore e le 3 sezioni che si personalizzano in base ad esso
-            (Il caos, Funzioni per fase, Personaggi) — Hero/Filo
-            logico/Come funziona/Beta/Pricing/FAQ/CTA finale non lo
-            consumano, ma restare fuori dal Provider non porterebbe alcun
-            beneficio reale (nessun costo aggiuntivo per un Context che
-            resta semplicemente inutilizzato da quei figli). */}
-        <MestiereProvider>
-          <LandingSelettoreMestiere />
-          <LandingCaos />
-          <LandingFiloLogico />
-          <LandingComeFunziona />
-          <LandingFunzioniFase />
-          <LandingPersonaggi />
-        </MestiereProvider>
-        <LandingBeta />
-        <LandingPricing />
-        <LandingFaq />
-        <LandingCtaFinale />
-      </main>
-    </>
+    <main>
+      <LandingHero />
+      <LandingProblem />
+      <LandingAgitation />
+      <LandingSolution />
+      <LandingTecnicoComeFunziona />
+      <LandingTecnicoFunzioniFase />
+    </main>
   )
 }

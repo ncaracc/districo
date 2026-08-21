@@ -1,51 +1,61 @@
+// Sezione 1 — Hero (2026-08-21, landing definitiva, vedi CLAUDE.md).
+// Riusa esattamente il markup/immagine/posizionamento testo della Hero
+// costruita per la modalità "coming soon" (2026-08-19/21) — <picture>
+// responsive desktop/mobile, testo overlay ancorato sulla fascia di cielo
+// pulita, header trasparente autonomo (logo + "Accedi") sovrapposto
+// all'immagine. Unica differenza: rimossa la riga "Coming soon" (il resto
+// del copy — headline e payoff — era già lo stesso testo definitivo
+// richiesto per questa sezione, nessuna riscrittura necessaria). Nessuna
+// CTA principale qui (arriverà con la sezione Commerciale, non ancora
+// pronta) — "Accedi" resta l'unico link, esattamente dove già posizionato.
+//
+// Nessun header sticky separato sopra questa sezione: l'header vive dentro
+// l'Hero stessa (overlay trasparente sull'immagine) — aggiungerne un
+// secondo sopra duplicherebbe logo/login. Le sezioni successive non hanno
+// quindi un logo/accesso visibile finché non si torna in cima: accettato,
+// coerente con l'istruzione esplicita di riusare la Hero così com'è.
 import Link from 'next/link'
 import { CONTENITORE_LARGO } from '@/lib/layout-container'
-import { MESTIERI } from '@/lib/landing/mestieri'
-import { CTA_LANDING_CLASSI } from '@/lib/landing/cta'
 
-// Sezione 1 — Hero (2026-08-19, vedi CLAUDE.md). Solo testo + CTA, nessuna
-// immagine: le illustrazioni fornite (caos/filo logico/personaggi) hanno
-// già ciascuna la propria sezione dedicata più sotto, ripeterne una qui
-// sopra sarebbe ridondante — l'hero lascia invece spazio alla striscia dei
-// 5 mestieri, prima anticipazione visiva di "pensato per artigiani diversi"
-// prima ancora di arrivare alla sezione "Il caos".
 export function LandingHero() {
   return (
-    <section id="top" className="border-b border-gray-100 bg-white pt-14 pb-16 sm:pt-20 sm:pb-24">
-      <div className={`${CONTENITORE_LARGO} px-4 text-center`}>
-        <p className="text-sm font-medium tracking-wide text-gray-500 uppercase">Per artigiani, non per un solo mestiere</p>
-        <h1 className="mx-auto mt-4 max-w-3xl text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-          Un lavoro alla volta, dall&apos;inizio alla fine, senza perdere niente per strada
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-lg text-gray-600">
-          Districo segue ogni tuo lavoro dalla trattativa al montaggio: preventivi, misure, acquisti, cantiere. Sempre
-          chiaro cosa è già fatto e cosa manca — mai un ordine imposto, solo la situazione reale sotto controllo.
-        </p>
+    <section className="relative flex min-h-[100svh] w-full items-start justify-center overflow-hidden bg-gray-900">
+      <picture>
+        <source media="(min-width: 640px)" srcSet="/landing/hero/desktop.webp" />
+        <img src="/landing/hero/mobile.webp" alt="" className="absolute inset-0 h-full w-full object-cover" />
+      </picture>
+      <div className="absolute inset-0 bg-black/50" aria-hidden="true" />
+      <div
+        className="absolute inset-x-0 top-0 h-[46svh] bg-gradient-to-b from-black/65 to-transparent sm:h-[34svh]"
+        aria-hidden="true"
+      />
 
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+      <header className="absolute inset-x-0 top-0 z-10">
+        <div className={`${CONTENITORE_LARGO} flex items-center justify-between px-4 py-5 sm:py-6`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/districo_logo.svg"
+            alt="Districo"
+            className="h-8 w-auto brightness-0 invert drop-shadow-[0_1px_6px_rgba(0,0,0,0.5)] sm:h-9"
+          />
           <Link
-            href="/registrazione"
-            className={`w-full rounded-lg px-6 py-3 text-base font-semibold sm:w-auto ${CTA_LANDING_CLASSI}`}
+            href="/login"
+            className="rounded-lg px-3 py-2 text-sm font-medium text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.5)] transition-colors hover:bg-white/10"
           >
-            Inizia la prova gratuita di 60 giorni
+            Accedi
           </Link>
-          <a
-            href="#come-funziona"
-            className="w-full rounded-lg border border-gray-300 px-6 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
-          >
-            Vedi come funziona
-          </a>
         </div>
-        <p className="mt-3 text-xs text-gray-400">Nessun pagamento richiesto per iniziare.</p>
+      </header>
 
-        <div className="mt-12 flex flex-wrap items-center justify-center gap-2">
-          {MESTIERI.map((m) => (
-            <span key={m.slug} className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600">
-              {m.label}
-            </span>
-          ))}
-          <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600">e ogni altro mestiere</span>
-        </div>
+      <div
+        className={`${CONTENITORE_LARGO} relative z-10 px-4 pt-[19svh] text-center sm:pt-[13svh]`}
+      >
+        <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] sm:text-4xl md:text-5xl">
+          La velocità misura quanto ci metti. La puntualità, quanto sei affidabile.
+        </h1>
+        <p className="mt-5 font-serif text-lg text-white/90 italic drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)] sm:text-xl">
+          l&apos;assistente per l&apos;artigiano
+        </p>
       </div>
     </section>
   )
