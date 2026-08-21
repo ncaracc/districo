@@ -7,6 +7,7 @@ import { LandingTecnicoComeFunziona } from '@/components/landing/landing-tecnico
 import { LandingTecnicoFunzioniFase } from '@/components/landing/landing-tecnico-funzioni-fase'
 import { LandingPricing } from '@/components/landing/landing-pricing'
 import { LandingBeta } from '@/components/landing/landing-beta'
+import { LandingFaq } from '@/components/landing/landing-faq'
 
 // Landing page pubblica (2026-08-19, vedi CLAUDE.md) — route '/'. Un utente
 // già loggato non raggiunge mai questo componente: il middleware lo
@@ -15,12 +16,12 @@ import { LandingBeta } from '@/components/landing/landing-beta'
 // Landing definitiva (2026-08-21, sostituisce la modalità "coming soon"
 // temporanea del 19/8 — vedi CLAUDE.md): framework Problem/Agitation/
 // Solution seguito da due sezioni tecniche, poi Pricing (prima CTA
-// principale della pagina) e Beta testing (2026-08-21, sessione
-// successiva). Le sezioni ancora non pronte del brief (Pratico, FAQ,
-// Recensioni, Footer dedicato) restano da costruire — struttura
-// volutamente un componente per sezione, così aggiungerle in futuro
-// significa importare un nuovo componente qui sotto, non toccare quelli
-// già scritti. Nessun header
+// principale della pagina), Beta testing e FAQ (2026-08-21, sessioni
+// successive). Le sezioni ancora non pronte del brief (Pratico, Recensioni,
+// Footer dedicato) restano da costruire — struttura volutamente un
+// componente per sezione, così aggiungerle in futuro significa importare
+// un nuovo componente qui sotto, non toccare quelli già scritti. Nessun
+// header
 // sticky separato: l'header (logo + "Accedi") vive dentro LandingHero
 // stessa, overlay trasparente sull'immagine — vedi il commento di testa di
 // quel componente. Nessun selettore "che artigiano sei" (piano abbandonato,
@@ -46,6 +47,7 @@ export default function LandingPage() {
       <LandingTecnicoFunzioniFase />
       <LandingPricing />
       <LandingBeta />
+      <LandingFaq />
     </main>
   )
 }
