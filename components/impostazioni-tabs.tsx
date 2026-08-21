@@ -5,6 +5,7 @@ import { ProfiloSmtpForm } from '@/components/profilo-smtp-form'
 import { ProfiloTestoMailForm } from '@/components/profilo-testo-mail-form'
 import { ProfiloTariffeForm } from '@/components/profilo-tariffe-form'
 import { ProfiloStatisticheForm } from '@/components/profilo-statistiche-form'
+import { ProfiloAbbonamentoForm } from '@/components/profilo-abbonamento-form'
 
 // Impostazioni riorganizzate in sotto-sezioni a tab (2026-08-19, vedi
 // CLAUDE.md — riorganizzazione Profilo/Impostazioni): prima un unico form
@@ -14,34 +15,38 @@ import { ProfiloStatisticheForm } from '@/components/profilo-statistiche-form'
 // per il selettore Tono dentro la modale Acquisto — non un tab bar con
 // sottolineatura: coerente con l'unico altro selettore "vista tra
 // alternative" già esistente nell'app, invece di introdurne uno nuovo.
-// `TAB` è un array ordinato apposta per reggere facilmente una futura
-// sezione "Abbonamento/Fatturazione" (integrazione Stripe, non ancora
-// pianificata — vedi CLAUDE.md, Prossimi passi aperti): basta un nuovo
-// elemento qui, nessuna ristrutturazione del layout.
-type TabId = 'credenziali' | 'testo-mail' | 'tariffe' | 'statistiche'
+// `TABS` era già stato ordinato apposta per reggere facilmente questa
+// sezione ("Abbonamento/Fatturazione", integrazione Stripe — 2026-08-21,
+// vedi CLAUDE.md): come previsto, è bastato un nuovo elemento qui, nessuna
+// ristrutturazione del layout.
+type TabId = 'credenziali' | 'testo-mail' | 'tariffe' | 'statistiche' | 'abbonamento'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'credenziali', label: 'Credenziali email' },
   { id: 'testo-mail', label: 'Testo mail ordine' },
   { id: 'tariffe', label: 'Tariffe orarie' },
   { id: 'statistiche', label: 'Statistiche' },
+  { id: 'abbonamento', label: 'Abbonamento' },
 ]
 
 type SmtpProps = React.ComponentProps<typeof ProfiloSmtpForm>
 type TestoMailProps = React.ComponentProps<typeof ProfiloTestoMailForm>
 type TariffeProps = React.ComponentProps<typeof ProfiloTariffeForm>
 type StatisticheProps = React.ComponentProps<typeof ProfiloStatisticheForm>
+type AbbonamentoProps = React.ComponentProps<typeof ProfiloAbbonamentoForm>
 
 export function ImpostazioniTabs({
   smtpProps,
   testoMailProps,
   tariffeProps,
   statisticheProps,
+  abbonamentoProps,
 }: {
   smtpProps: SmtpProps
   testoMailProps: TestoMailProps
   tariffeProps: TariffeProps
   statisticheProps: StatisticheProps
+  abbonamentoProps: AbbonamentoProps
 }) {
   const [tab, setTab] = useState<TabId>('credenziali')
 
@@ -104,6 +109,15 @@ export function ImpostazioniTabs({
             completamento).
           </p>
           <ProfiloStatisticheForm {...statisticheProps} />
+        </div>
+      )}
+
+      {tab === 'abbonamento' && (
+        <div>
+          <p className="mb-4 text-sm text-gray-500">
+            Stato del tuo abbonamento Districo (modalità test — nessun addebito reale).
+          </p>
+          <ProfiloAbbonamentoForm {...abbonamentoProps} />
         </div>
       )}
     </div>

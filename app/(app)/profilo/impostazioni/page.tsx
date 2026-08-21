@@ -24,7 +24,7 @@ export default async function ProfiloImpostazioniPage() {
     ? await supabase
         .from('artigiano')
         .select(
-          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, kpi_finestra_mesi, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale, tariffa_oraria_costruzione, tariffa_oraria_montaggio',
+          'smtp_host, smtp_porta, smtp_username, smtp_password_cifrata, smtp_sicurezza, kpi_finestra_mesi, mail_ordine_apertura_formale, mail_ordine_congedo_formale, mail_ordine_apertura_informale, mail_ordine_congedo_informale, tariffa_oraria_costruzione, tariffa_oraria_montaggio, stato_abbonamento, piano_abbonamento, trial_fine',
         )
         .eq('id', user.id)
         .maybeSingle()
@@ -68,6 +68,11 @@ export default async function ProfiloImpostazioniPage() {
           initialValues: {
             kpiFinestraMesi: String(artigiano?.kpi_finestra_mesi ?? 12),
           },
+        }}
+        abbonamentoProps={{
+          stato: artigiano?.stato_abbonamento ?? 'nessuno',
+          piano: artigiano?.piano_abbonamento ?? null,
+          trialFine: artigiano?.trial_fine ?? null,
         }}
       />
     </div>

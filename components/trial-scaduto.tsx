@@ -1,21 +1,23 @@
-import Link from 'next/link'
 import { AuthCard } from '@/components/auth-card'
-import { CTA_PRINCIPALE_CLASSI } from '@/lib/landing/cta'
+import { ScegliPianoAbbonamento } from '@/components/scegli-piano-abbonamento'
 
-// Messaggio "trial scaduto" (2026-08-21, vedi CLAUDE.md — "Futuro: app a
-// pagamento con Stripe"). Componente puro, NON ancora agganciato a nessun
-// controllo reale: nessuna colonna DB per lo stato trial/abbonamento,
-// nessun redirect da login/middleware verso questo componente. Esiste solo
-// come presentazione pronta all'uso — il collegamento vero (verificare lo
-// stato trial/abbonamento dell'artigiano e reindirizzare qui quando scaduto,
-// presumibilmente dal login) resta da fare quando la logica trial/
-// abbonamento e l'integrazione Stripe saranno implementate.
+// Messaggio "trial scaduto" (creato il 2026-08-21 come componente
+// presentazionale non agganciato — vedi CLAUDE.md; AGGANCIATO il
+// 2026-08-21 sera, sessione integrazione Stripe). Mostrato da
+// `app/(app)/layout.tsx` al posto del contenuto normale quando
+// `stato_abbonamento === 'canceled'` oppure il trial è scaduto senza un
+// abbonamento attivo (`stato_abbonamento === 'trialing'` con `trial_fine`
+// nel passato) — un artigiano con `stato_abbonamento === 'nessuno'` (mai
+// avviato un checkout) NON è bloccato qui, vedi il commento di
+// `abbonamentoBloccato()` nel layout.
 //
-// Stile: riusa `AuthCard` (stesso contenitore di Login/Registrazione — è il
-// contesto in cui un utente incontrerebbe questo messaggio) e la CTA
-// azzurra già in uso nella landing (`CTA_PRINCIPALE_CLASSI`), verso
-// `/registrazione`/pricing come unico flusso di scelta piano esistente oggi
-// (nessuna pagina di gestione abbonamento dedicata, non ancora costruita).
+// Riusa `AuthCard` (stesso contenitore di Login/Registrazione — è il
+// contesto in cui un utente incontrerebbe questo messaggio, l'intera app
+// dietro di lui è inaccessibile) e i bottoni piano condivisi
+// (`ScegliPianoAbbonamento`, stessa Server Action `avviaCheckout` del tab
+// Abbonamento in Impostazioni) — nessuna pagina Pricing separata per un
+// utente già loggato, questo componente NE FA LE VECI (il brief la
+// menzionava come punto di ingresso alternativo al checkout).
 export function TrialScaduto() {
   return (
     <AuthCard className="text-center">
@@ -24,9 +26,9 @@ export function TrialScaduto() {
         Puoi riattivare Districo in qualsiasi momento scegliendo il piano che preferisci. I tuoi dati sono ancora
         tutti qui, ad aspettarti.
       </p>
-      <Link href="/#prezzi" className={`mt-6 inline-flex ${CTA_PRINCIPALE_CLASSI}`}>
-        Scegli il tuo piano
-      </Link>
+      <div className="mt-6">
+        <ScegliPianoAbbonamento />
+      </div>
     </AuthCard>
   )
 }

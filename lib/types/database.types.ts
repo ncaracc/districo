@@ -26,6 +26,9 @@ export type Database = {
           mail_ordine_apertura_formale: string | null; mail_ordine_congedo_formale: string | null
           mail_ordine_apertura_informale: string | null; mail_ordine_congedo_informale: string | null
           tariffa_oraria_costruzione: number; tariffa_oraria_montaggio: number
+          stripe_customer_id: string | null; stripe_subscription_id: string | null
+          stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
+          piano_abbonamento: 'mensile' | 'annuale' | null; trial_fine: string | null
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -42,6 +45,9 @@ export type Database = {
           mail_ordine_apertura_formale?: string | null; mail_ordine_congedo_formale?: string | null
           mail_ordine_apertura_informale?: string | null; mail_ordine_congedo_informale?: string | null
           tariffa_oraria_costruzione?: number; tariffa_oraria_montaggio?: number
+          stripe_customer_id?: string | null; stripe_subscription_id?: string | null
+          stato_abbonamento?: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
+          piano_abbonamento?: 'mensile' | 'annuale' | null; trial_fine?: string | null
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>

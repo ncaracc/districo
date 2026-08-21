@@ -9,6 +9,15 @@ const PUBLIC_PATHS = [
   '/cookie-policy',
   '/password-dimenticata',
   '/reimposta-password',
+  // Webhook Stripe (2026-08-21, vedi CLAUDE.md): chiamata server-to-server
+  // da Stripe, mai da un browser con sessione — senza questa eccezione il
+  // gate `!user && !isPublic` sotto la reindirizzerebbe sempre a /login,
+  // rompendo il webhook. Bug reale trovato testando il flusso end-to-end
+  // (la richiesta di Stripe avrebbe ricevuto un redirect invece della
+  // risposta 200/400 del route handler). L'autenticazione della richiesta
+  // resta comunque garantita — non da qui, ma dalla verifica della firma
+  // HMAC dentro app/api/stripe/webhook/route.ts.
+  '/api/stripe/webhook',
 ]
 
 // Nomi cookie del meccanismo "Rimani connesso", vedi lib/auth/remember.ts.
