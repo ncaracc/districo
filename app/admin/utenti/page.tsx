@@ -1,11 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
-import { BetaTesterToggle } from '@/components/admin/beta-tester-toggle'
+import { ToggleAdmin } from '@/components/admin/toggle-admin'
+import { impostaBetaTester, impostaAccessoGratuito } from '@/lib/admin/actions'
 import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
 
 // Pagina admin — anagrafica utenti (2026-08-22, vedi CLAUDE.md). Protetta
 // da `app/admin/layout.tsx` (redirect se non loggato o non `is_admin`) —
 // qui la lettura passa comunque da `admin_lista_artigiani()` (SECURITY
-// DEFINER, migration 0058), non da una `select('*')` diretta: doppia
+// DEFINER, migration 0058+0060), non da una `select('*')` diretta: doppia
 // protezione, non solo a livello di route.
 //
 // NESSUN dato su Clienti/Fornitori/Lavori dei singoli artigiani (principio
@@ -14,6 +15,11 @@ import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abboname
 // di registrazione decrescente (già l'ordine restituito dalla funzione SQL,
 // nessun sort lato client necessario). Nessuna paginazione per ora — lista
 // semplice, coerente con "strumento di lavoro" per un solo admin.
+//
+// "Accesso gratuito" (2026-08-22, stessa sessione di "Beta tester" —
+// deroga manuale indipendente da Stripe, vedi CLAUDE.md): stesso
+// `ToggleAdmin` generico, Server Action diversa (`impostaAccessoGratuito`)
+// legata alla riga via `.bind(null, a.id)`.
 export default async function AdminUtentiPage() {
   const supabase = await createClient()
   const { data: artigiani, error } = await supabase.rpc('admin_lista_artigiani')
@@ -33,7 +39,7 @@ export default async function AdminUtentiPage() {
 
       {artigiani && artigiani.length > 0 && (
         <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 text-xs uppercase tracking-wide text-gray-500">
                 <th className="py-2 pr-4 font-medium">Nome e cognome</th>
@@ -42,6 +48,7 @@ export default async function AdminUtentiPage() {
                 <th className="py-2 pr-4 font-medium">Abbonamento</th>
                 <th className="py-2 pr-4 font-medium">Piano</th>
                 <th className="py-2 pr-4 font-medium">Beta tester</th>
+                <th className="py-2 pr-4 font-medium">Accesso gratuito</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -61,7 +68,13 @@ export default async function AdminUtentiPage() {
                     {a.piano_abbonamento ? (PIANO_ABBONAMENTO_LABEL[a.piano_abbonamento] ?? a.piano_abbonamento) : '—'}
                   </td>
                   <td className="py-3 pr-4">
-                    <BetaTesterToggle artigianoId={a.id} valoreIniziale={a.beta_tester} />
+                    <ToggleAdmin valoreIniziale={a.beta_tester} azione={impostaBetaTester.bind(null, a.id)} />
+                  </td>
+                  <td className="py-3 pr-4">
+                    <ToggleAdmin
+                      valoreIniziale={a.accesso_gratuito}
+                      azione={impostaAccessoGratuito.bind(null, a.id)}
+                    />
                   </td>
                 </tr>
               ))}

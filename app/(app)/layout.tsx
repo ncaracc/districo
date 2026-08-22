@@ -27,11 +27,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const { data: artigiano } = await supabase
     .from('artigiano')
-    .select('stato_abbonamento, trial_fine')
+    .select('stato_abbonamento, trial_fine, accesso_gratuito')
     .eq('id', user.id)
     .maybeSingle()
 
-  const bloccato = artigiano ? abbonamentoBloccato(artigiano.stato_abbonamento, artigiano.trial_fine) : false
+  // accesso_gratuito (2026-08-22, deroga manuale admin — vedi CLAUDE.md,
+  // "Principi architetturali", Ruolo admin): override COMPLETO,
+  // indipendente da stato_abbonamento — quando true, il gate non guarda
+  // nemmeno lo stato Stripe (copre anche 'nessuno', non solo
+  // 'canceled'/trial scaduto).
+  const bloccato =
+    artigiano && !artigiano.accesso_gratuito
+      ? abbonamentoBloccato(artigiano.stato_abbonamento, artigiano.trial_fine)
+      : false
 
   // w-full + min-w-0: <main> è un flex item nel contenitore flex-col del
   // root layout (app/layout.tsx). Sull'asse cross (larghezza, dato che il

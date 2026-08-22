@@ -29,7 +29,7 @@ export type Database = {
           stripe_customer_id: string | null; stripe_subscription_id: string | null
           stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento: 'mensile' | 'annuale' | null; trial_fine: string | null
-          beta_tester: boolean
+          beta_tester: boolean; accesso_gratuito: boolean
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -49,7 +49,7 @@ export type Database = {
           stripe_customer_id?: string | null; stripe_subscription_id?: string | null
           stato_abbonamento?: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento?: 'mensile' | 'annuale' | null; trial_fine?: string | null
-          beta_tester?: boolean
+          beta_tester?: boolean; accesso_gratuito?: boolean
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -350,10 +350,15 @@ export type Database = {
           id: string; nome: string; cognome: string; email: string; created_at: string
           stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento: 'mensile' | 'annuale' | null
-          beta_tester: boolean
+          beta_tester: boolean; accesso_gratuito: boolean
         }[]
       }
       admin_imposta_beta_tester: { Args: { p_artigiano_id: string; p_valore: boolean }; Returns: undefined }
+      // Deroga manuale accesso gratuito permanente (2026-08-22, vedi
+      // CLAUDE.md — Principi architetturali, "Ruolo admin"), indipendente
+      // da stato_abbonamento — stesso pattern esatto di
+      // admin_imposta_beta_tester.
+      admin_imposta_accesso_gratuito: { Args: { p_artigiano_id: string; p_valore: boolean }; Returns: undefined }
     }
   }
 }
