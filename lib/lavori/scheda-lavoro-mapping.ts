@@ -31,6 +31,7 @@ import {
   type ColoreSemaforo,
   type Satellite,
 } from '@/lib/lavori/satelliti-meta'
+import { formattaData, formattaDataOra } from '@/lib/formato-data'
 
 export type BloccoScheda = {
   chiave: ChiaveAttivita
@@ -53,17 +54,20 @@ export type BloccoScheda = {
 // confronto data/ora di coloreAppuntamento. I soli campi Data (senza orario,
 // es. campione_data_consegna) non necessitano di questo accorgimento: una
 // colonna `date` non ha componente orario da fuorviare.
-const FUSO = 'Europe/Rome'
-
+//
+// `formattaData`/`formattaDataOra` (2026-08-22, vedi CLAUDE.md — fix bug
+// "orari sfasati di 2 ore"): questo file era il primo (e unico, fino ad
+// allora) punto del progetto con questa protezione esplicita — la sessione
+// del 22/8 l'ha centralizzata in `lib/formato-data.ts` dopo aver scoperto
+// lo stesso problema (senza questa protezione) in altri 4 punti del forum
+// beta/admin. Riusata qui invece di mantenere due implementazioni identiche
+// in parallelo.
 function fmtData(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('it-IT', { timeZone: FUSO })
+  return formattaData(iso)
 }
 
 function fmtDataOra(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString('it-IT', {
-    timeZone: FUSO,
+  return formattaDataOra(iso, {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

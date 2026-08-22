@@ -21,6 +21,7 @@ import type { DatiLavoroSatelliti } from '@/lib/lavori/dettaglio-lavoro-data'
 import { costruisciBlocchiScheda, type BloccoScheda } from '@/lib/lavori/scheda-lavoro-mapping'
 import { DOT_COLOR_HEX } from '@/lib/lavori/satelliti-meta'
 import { siteUrl } from '@/lib/email/templates'
+import { formattaData } from '@/lib/formato-data'
 
 const LOGO_PATH = path.join(process.cwd(), 'public/email-assets/districo-logo-payoff.png')
 
@@ -79,8 +80,11 @@ function formattaIndirizzo(l: DatiLavoroSatelliti['lavoro']): string | null {
   return [via, riga2, l.nazione].filter((p) => p && p.trim()).join(' — ')
 }
 
+// 2026-08-22 (vedi CLAUDE.md — fix bug "orari sfasati di 2 ore"): riusa la
+// stessa utility centralizzata di `scheda-lavoro-mapping.ts` invece di una
+// terza implementazione locale identica.
 function fmtDataApertura(iso: string): string {
-  return new Date(iso).toLocaleDateString('it-IT', { timeZone: 'Europe/Rome' })
+  return formattaData(iso)
 }
 
 // Griglia a quadretti da 0,5cm disegnata via Canvas (API PDFKit sottostante

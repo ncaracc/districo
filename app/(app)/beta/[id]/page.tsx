@@ -7,6 +7,7 @@ import { MessaggioForm } from '@/components/beta/messaggio-form'
 import { ModerazionePost } from '@/components/beta/moderazione-post'
 import { NascondiMessaggioButton } from '@/components/beta/nascondi-messaggio-button'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
+import { formattaDataOra } from '@/lib/formato-data'
 
 // Dettaglio thread beta (2026-08-22, vedi CLAUDE.md — esteso lo stesso
 // giorno con il mini-sito: `/beta` è ora il punto di ingresso unico per
@@ -63,7 +64,7 @@ export default async function BetaThreadPage({ params }: { params: Promise<{ id:
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900">{post.titolo}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {nomiAutori.get(post.artigiano_id) ?? '—'} · {new Date(post.created_at).toLocaleString('it-IT')}
+            {nomiAutori.get(post.artigiano_id) ?? '—'} · {formattaDataOra(post.created_at)}
           </p>
         </div>
         <span
@@ -92,7 +93,7 @@ export default async function BetaThreadPage({ params }: { params: Promise<{ id:
             <div className="mb-1 flex items-center justify-between gap-2">
               <p className="text-sm font-medium text-gray-900">{nomiAutori.get(m.autore_id) ?? '—'}</p>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-400">{new Date(m.created_at).toLocaleString('it-IT')}</span>
+                <span className="text-xs text-gray-400">{formattaDataOra(m.created_at)}</span>
                 {isAdmin && (
                   <NascondiMessaggioButton messaggioId={m.id} postId={post.id} nascosto={m.nascosto} />
                 )}

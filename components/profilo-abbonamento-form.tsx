@@ -1,5 +1,6 @@
 import { ScegliPianoAbbonamento } from '@/components/scegli-piano-abbonamento'
 import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
+import { formattaData } from '@/lib/formato-data'
 
 // Tab "Abbonamento" di Impostazioni (2026-08-21, integrazione Stripe — vedi
 // CLAUDE.md). Sola lettura sullo stato corrente + gli stessi bottoni piano
@@ -33,7 +34,7 @@ export function ProfiloAbbonamentoForm({
         {piano && <p className="mt-1 text-sm text-gray-600">Piano: {PIANO_ABBONAMENTO_LABEL[piano] ?? piano}</p>}
         {stato === 'trialing' && trialFine && (
           <p className="mt-1 text-sm text-gray-600">
-            Prova gratuita fino al {new Date(trialFine).toLocaleDateString('it-IT')}
+            Prova gratuita fino al {formattaData(trialFine)}
           </p>
         )}
       </div>

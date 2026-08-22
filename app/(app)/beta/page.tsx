@@ -5,6 +5,7 @@ import { risolviNomiAutori } from '@/lib/beta/nomi-autori'
 import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE } from '@/lib/beta/stato'
 import { MiniSitoBeta } from '@/components/beta/mini-sito-beta'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
+import { formattaDataOra } from '@/lib/formato-data'
 
 // Punto di ingresso UNICO al programma beta (2026-08-22, esteso lo stesso
 // giorno rispetto alla prima versione — vedi CLAUDE.md): raggiungibile da
@@ -123,7 +124,7 @@ async function ForumBetaLista({
                     )}
                   </p>
                   <p className="mt-0.5 truncate text-sm text-gray-500">
-                    {p.autoreNome} · {new Date(p.ultimaAttivita).toLocaleString('it-IT')}
+                    {p.autoreNome} · {formattaDataOra(p.ultimaAttivita)}
                   </p>
                 </div>
                 <span

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { ToggleAdmin } from '@/components/admin/toggle-admin'
 import { impostaBetaTester, impostaAccessoGratuito } from '@/lib/admin/actions'
 import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
+import { formattaData, formattaDataOra } from '@/lib/formato-data'
 
 // Pagina admin — anagrafica utenti (2026-08-22, vedi CLAUDE.md). Protetta
 // da `app/admin/layout.tsx` (redirect se non loggato o non `is_admin`) —
@@ -66,7 +67,7 @@ export default async function AdminUtentiPage() {
                   </td>
                   <td className="py-3 pr-4 text-gray-600">{a.email}</td>
                   <td className="py-3 pr-4 text-gray-600">
-                    {new Date(a.created_at).toLocaleDateString('it-IT')}
+                    {formattaData(a.created_at)}
                   </td>
                   <td className="py-3 pr-4 text-gray-600">
                     {STATO_ABBONAMENTO_LABEL[a.stato_abbonamento] ?? a.stato_abbonamento}
@@ -80,9 +81,9 @@ export default async function AdminUtentiPage() {
                       {!a.beta_tester && a.richiesta_beta_at && (
                         <span
                           className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
-                          title={`Richiesta inviata il ${new Date(a.richiesta_beta_at).toLocaleString('it-IT')}`}
+                          title={`Richiesta inviata il ${formattaDataOra(a.richiesta_beta_at)}`}
                         >
-                          Richiesta {new Date(a.richiesta_beta_at).toLocaleDateString('it-IT')}
+                          Richiesta {formattaData(a.richiesta_beta_at)}
                         </span>
                       )}
                     </div>
