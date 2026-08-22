@@ -29,6 +29,12 @@ const VOCI_ATTIVE = [
   { href: '/catalogo', label: 'Catalogo' },
 ]
 
+// Forum beta tester (2026-08-22, vedi CLAUDE.md) — voce condizionale,
+// aggiunta in coda a VOCI_ATTIVE solo per chi ha diritto di accesso
+// (beta_tester o admin), mai per gli altri: non solo nascosta dietro un
+// guard di route come /admin, proprio assente dal menu.
+const VOCE_BETA = { href: '/beta', label: 'Beta Tester' }
+
 // Profilo/Impostazioni ha un trattamento a parte (icone invece di testo su
 // desktop, stesso principio già applicato a "Esci"): non fa parte della
 // normale navigazione testuale, quindi restano fuori da VOCI_ATTIVE.
@@ -114,6 +120,9 @@ export function AppNav({
   nome = '',
   cognome = '',
   immagineUrl = null,
+  isBetaTester = false,
+  isAdmin = false,
+  notificheBeta = 0,
 }: {
   isLoggedIn: boolean
   // Conteggio appuntamenti scaduti (data passata, mai conclusi) su tutti i
@@ -134,11 +143,26 @@ export function AppNav({
   nome?: string
   cognome?: string
   immagineUrl?: string | null
+  // Forum beta tester (2026-08-22, vedi CLAUDE.md): la voce "Beta Tester"
+  // compare solo per chi ha `beta_tester=true` OPPURE `is_admin=true`
+  // (l'admin deve poter sempre accedere per rispondere/moderare, anche
+  // senza essere lui stesso un beta tester). Il badge di notifica (post
+  // aperti con l'ultimo intervento di un beta tester, non ancora
+  // risposto dall'admin) è visibile SOLO all'admin — un beta tester non
+  // deve vedere un conteggio che non lo riguarda.
+  isBetaTester?: boolean
+  isAdmin?: boolean
+  notificheBeta?: number
 }) {
   const pathname = usePathname()
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
+
+  // "Beta Tester" aggiunta in coda solo per chi ha diritto di accesso —
+  // stessa lista `VOCI_ATTIVE` per il resto, nessuna riscrittura del resto
+  // della nav per un'unica voce condizionale.
+  const vociAttive = isBetaTester || isAdmin ? [...VOCI_ATTIVE, VOCE_BETA] : VOCI_ATTIVE
 
   // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
   // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
@@ -211,7 +235,7 @@ export function AppNav({
             l'intensità cambia: pieno/scuro se attiva, chiaro al passaggio
             del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
-          {VOCI_ATTIVE.map((voce) => {
+          {vociAttive.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <Link
@@ -225,6 +249,7 @@ export function AppNav({
               >
                 {voce.label}
                 {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
+                {voce.href === '/beta' && isAdmin && <BadgeConteggio conteggio={notificheBeta} />}
               </Link>
             )
           })}
@@ -325,7 +350,7 @@ export function AppNav({
         </div>
 
         <ul className="flex-1 overflow-y-auto px-4 py-4">
-          {VOCI_ATTIVE.map((voce) => {
+          {vociAttive.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <li key={voce.href}>
@@ -338,6 +363,7 @@ export function AppNav({
                 >
                   {voce.label}
                   {voce.href === '/lavori' && <BadgeConteggio conteggio={appuntamentiScaduti} />}
+                  {voce.href === '/beta' && isAdmin && <BadgeConteggio conteggio={notificheBeta} />}
                 </Link>
               </li>
             )

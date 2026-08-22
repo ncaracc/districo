@@ -302,6 +302,33 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['lavoro_satellite_allegato']['Insert']>
         Relationships: []
       }
+      // Forum beta tester (2026-08-22, vedi CLAUDE.md) — migration 0062.
+      post_beta: {
+        Row: {
+          id: string; artigiano_id: string; titolo: string
+          stato: 'aperto' | 'chiuso'; created_at: string; chiuso_at: string | null
+          nascosto: boolean
+        }
+        Insert: {
+          id?: string; artigiano_id: string; titolo: string
+          stato?: 'aperto' | 'chiuso'; created_at?: string; chiuso_at?: string | null
+          nascosto?: boolean
+        }
+        Update: Partial<Database['public']['Tables']['post_beta']['Insert']>
+        Relationships: []
+      }
+      messaggio_beta: {
+        Row: {
+          id: string; post_id: string; autore_id: string; testo: string
+          created_at: string; nascosto: boolean
+        }
+        Insert: {
+          id?: string; post_id: string; autore_id: string; testo: string
+          created_at?: string; nascosto?: boolean
+        }
+        Update: Partial<Database['public']['Tables']['messaggio_beta']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -380,6 +407,26 @@ export type Database = {
           abbonamento_canceled: number
           beta_tester_attivi: number
         }[]
+      }
+      // Forum beta tester (2026-08-22, vedi CLAUDE.md) — migration 0062.
+      // SECURITY INVOKER (nessun `security definer`): la RLS di
+      // post_beta/messaggio_beta concede già a ciascun chiamante i diritti
+      // giusti, queste funzioni esistono solo per l'atomicità.
+      beta_crea_post: { Args: { p_titolo: string; p_testo: string }; Returns: string }
+      beta_chiudi_post_con_risposta: { Args: { p_post_id: string; p_testo: string }; Returns: undefined }
+      // SECURITY DEFINER dal fix 0063 (0062 la creava INVOKER — bug
+      // reale: il `join artigiano` per leggere `is_admin` dell'autore
+      // dell'ultimo messaggio veniva silenziosamente azzerato dalla RLS
+      // "artigiano vede solo se stesso" quando quell'autore non era il
+      // chiamante).
+      beta_notifiche_admin_count: { Args: Record<string, never>; Returns: number }
+      // SECURITY DEFINER (a differenza delle 2 sopra): la RLS di
+      // artigiano è "vede solo se stesso", un beta tester non potrebbe
+      // altrimenti leggere nome/cognome di un altro — espone solo
+      // id/nome/cognome, mai l'intera riga.
+      beta_nomi_autori: {
+        Args: { p_ids: string[] }
+        Returns: { id: string; nome: string; cognome: string }[]
       }
     }
   }
