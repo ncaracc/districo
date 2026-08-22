@@ -22,17 +22,24 @@ import { CONTENITORE_LARGO } from '@/lib/layout-container'
 // Referenze, spostate da Profilo/Impostazioni — non dentro Impostazioni né
 // dentro Fornitori (le Referenze sono legate a una Categoria personale, non
 // a un Fornitore — vedi CLAUDE.md 14/8), come richiesto esplicitamente.
-// "Beta Tester" (2026-08-22, vedi CLAUDE.md) — sempre visibile a
-// chiunque sia autenticato, non più condizionata a `beta_tester`/`admin`:
-// /beta è ora il punto di ingresso unico al programma, mostra il forum a
-// chi ha già accesso e un mini-sito informativo (con la possibilità di
-// richiedere un posto) a chi non ce l'ha ancora.
+// "Beta" (2026-08-22, vedi CLAUDE.md) — sempre visibile a chiunque sia
+// autenticato, non più condizionata a `beta_tester`/`admin`: /beta è ora
+// il punto di ingresso unico al programma, mostra il forum a chi ha già
+// accesso e un mini-sito informativo (con la possibilità di richiedere
+// un posto) a chi non ce l'ha ancora. **Etichetta accorciata da "Beta
+// Tester" a "Beta"** (stessa sera, bug UI segnalato): con 5 voci invece
+// di 4, "Beta Tester" (due parole) andava a capo su due righe nella
+// colonna centrale della nav — troppo stretta a `md:` (768px, il primo
+// breakpoint a cui la nav desktop compare) per ospitarla intera su una
+// riga. Il testo completo resta comunque nell'intestazione della pagina
+// stessa (`<h1>Beta Tester</h1>`/copy del mini-sito, invariati) — solo
+// l'etichetta di menu è più corta.
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Lavori' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
   { href: '/catalogo', label: 'Catalogo' },
-  { href: '/beta', label: 'Beta Tester' },
+  { href: '/beta', label: 'Beta' },
 ]
 
 // Profilo/Impostazioni ha un trattamento a parte (icone invece di testo su
@@ -233,7 +240,7 @@ export function AppNav({
               <Link
                 key={voce.href}
                 href={voce.href}
-                className={`border-b-2 pb-0.5 text-sm transition-colors ${
+                className={`whitespace-nowrap border-b-2 pb-0.5 text-sm transition-colors ${
                   attiva
                     ? 'border-gray-900 font-medium text-gray-900'
                     : 'border-transparent text-gray-700 hover:border-gray-300 hover:text-gray-900'
