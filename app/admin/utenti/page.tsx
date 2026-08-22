@@ -3,7 +3,7 @@ import { BetaTesterToggle } from '@/components/admin/beta-tester-toggle'
 import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
 
 // Pagina admin — anagrafica utenti (2026-08-22, vedi CLAUDE.md). Protetta
-// da `app/(admin)/layout.tsx` (redirect se non loggato o non `is_admin`) —
+// da `app/admin/layout.tsx` (redirect se non loggato o non `is_admin`) —
 // qui la lettura passa comunque da `admin_lista_artigiani()` (SECURITY
 // DEFINER, migration 0058), non da una `select('*')` diretta: doppia
 // protezione, non solo a livello di route.
