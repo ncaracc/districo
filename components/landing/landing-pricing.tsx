@@ -16,10 +16,10 @@ export function LandingPricing() {
     <section id="prezzi" className="scroll-mt-24 bg-gray-50 py-16 sm:py-24">
       <div className={`${CONTENITORE_LARGO} px-4`}>
         <p className="mx-auto max-w-2xl text-center text-lg text-gray-700">
-          60 giorni per provare Districo, gratis. Alla registrazione scegli il piano che preferisci — mensile o
+          30 giorni per provare Districo, gratis. Alla registrazione scegli il piano che preferisci — mensile o
           annuale — e registri la carta, ma non ti addebitiamo nulla fino alla fine del trial. Qualche giorno prima
           della scadenza ti mandiamo una mail di promemoria: se nel frattempo cambi idea, puoi annullare in
-          qualsiasi momento senza costi. Altrimenti, allo scadere dei 60 giorni parte l&apos;addebito del piano che
+          qualsiasi momento senza costi. Altrimenti, allo scadere dei 30 giorni parte l&apos;addebito del piano che
           hai scelto.
         </p>
 

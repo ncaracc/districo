@@ -83,7 +83,7 @@ export async function avviaCheckout(piano: Piano) {
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
-      trial_period_days: 60,
+      trial_period_days: 30,
       metadata: { artigiano_id: artigiano.id, piano },
     },
     metadata: { artigiano_id: artigiano.id, piano },

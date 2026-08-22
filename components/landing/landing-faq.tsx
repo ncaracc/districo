@@ -15,7 +15,7 @@ const FAQ: { domanda: string; risposta: React.ReactNode }[] = [
   {
     domanda: 'Devo pagare subito per iniziare?',
     risposta:
-      "No. Hai 60 giorni di prova gratuita. Registri la carta all'iscrizione, ma non ti addebitiamo nulla finché il trial non finisce, e puoi annullare in qualsiasi momento senza costi.",
+      "No. Hai 30 giorni di prova gratuita. Registri la carta all'iscrizione, ma non ti addebitiamo nulla finché il trial non finisce, e puoi annullare in qualsiasi momento senza costi.",
   },
   {
     domanda: 'Le mie informazioni sui fornitori sono condivise con altri artigiani?',
