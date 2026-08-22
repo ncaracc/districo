@@ -29,6 +29,7 @@ export type Database = {
           stripe_customer_id: string | null; stripe_subscription_id: string | null
           stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento: 'mensile' | 'annuale' | null; trial_fine: string | null
+          beta_tester: boolean
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -48,6 +49,7 @@ export type Database = {
           stripe_customer_id?: string | null; stripe_subscription_id?: string | null
           stato_abbonamento?: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento?: 'mensile' | 'annuale' | null; trial_fine?: string | null
+          beta_tester?: boolean
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -338,6 +340,20 @@ export type Database = {
         }[]
       }
       imposta_sede_preferita: { Args: { p_fornitore_id: string; p_sede_id: string }; Returns: undefined }
+      // Pagina admin /admin/utenti (2026-08-22, vedi CLAUDE.md): unico punto
+      // di accesso "tutti gli artigiani" — SECURITY DEFINER, verifica
+      // is_admin internamente (RLS su artigiano resta "vede solo se
+      // stesso", invariata).
+      admin_lista_artigiani: {
+        Args: Record<string, never>
+        Returns: {
+          id: string; nome: string; cognome: string; email: string; created_at: string
+          stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
+          piano_abbonamento: 'mensile' | 'annuale' | null
+          beta_tester: boolean
+        }[]
+      }
+      admin_imposta_beta_tester: { Args: { p_artigiano_id: string; p_valore: boolean }; Returns: undefined }
     }
   }
 }

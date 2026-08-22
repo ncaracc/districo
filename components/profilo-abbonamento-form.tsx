@@ -1,4 +1,5 @@
 import { ScegliPianoAbbonamento } from '@/components/scegli-piano-abbonamento'
+import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
 
 // Tab "Abbonamento" di Impostazioni (2026-08-21, integrazione Stripe — vedi
 // CLAUDE.md). Sola lettura sullo stato corrente + gli stessi bottoni piano
@@ -11,18 +12,8 @@ import { ScegliPianoAbbonamento } from '@/components/scegli-piano-abbonamento'
 // sottoscrivere un piano dall'app). Nessun link al Customer Portal Stripe
 // (gestione/cancellazione autonoma) in questa sessione — fuori scope,
 // segnalato in CLAUDE.md come possibile passo successivo.
-const STATO_LABEL: Record<string, string> = {
-  nessuno: 'Nessun abbonamento attivo',
-  trialing: 'Periodo di prova in corso',
-  active: 'Abbonamento attivo',
-  past_due: 'Pagamento in ritardo',
-  canceled: 'Abbonamento annullato',
-}
-
-const PIANO_LABEL: Record<string, string> = {
-  mensile: 'Mensile (€5/mese)',
-  annuale: 'Annuale (€48/anno)',
-}
+// Etichette (2026-08-22): estratte in `lib/abbonamento/labels.ts`, riusate
+// anche dalla pagina admin /admin/utenti — unica fonte di verità.
 
 export function ProfiloAbbonamentoForm({
   stato,
@@ -38,8 +29,8 @@ export function ProfiloAbbonamentoForm({
   return (
     <div className="space-y-4">
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <p className="text-sm font-medium text-gray-900">{STATO_LABEL[stato] ?? stato}</p>
-        {piano && <p className="mt-1 text-sm text-gray-600">Piano: {PIANO_LABEL[piano] ?? piano}</p>}
+        <p className="text-sm font-medium text-gray-900">{STATO_ABBONAMENTO_LABEL[stato] ?? stato}</p>
+        {piano && <p className="mt-1 text-sm text-gray-600">Piano: {PIANO_ABBONAMENTO_LABEL[piano] ?? piano}</p>}
         {stato === 'trialing' && trialFine && (
           <p className="mt-1 text-sm text-gray-600">
             Prova gratuita fino al {new Date(trialFine).toLocaleDateString('it-IT')}
