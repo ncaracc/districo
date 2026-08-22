@@ -20,6 +20,13 @@ import { STATO_ABBONAMENTO_LABEL, PIANO_ABBONAMENTO_LABEL } from '@/lib/abboname
 // deroga manuale indipendente da Stripe, vedi CLAUDE.md): stesso
 // `ToggleAdmin` generico, Server Action diversa (`impostaAccessoGratuito`)
 // legata alla riga via `.bind(null, a.id)`.
+//
+// Badge "Richiesta" (2026-08-22 sera, mini-sito beta — vedi CLAUDE.md):
+// visibile accanto al toggle Beta tester quando l'artigiano ha richiesto
+// un posto dal mini-sito (`richiesta_beta_at` valorizzato) ma non è
+// ancora beta tester — sparisce da solo appena l'admin attiva il toggle
+// (nessuna azione separata per "evadere" la richiesta, il toggle stesso
+// la evade).
 export default async function AdminUtentiPage() {
   const supabase = await createClient()
   const { data: artigiani, error } = await supabase.rpc('admin_lista_artigiani')
@@ -68,7 +75,17 @@ export default async function AdminUtentiPage() {
                     {a.piano_abbonamento ? (PIANO_ABBONAMENTO_LABEL[a.piano_abbonamento] ?? a.piano_abbonamento) : '—'}
                   </td>
                   <td className="py-3 pr-4">
-                    <ToggleAdmin valoreIniziale={a.beta_tester} azione={impostaBetaTester.bind(null, a.id)} />
+                    <div className="flex items-center gap-2">
+                      <ToggleAdmin valoreIniziale={a.beta_tester} azione={impostaBetaTester.bind(null, a.id)} />
+                      {!a.beta_tester && a.richiesta_beta_at && (
+                        <span
+                          className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800"
+                          title={`Richiesta inviata il ${new Date(a.richiesta_beta_at).toLocaleString('it-IT')}`}
+                        >
+                          Richiesta {new Date(a.richiesta_beta_at).toLocaleDateString('it-IT')}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 pr-4">
                     <ToggleAdmin

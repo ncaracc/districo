@@ -22,18 +22,18 @@ import { CONTENITORE_LARGO } from '@/lib/layout-container'
 // Referenze, spostate da Profilo/Impostazioni — non dentro Impostazioni né
 // dentro Fornitori (le Referenze sono legate a una Categoria personale, non
 // a un Fornitore — vedi CLAUDE.md 14/8), come richiesto esplicitamente.
+// "Beta Tester" (2026-08-22, vedi CLAUDE.md) — sempre visibile a
+// chiunque sia autenticato, non più condizionata a `beta_tester`/`admin`:
+// /beta è ora il punto di ingresso unico al programma, mostra il forum a
+// chi ha già accesso e un mini-sito informativo (con la possibilità di
+// richiedere un posto) a chi non ce l'ha ancora.
 const VOCI_ATTIVE = [
   { href: '/lavori', label: 'Lavori' },
   { href: '/clienti', label: 'Clienti' },
   { href: '/fornitori', label: 'Fornitori' },
   { href: '/catalogo', label: 'Catalogo' },
+  { href: '/beta', label: 'Beta Tester' },
 ]
-
-// Forum beta tester (2026-08-22, vedi CLAUDE.md) — voce condizionale,
-// aggiunta in coda a VOCI_ATTIVE solo per chi ha diritto di accesso
-// (beta_tester o admin), mai per gli altri: non solo nascosta dietro un
-// guard di route come /admin, proprio assente dal menu.
-const VOCE_BETA = { href: '/beta', label: 'Beta Tester' }
 
 // Profilo/Impostazioni ha un trattamento a parte (icone invece di testo su
 // desktop, stesso principio già applicato a "Esci"): non fa parte della
@@ -120,7 +120,6 @@ export function AppNav({
   nome = '',
   cognome = '',
   immagineUrl = null,
-  isBetaTester = false,
   isAdmin = false,
   notificheBeta = 0,
 }: {
@@ -143,14 +142,12 @@ export function AppNav({
   nome?: string
   cognome?: string
   immagineUrl?: string | null
-  // Forum beta tester (2026-08-22, vedi CLAUDE.md): la voce "Beta Tester"
-  // compare solo per chi ha `beta_tester=true` OPPURE `is_admin=true`
-  // (l'admin deve poter sempre accedere per rispondere/moderare, anche
-  // senza essere lui stesso un beta tester). Il badge di notifica (post
-  // aperti con l'ultimo intervento di un beta tester, non ancora
-  // risposto dall'admin) è visibile SOLO all'admin — un beta tester non
-  // deve vedere un conteggio che non lo riguarda.
-  isBetaTester?: boolean
+  // Forum beta tester (2026-08-22, vedi CLAUDE.md): "Beta Tester" è
+  // sempre in VOCI_ATTIVE, nessuna condizione di visibilità qui. Il
+  // badge di notifica (post aperti con l'ultimo intervento di un beta
+  // tester, non ancora risposto dall'admin) resta invece visibile SOLO
+  // all'admin — un beta tester non deve vedere un conteggio che non lo
+  // riguarda.
   isAdmin?: boolean
   notificheBeta?: number
 }) {
@@ -158,11 +155,6 @@ export function AppNav({
   const router = useRouter()
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
-
-  // "Beta Tester" aggiunta in coda solo per chi ha diritto di accesso —
-  // stessa lista `VOCI_ATTIVE` per il resto, nessuna riscrittura del resto
-  // della nav per un'unica voce condizionale.
-  const vociAttive = isBetaTester || isAdmin ? [...VOCI_ATTIVE, VOCE_BETA] : VOCI_ATTIVE
 
   // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
   // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
@@ -235,7 +227,7 @@ export function AppNav({
             l'intensità cambia: pieno/scuro se attiva, chiaro al passaggio
             del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
-          {vociAttive.map((voce) => {
+          {VOCI_ATTIVE.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <Link
@@ -350,7 +342,7 @@ export function AppNav({
         </div>
 
         <ul className="flex-1 overflow-y-auto px-4 py-4">
-          {vociAttive.map((voce) => {
+          {VOCI_ATTIVE.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <li key={voce.href}>

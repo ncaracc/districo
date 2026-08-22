@@ -77,3 +77,22 @@ export async function nascondiMessaggioBeta(messaggioId: string, postId: string,
   if (error) throw new Error(error.message)
   revalidatePath(`/beta/${postId}`)
 }
+
+// Mini-sito beta (2026-08-22, vedi CLAUDE.md): imposta solo
+// `richiesta_beta_at` sulla propria riga (colonna self-writable, migration
+// 0064) — NON concede accesso automatico, è solo una richiesta che
+// l'admin vede in /admin/utenti.
+export async function richiediPostoBeta() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('Non autenticato')
+
+  const { error } = await supabase
+    .from('artigiano')
+    .update({ richiesta_beta_at: new Date().toISOString() })
+    .eq('id', user.id)
+  if (error) throw new Error(error.message)
+  revalidatePath('/beta')
+}

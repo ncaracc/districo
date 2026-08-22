@@ -1,8 +1,11 @@
 import Link from 'next/link'
+import { richiedeAccessoBeta } from '@/lib/beta/guard'
 import { NuovoPostForm } from '@/components/beta/nuovo-post-form'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 
-export default function BetaNuovoPostPage() {
+export default async function BetaNuovoPostPage() {
+  await richiedeAccessoBeta()
+
   return (
     <div className={CONTENITORE_STRETTO}>
       <Link href="/beta" className="mb-4 inline-block text-sm text-gray-500 hover:text-gray-900">

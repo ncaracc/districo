@@ -29,7 +29,7 @@ export type Database = {
           stripe_customer_id: string | null; stripe_subscription_id: string | null
           stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento: 'mensile' | 'annuale' | null; trial_fine: string | null
-          beta_tester: boolean; accesso_gratuito: boolean
+          beta_tester: boolean; accesso_gratuito: boolean; richiesta_beta_at: string | null
           is_admin: boolean; created_at: string
         }
         Insert: {
@@ -49,7 +49,7 @@ export type Database = {
           stripe_customer_id?: string | null; stripe_subscription_id?: string | null
           stato_abbonamento?: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento?: 'mensile' | 'annuale' | null; trial_fine?: string | null
-          beta_tester?: boolean; accesso_gratuito?: boolean
+          beta_tester?: boolean; accesso_gratuito?: boolean; richiesta_beta_at?: string | null
           is_admin?: boolean; created_at?: string
         }
         Update: Partial<Database['public']['Tables']['artigiano']['Insert']>
@@ -329,6 +329,16 @@ export type Database = {
         Update: Partial<Database['public']['Tables']['messaggio_beta']['Insert']>
         Relationships: []
       }
+      // Mini-sito beta (2026-08-22, vedi CLAUDE.md) — tabella "singleton"
+      // (un solo valore globale, PK forzata a `true`). Solo admin la legge/
+      // modifica direttamente (RLS) — chiunque altro passa da
+      // beta_posti_disponibili().
+      configurazione_beta: {
+        Row: { id: boolean; posti_beta_totali: number }
+        Insert: { id?: boolean; posti_beta_totali?: number }
+        Update: Partial<Database['public']['Tables']['configurazione_beta']['Insert']>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: {
@@ -377,7 +387,7 @@ export type Database = {
           id: string; nome: string; cognome: string; email: string; created_at: string
           stato_abbonamento: 'nessuno' | 'trialing' | 'active' | 'past_due' | 'canceled'
           piano_abbonamento: 'mensile' | 'annuale' | null
-          beta_tester: boolean; accesso_gratuito: boolean
+          beta_tester: boolean; accesso_gratuito: boolean; richiesta_beta_at: string | null
         }[]
       }
       admin_imposta_beta_tester: { Args: { p_artigiano_id: string; p_valore: boolean }; Returns: undefined }
@@ -428,6 +438,22 @@ export type Database = {
         Args: { p_ids: string[] }
         Returns: { id: string; nome: string; cognome: string }[]
       }
+      // Mini-sito beta (2026-08-22, migration 0064). SECURITY DEFINER: deve
+      // leggere configurazione_beta (admin-only in RLS) e contare TUTTI gli
+      // artigiani con beta_tester=true (RLS di artigiano è self-only) —
+      // nessun controllo interno di ruolo, il numero è per QUALSIASI
+      // artigiano autenticato.
+      beta_posti_disponibili: {
+        Args: Record<string, never>
+        Returns: { disponibili: number; totali: number }[]
+      }
+      // Fix sicurezza (2026-08-22, migration 0064 — vedi CLAUDE.md):
+      // stripe_customer_id non è più scrivibile via UPDATE generico
+      // dell'artigiano su se stesso (troppo sensibile per restare nella
+      // lista dei campi liberamente auto-modificabili) — questa funzione
+      // lo sostituisce, `where ... and stripe_customer_id is null` lo rende
+      // scrivibile una volta sola.
+      imposta_stripe_customer_id: { Args: { p_customer_id: string }; Returns: undefined }
     }
   }
 }

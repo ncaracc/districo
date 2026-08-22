@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { STATO_ABBONAMENTO_LABEL } from '@/lib/abbonamento/labels'
+import { PostiBetaForm } from '@/components/admin/posti-beta-form'
 
 // Statistiche aggregate admin (2026-08-22, vedi CLAUDE.md) — riempie il
 // placeholder "da implementare" presente dal 25/7. Protetta da
@@ -42,7 +43,10 @@ function CardRipartizione({ label, voci }: { label: string; voci: { etichetta: s
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('admin_statistiche_aggregate')
+  const [{ data, error }, { data: config }] = await Promise.all([
+    supabase.rpc('admin_statistiche_aggregate'),
+    supabase.from('configurazione_beta').select('posti_beta_totali').eq('id', true).maybeSingle(),
+  ])
   const s = data?.[0]
 
   return (
@@ -59,6 +63,11 @@ export default async function AdminDashboardPage() {
           <CardStat label="Artigiani registrati" valore={s.artigiani_totali} />
           <CardStat label="Nuove iscrizioni (ultimi 7 giorni)" valore={s.nuove_iscrizioni_7gg} />
           <CardStat label="Beta tester attivi" valore={s.beta_tester_attivi} />
+          {/* Editor "posti_beta_totali" (2026-08-22, mini-sito beta — vedi
+              CLAUDE.md): stessa card-slot delle altre metriche, posizione
+              scelta apposta accanto a "Beta tester attivi" — è la quota
+              della stessa metrica, non un numero indipendente. */}
+          <PostiBetaForm valoreIniziale={config?.posti_beta_totali ?? 10} />
           <CardStat label="Lavori totali creati" valore={s.lavori_totali} />
           <CardRipartizione
             label="Lavori per stato"

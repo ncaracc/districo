@@ -1,28 +1,67 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { risolviNomiAutori } from '@/lib/beta/nomi-autori'
 import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE } from '@/lib/beta/stato'
+import { MiniSitoBeta } from '@/components/beta/mini-sito-beta'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 
-// Lista post del forum beta (2026-08-22, vedi CLAUDE.md). Protetta da
-// app/(app)/beta/layout.tsx (beta_tester o admin). La RLS di post_beta
-// filtra già cosa la query può vedere (non nascosti per un beta tester,
-// tutto per l'admin) — nessun filtro aggiuntivo lato client necessario
-// per la visibilità, solo per l'ordinamento.
+// Punto di ingresso UNICO al programma beta (2026-08-22, esteso lo stesso
+// giorno rispetto alla prima versione — vedi CLAUDE.md): raggiungibile da
+// TUTTI gli artigiani autenticati, non solo da chi ha già `beta_tester=
+// true`. Chi ha accesso vede il forum esistente (invariato); chi non ce
+// l'ha ancora vede un mini-sito informativo con lo stato dei posti e,
+// quando disponibili, un bottone per richiederne uno. `/beta/[id]` e
+// `/beta/nuovo` restano invece riservati (guard in `lib/beta/guard.ts`) —
+// solo QUESTA pagina è aperta a chiunque, per poter mostrare il
+// mini-sito a chi non ha ancora accesso.
+export default async function BetaPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: artigiano } = await supabase
+    .from('artigiano')
+    .select('beta_tester, is_admin, richiesta_beta_at')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const haAccesso = !!artigiano?.beta_tester || !!artigiano?.is_admin
+
+  if (!haAccesso) {
+    const { data: posti } = await supabase.rpc('beta_posti_disponibili')
+    const riga = posti?.[0]
+    return (
+      <MiniSitoBeta
+        disponibili={riga?.disponibili ?? 0}
+        totali={riga?.totali ?? 0}
+        richiestaBetaAt={artigiano?.richiesta_beta_at ?? null}
+      />
+    )
+  }
+
+  return <ForumBetaLista supabase={supabase} isAdmin={!!artigiano?.is_admin} />
+}
+
+// Lista post del forum beta — invariata rispetto a prima dell'estensione
+// a mini-sito, solo estratta in una funzione a sé per il branching sopra.
+// La RLS di post_beta filtra già cosa la query può vedere (non nascosti
+// per un beta tester, tutto per l'admin) — nessun filtro aggiuntivo lato
+// client necessario per la visibilità, solo per l'ordinamento.
 //
 // Ordinata per ATTIVITÀ più recente (ultimo messaggio non nascosto), non
 // per data di creazione — richiesto esplicitamente. Nessun embed
 // PostgREST (mai usato in questo progetto, vedi CLAUDE.md 19/8): query
 // separate per post/messaggi/nomi autore, merge lato JS.
-export default async function BetaListaPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: artigiano } = user
-    ? await supabase.from('artigiano').select('is_admin').eq('id', user.id).maybeSingle()
-    : { data: null }
-  const isAdmin = !!artigiano?.is_admin
-
+async function ForumBetaLista({
+  supabase,
+  isAdmin,
+}: {
+  supabase: Awaited<ReturnType<typeof createClient>>
+  isAdmin: boolean
+}) {
   const [{ data: posts }, { data: messaggi }] = await Promise.all([
     supabase.from('post_beta').select('id, titolo, stato, created_at, artigiano_id, nascosto'),
     supabase.from('messaggio_beta').select('post_id, created_at, nascosto'),
@@ -30,11 +69,6 @@ export default async function BetaListaPage() {
 
   const nomiAutori = await risolviNomiAutori(supabase, (posts ?? []).map((p) => p.artigiano_id))
 
-  // Ultima attività = messaggio non nascosto più recente per post — un
-  // post nascosto ha comunque i propri messaggi esclusi qui sotto perché
-  // `nascosto` sul messaggio è indipendente da quello del post, ma la
-  // riga stessa del post nascosto viene comunque filtrata dalla RLS per
-  // un beta tester (non arriva nemmeno in `posts`).
   const ultimaAttivitaPerPost = new Map<string, string>()
   for (const m of messaggi ?? []) {
     if (m.nascosto) continue

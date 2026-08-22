@@ -74,7 +74,14 @@ export async function avviaCheckout(piano: Piano) {
       metadata: { artigiano_id: artigiano.id },
     })
     customerId = customer.id
-    await supabase.from('artigiano').update({ stripe_customer_id: customerId }).eq('id', artigiano.id)
+    // `imposta_stripe_customer_id()` (migration 0064, SECURITY DEFINER) al
+    // posto di un update diretto: `stripe_customer_id` non è più
+    // self-writable via UPDATE generico (fix sicurezza, stessa migration —
+    // vedi CLAUDE.md) — un identificativo verso un servizio di pagamento
+    // esterno è troppo sensibile per restare nella lista dei campi
+    // liberamente auto-modificabili, a differenza di una preferenza
+    // personale.
+    await supabase.rpc('imposta_stripe_customer_id', { p_customer_id: customerId })
   }
 
   const base = siteUrl()

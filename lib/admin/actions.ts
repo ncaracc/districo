@@ -32,3 +32,18 @@ export async function impostaAccessoGratuito(artigianoId: string, valore: boolea
   if (error) throw new Error(error.message)
   revalidatePath('/admin/utenti')
 }
+
+// Posti totali del programma beta (2026-08-22, mini-sito — vedi
+// CLAUDE.md), `/admin/dashboard`. Update diretto, non una RPC: la RLS di
+// `configurazione_beta` (migration 0064) è già "solo admin legge/
+// modifica", nessun bisogno di una funzione SECURITY DEFINER dedicata.
+export async function impostaPostiBetaTotali(valore: number) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('configurazione_beta')
+    .update({ posti_beta_totali: valore })
+    .eq('id', true)
+  if (error) throw new Error(error.message)
+  revalidatePath('/admin/dashboard')
+  revalidatePath('/beta')
+}

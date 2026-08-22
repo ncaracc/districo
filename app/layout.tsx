@@ -31,18 +31,16 @@ export default async function RootLayout({
   // Badge "appuntamenti scaduti": solo per utenti autenticati — la RPC ha
   // EXECUTE revocato da anon (0027), chiamarla da anonimo fallirebbe.
   // `artigiano` (nome/cognome/immagine_profilo, 2026-08-19, vedi CLAUDE.md
-  // — riorganizzazione Profilo/Impostazioni; beta_tester/is_admin,
-  // 2026-08-22, forum beta — servono qui per decidere se mostrare la
-  // voce "Beta Tester" in nav, invariati per il resto). Badge notifiche
-  // beta: SOLO per l'admin (`beta_notifiche_admin_count()`, migration
-  // 0062) — chiamata solo se `is_admin`, non ha senso interrogarla per
-  // chiunque altro (la funzione tornerebbe comunque un numero coerente
-  // con quel che l'RLS lascia vedere al chiamante, ma l'unico punto che
-  // la userebbe davvero è il badge admin-only).
+  // — riorganizzazione Profilo/Impostazioni; is_admin, 2026-08-22, forum
+  // beta — solo per il badge notifiche, la voce "Beta Tester" in nav è
+  // ora sempre visibile, non serve più `beta_tester` qui). Badge
+  // notifiche beta: SOLO per l'admin (`beta_notifiche_admin_count()`,
+  // migration 0062+fix 0063) — chiamata solo se `is_admin`, non ha senso
+  // interrogarla per chiunque altro.
   const [{ data: appuntamentiScaduti }, { data: artigiano }] = await Promise.all([
     user ? supabase.rpc('appuntamenti_scaduti_count') : Promise.resolve({ data: 0 }),
     user
-      ? supabase.from('artigiano').select('nome, cognome, immagine_profilo, beta_tester, is_admin').eq('id', user.id).maybeSingle()
+      ? supabase.from('artigiano').select('nome, cognome, immagine_profilo, is_admin').eq('id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -62,7 +60,6 @@ export default async function RootLayout({
           nome={artigiano?.nome ?? ''}
           cognome={artigiano?.cognome ?? ''}
           immagineUrl={user && artigiano ? urlAvatar(user.id, artigiano.immagine_profilo) : null}
-          isBetaTester={!!artigiano?.beta_tester}
           isAdmin={!!artigiano?.is_admin}
           notificheBeta={notificheBeta ?? 0}
         />

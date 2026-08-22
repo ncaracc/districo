@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { richiedeAccessoBeta } from '@/lib/beta/guard'
 import { risolviNomiAutori } from '@/lib/beta/nomi-autori'
 import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE } from '@/lib/beta/stato'
 import { MessaggioForm } from '@/components/beta/messaggio-form'
@@ -8,7 +8,11 @@ import { ModerazionePost } from '@/components/beta/moderazione-post'
 import { NascondiMessaggioButton } from '@/components/beta/nascondi-messaggio-button'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 
-// Dettaglio thread beta (2026-08-22, vedi CLAUDE.md). La RLS di
+// Dettaglio thread beta (2026-08-22, vedi CLAUDE.md — esteso lo stesso
+// giorno con il mini-sito: `/beta` è ora il punto di ingresso unico per
+// tutti, questa pagina resta riservata a chi ha già accesso —
+// `richiedeAccessoBeta()` reindirizza a `/beta` chi non è beta_tester né
+// admin, dove vedrà il mini-sito invece di un errore). La RLS di
 // post_beta/messaggio_beta (migration 0062) fa già rispettare la
 // visibilità (un beta tester non riesce a leggere un post/messaggio
 // nascosto — la query restituisce semplicemente niente, da qui il
@@ -26,18 +30,7 @@ import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 // (via beta_nomi_autori()), mai un'etichetta generica "Admin"/"Districo".
 export default async function BetaThreadPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) notFound()
-
-  const { data: artigiano } = await supabase
-    .from('artigiano')
-    .select('is_admin')
-    .eq('id', user.id)
-    .maybeSingle()
-  const isAdmin = !!artigiano?.is_admin
+  const { supabase, user, isAdmin } = await richiedeAccessoBeta()
 
   const { data: post } = await supabase
     .from('post_beta')
