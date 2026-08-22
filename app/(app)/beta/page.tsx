@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { risolviNomiAutori } from '@/lib/beta/nomi-autori'
-import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE } from '@/lib/beta/stato'
+import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE, TIPO_POST_BETA_INFO_COLORE } from '@/lib/beta/stato'
 import { MiniSitoBeta } from '@/components/beta/mini-sito-beta'
 import { CONTENITORE_STRETTO } from '@/lib/layout-container'
 import { formattaDataOra } from '@/lib/formato-data'
@@ -64,7 +64,7 @@ async function ForumBetaLista({
   isAdmin: boolean
 }) {
   const [{ data: posts }, { data: messaggi }] = await Promise.all([
-    supabase.from('post_beta').select('id, titolo, stato, created_at, artigiano_id, nascosto'),
+    supabase.from('post_beta').select('id, titolo, stato, tipo, created_at, artigiano_id, nascosto'),
     supabase.from('messaggio_beta').select('post_id, created_at, nascosto'),
   ])
 
@@ -117,6 +117,11 @@ async function ForumBetaLista({
                 <div className="min-w-0">
                   <p className="truncate font-medium text-gray-900">
                     {p.titolo}
+                    {p.tipo === 'info' && (
+                      <span className={`ml-2 rounded-full px-2 py-0.5 text-xs font-medium ${TIPO_POST_BETA_INFO_COLORE}`}>
+                        Info
+                      </span>
+                    )}
                     {isAdmin && p.nascosto && (
                       <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
                         nascosto

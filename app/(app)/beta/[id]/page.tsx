@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { richiedeAccessoBeta } from '@/lib/beta/guard'
 import { risolviNomiAutori } from '@/lib/beta/nomi-autori'
-import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE } from '@/lib/beta/stato'
+import { STATO_POST_BETA_LABEL, STATO_POST_BETA_COLORE, TIPO_POST_BETA_INFO_COLORE } from '@/lib/beta/stato'
 import { MessaggioForm } from '@/components/beta/messaggio-form'
 import { ModerazionePost } from '@/components/beta/moderazione-post'
 import { NascondiMessaggioButton } from '@/components/beta/nascondi-messaggio-button'
@@ -35,7 +35,7 @@ export default async function BetaThreadPage({ params }: { params: Promise<{ id:
 
   const { data: post } = await supabase
     .from('post_beta')
-    .select('id, titolo, stato, artigiano_id, created_at, nascosto')
+    .select('id, titolo, stato, tipo, artigiano_id, created_at, nascosto')
     .eq('id', id)
     .maybeSingle()
 
@@ -62,7 +62,14 @@ export default async function BetaThreadPage({ params }: { params: Promise<{ id:
 
       <div className="mb-4 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-gray-900">{post.titolo}</h1>
+          <h1 className="text-2xl font-bold text-gray-900">
+            {post.titolo}
+            {post.tipo === 'info' && (
+              <span className={`ml-2 rounded-full px-2 py-0.5 align-middle text-xs font-medium ${TIPO_POST_BETA_INFO_COLORE}`}>
+                Info
+              </span>
+            )}
+          </h1>
           <p className="mt-1 text-sm text-gray-500">
             {nomiAutori.get(post.artigiano_id) ?? '—'} · {formattaDataOra(post.created_at)}
           </p>

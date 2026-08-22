@@ -31,10 +31,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Nav minimale tra le pagine admin (2026-08-22, aggiunta /admin/utenti
             — vedi CLAUDE.md): questa sezione non condivide l'AppNav
-            dell'app normale (nessuna voce di menu pubblica verso /admin,
-            per design — un solo admin, accesso diretto via URL), serve
-            comunque un modo per muoversi tra le due pagine ora che sono
-            due. */}
+            dell'app normale (una voce "Admin" nell'AppNav, aggiunta la
+            stessa sera, porta solo a /admin/dashboard) — serve comunque
+            un modo per muoversi tra le due pagine ora che sono due. */}
         <nav className="mb-6 flex gap-4 border-b border-gray-200 pb-3 text-sm">
           <Link href="/admin/dashboard" className="text-gray-600 hover:text-gray-900">
             Dashboard

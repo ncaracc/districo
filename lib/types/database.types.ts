@@ -303,16 +303,18 @@ export type Database = {
         Relationships: []
       }
       // Forum beta tester (2026-08-22, vedi CLAUDE.md) — migration 0062.
+      // `tipo` aggiunto in migration 0066 (post "Info" per gli annunci
+      // admin, creati già chiusi — vedi CLAUDE.md).
       post_beta: {
         Row: {
           id: string; artigiano_id: string; titolo: string
           stato: 'aperto' | 'chiuso'; created_at: string; chiuso_at: string | null
-          nascosto: boolean
+          nascosto: boolean; tipo: 'discussione' | 'info'
         }
         Insert: {
           id?: string; artigiano_id: string; titolo: string
           stato?: 'aperto' | 'chiuso'; created_at?: string; chiuso_at?: string | null
-          nascosto?: boolean
+          nascosto?: boolean; tipo?: 'discussione' | 'info'
         }
         Update: Partial<Database['public']['Tables']['post_beta']['Insert']>
         Relationships: []

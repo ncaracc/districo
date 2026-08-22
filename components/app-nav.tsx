@@ -42,6 +42,17 @@ const VOCI_ATTIVE = [
   { href: '/beta', label: 'Beta' },
 ]
 
+// Voce "Admin" (2026-08-22 sera, vedi CLAUDE.md): visibile SOLO a
+// `is_admin=true` — aggiunta dinamicamente a `VOCI_ATTIVE` sotto, non un
+// elemento statico dell'array (il resto dell'app non ne ha bisogno).
+// Punto di ingresso `/admin/dashboard` (statistiche aggregate, pagina più
+// naturale da cui partire) — `/admin/utenti` resta comunque raggiungibile
+// da lì tramite la nav interna già esistente in `app/admin/layout.tsx`
+// (Dashboard | Utenti), invariata. Prima di questa sessione l'accesso era
+// deliberatamente solo via URL diretto ("un solo admin"); quel commento in
+// `app/admin/layout.tsx` è ora superato, aggiornato di conseguenza.
+const VOCE_ADMIN = { href: '/admin/dashboard', label: 'Admin' }
+
 // Profilo/Impostazioni ha un trattamento a parte (icone invece di testo su
 // desktop, stesso principio già applicato a "Esci"): non fa parte della
 // normale navigazione testuale, quindi restano fuori da VOCI_ATTIVE.
@@ -74,6 +85,10 @@ const PAGINE_PUBBLICHE = ['/', '/privacy', '/cookie-policy', '/password-dimentic
 // — senza quella distinzione, il match per prefisso qui sotto è già di per
 // sé corretto per ogni pagina di dettaglio (nessuna eccezione da gestire).
 function voceAttiva(pathname: string, href: string) {
+  // La voce "Admin" punta a /admin/dashboard ma copre anche /admin/utenti
+  // (due pagine, una sola voce di menu) — match sull'intera sezione
+  // /admin, non sul solo sotto-percorso dashboard.
+  if (href === '/admin/dashboard') return pathname.startsWith('/admin')
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
@@ -163,6 +178,9 @@ export function AppNav({
   const [aperto, setAperto] = useState(false)
   const [uscendo, setUscendo] = useState(false)
 
+  // "Admin" in coda alle voci normali, solo per chi ha is_admin=true.
+  const vociAttive = isAdmin ? [...VOCI_ATTIVE, VOCE_ADMIN] : VOCI_ATTIVE
+
   // Chiusura con Esc + blocco scroll dello sfondo mentre il pannello mobile è
   // aperto — stesso pattern già in uso in components/modal.tsx. Va dichiarato
   // prima di qualunque return condizionale (Rules of Hooks: un bug di questo
@@ -234,7 +252,7 @@ export function AppNav({
             l'intensità cambia: pieno/scuro se attiva, chiaro al passaggio
             del mouse — niente sfondo pieno o bordi vistosi. */}
         <nav className="hidden md:flex md:items-center md:justify-center md:gap-6">
-          {VOCI_ATTIVE.map((voce) => {
+          {vociAttive.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <Link
@@ -349,7 +367,7 @@ export function AppNav({
         </div>
 
         <ul className="flex-1 overflow-y-auto px-4 py-4">
-          {VOCI_ATTIVE.map((voce) => {
+          {vociAttive.map((voce) => {
             const attiva = voceAttiva(pathname, voce.href)
             return (
               <li key={voce.href}>
