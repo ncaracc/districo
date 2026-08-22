@@ -47,13 +47,27 @@ export function LandingHero() {
         </div>
       </header>
 
+      {/* Bug reale scoperto il 2026-08-22 sera (segnalato dall'utente: "vedo
+          la scritta [Accedi] ma non posso cliccarci", non un problema
+          estetico): questo div NON è `absolute` (resta nel flusso flex
+          della section, `items-start`) — il suo box, padding-top incluso
+          (19svh/13svh, ben più alto dei ~64px dell'header), parte dalla
+          stessa y=0 dell'header. Stesso z-index (10) dell'header ma
+          successivo nel DOM: a parità di z-index vince l'ordine DOM, quindi
+          quest'area di padding — visivamente vuota, nessun figlio la
+          occupa — intercettava comunque i click destinati all'header
+          sottostante (verificato con `elementFromPoint`: restituiva questo
+          div, non il link). `pointer-events-none` qui + `pointer-events-auto`
+          sui due figli (h1/p, mai interattivi di per sé, ma servono comunque
+          a permettere selezione testo/eventuali link futuri al loro interno)
+          risolve senza toccare layout/z-index/ordine DOM. */}
       <div
-        className={`${CONTENITORE_LARGO} relative z-10 px-4 pt-[19svh] text-center sm:pt-[13svh]`}
+        className={`${CONTENITORE_LARGO} relative z-10 px-4 pt-[19svh] text-center sm:pt-[13svh] pointer-events-none`}
       >
-        <h1 className="mx-auto max-w-3xl text-3xl font-bold tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] sm:text-4xl md:text-5xl">
+        <h1 className="pointer-events-auto mx-auto max-w-3xl text-3xl font-bold tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.6)] sm:text-4xl md:text-5xl">
           La velocità misura quanto ci metti. La puntualità, quanto sei affidabile.
         </h1>
-        <p className="mt-5 font-serif text-lg text-white/90 italic drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)] sm:text-xl">
+        <p className="pointer-events-auto mt-5 font-serif text-lg text-white/90 italic drop-shadow-[0_1px_8px_rgba(0,0,0,0.6)] sm:text-xl">
           l&apos;assistente per l&apos;artigiano
         </p>
       </div>
