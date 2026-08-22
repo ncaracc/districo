@@ -359,6 +359,28 @@ export type Database = {
       // da stato_abbonamento — stesso pattern esatto di
       // admin_imposta_beta_tester.
       admin_imposta_accesso_gratuito: { Args: { p_artigiano_id: string; p_valore: boolean }; Returns: undefined }
+      // Pagina admin /admin/dashboard (2026-08-22, vedi CLAUDE.md): tutti i
+      // conteggi aggregati in un'unica RPC — SECURITY DEFINER, verifica
+      // is_admin internamente, stesso pattern di admin_lista_artigiani.
+      // Una sola riga restituita (Returns è comunque un array per
+      // convenzione RPC di supabase-js, va letto con `data[0]`).
+      admin_statistiche_aggregate: {
+        Args: Record<string, never>
+        Returns: {
+          artigiani_totali: number
+          nuove_iscrizioni_7gg: number
+          lavori_totali: number
+          lavori_in_corso: number
+          lavori_completati: number
+          lavori_rifiutati: number
+          abbonamento_nessuno: number
+          abbonamento_trialing: number
+          abbonamento_active: number
+          abbonamento_past_due: number
+          abbonamento_canceled: number
+          beta_tester_attivi: number
+        }[]
+      }
     }
   }
 }
